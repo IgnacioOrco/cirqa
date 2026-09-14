@@ -1,0 +1,1850 @@
+[
+  {
+    "file": "_DSC8611.jpg",
+    "num": 8611,
+    "angle": "cenital",
+    "filter": "clear",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      216,
+      214,
+      202
+    ],
+    "rimRGB": [
+      183,
+      177,
+      165
+    ],
+    "aspectRatio": "3.24",
+    "bbox": {
+      "minX": 152,
+      "minY": 1112,
+      "maxX": 2592,
+      "maxY": 1864,
+      "boxW": 2440,
+      "boxH": 752,
+      "centerX": 1372,
+      "centerY": 1488
+    }
+  },
+  {
+    "file": "_DSC8613.jpg",
+    "num": 8613,
+    "angle": "cenital",
+    "filter": "dia",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      228,
+      167,
+      1
+    ],
+    "rimRGB": [
+      36,
+      35,
+      15
+    ],
+    "aspectRatio": "3.20",
+    "bbox": {
+      "minX": 176,
+      "minY": 1192,
+      "maxX": 2528,
+      "maxY": 1928,
+      "boxW": 2352,
+      "boxH": 736,
+      "centerX": 1352,
+      "centerY": 1560
+    }
+  },
+  {
+    "file": "_DSC8614.jpg",
+    "num": 8614,
+    "angle": "cenital",
+    "filter": "transicion",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      246,
+      113,
+      1
+    ],
+    "rimRGB": [
+      164,
+      59,
+      1
+    ],
+    "aspectRatio": "3.22",
+    "bbox": {
+      "minX": 224,
+      "minY": 1208,
+      "maxX": 2568,
+      "maxY": 1936,
+      "boxW": 2344,
+      "boxH": 728,
+      "centerX": 1396,
+      "centerY": 1572
+    }
+  },
+  {
+    "file": "_DSC8616.jpg",
+    "num": 8616,
+    "angle": "cenital",
+    "filter": "noche",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      97,
+      0,
+      1
+    ],
+    "rimRGB": [
+      14,
+      1,
+      1
+    ],
+    "aspectRatio": "3.22",
+    "bbox": {
+      "minX": 152,
+      "minY": 1160,
+      "maxX": 2576,
+      "maxY": 1912,
+      "boxW": 2424,
+      "boxH": 752,
+      "centerX": 1364,
+      "centerY": 1536
+    }
+  },
+  {
+    "file": "_DSC8618.jpg",
+    "num": 8618,
+    "angle": "cenital",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      242,
+      175,
+      2
+    ],
+    "rimRGB": [
+      244,
+      194,
+      1
+    ],
+    "aspectRatio": "3.29",
+    "bbox": {
+      "minX": 128,
+      "minY": 1168,
+      "maxX": 2680,
+      "maxY": 1944,
+      "boxW": 2552,
+      "boxH": 776,
+      "centerX": 1404,
+      "centerY": 1556
+    }
+  },
+  {
+    "file": "_DSC8619.jpg",
+    "num": 8619,
+    "angle": "cenital",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      234,
+      180,
+      1
+    ],
+    "rimRGB": [
+      249,
+      206,
+      2
+    ],
+    "aspectRatio": "3.27",
+    "bbox": {
+      "minX": 176,
+      "minY": 1152,
+      "maxX": 2688,
+      "maxY": 1920,
+      "boxW": 2512,
+      "boxH": 768,
+      "centerX": 1432,
+      "centerY": 1536
+    }
+  },
+  {
+    "file": "_DSC8620.jpg",
+    "num": 8620,
+    "angle": "cenital",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      249,
+      249,
+      240
+    ],
+    "rimRGB": [
+      255,
+      255,
+      255
+    ],
+    "aspectRatio": "2.76",
+    "bbox": {
+      "minX": 136,
+      "minY": 1072,
+      "maxX": 2696,
+      "maxY": 2000,
+      "boxW": 2560,
+      "boxH": 928,
+      "centerX": 1416,
+      "centerY": 1536
+    }
+  },
+  {
+    "file": "_DSC8621.jpg",
+    "num": 8621,
+    "angle": "cenital",
+    "filter": "transicion",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      189,
+      137,
+      3
+    ],
+    "rimRGB": [
+      245,
+      204,
+      1
+    ],
+    "aspectRatio": "2.76",
+    "bbox": {
+      "minX": 136,
+      "minY": 1104,
+      "maxX": 2672,
+      "maxY": 2024,
+      "boxW": 2536,
+      "boxH": 920,
+      "centerX": 1404,
+      "centerY": 1564
+    }
+  },
+  {
+    "file": "_DSC8622.jpg",
+    "num": 8622,
+    "angle": "cenital",
+    "filter": "transicion",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      219,
+      93,
+      2
+    ],
+    "rimRGB": [
+      252,
+      148,
+      1
+    ],
+    "aspectRatio": "2.85",
+    "bbox": {
+      "minX": 16,
+      "minY": 1048,
+      "maxX": 2680,
+      "maxY": 1984,
+      "boxW": 2664,
+      "boxH": 936,
+      "centerX": 1348,
+      "centerY": 1516
+    }
+  },
+  {
+    "file": "_DSC8624.jpg",
+    "num": 8624,
+    "angle": "cenital",
+    "filter": "clear",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      61,
+      1,
+      1
+    ],
+    "rimRGB": [
+      190,
+      1,
+      15
+    ],
+    "aspectRatio": "2.86",
+    "bbox": {
+      "minX": 88,
+      "minY": 1104,
+      "maxX": 2624,
+      "maxY": 1992,
+      "boxW": 2536,
+      "boxH": 888,
+      "centerX": 1356,
+      "centerY": 1548
+    }
+  },
+  {
+    "file": "_DSC8625.jpg",
+    "num": 8625,
+    "angle": "cenital",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      81,
+      74,
+      69
+    ],
+    "rimRGB": [
+      221,
+      221,
+      219
+    ],
+    "aspectRatio": "3.20",
+    "bbox": {
+      "minX": 8,
+      "minY": 1112,
+      "maxX": 2672,
+      "maxY": 1944,
+      "boxW": 2664,
+      "boxH": 832,
+      "centerX": 1340,
+      "centerY": 1528
+    }
+  },
+  {
+    "file": "_DSC8626.jpg",
+    "num": 8626,
+    "angle": "cenital",
+    "filter": "clear",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      104,
+      65,
+      5
+    ],
+    "rimRGB": [
+      248,
+      206,
+      2
+    ],
+    "aspectRatio": "3.07",
+    "bbox": {
+      "minX": 0,
+      "minY": 1088,
+      "maxX": 2656,
+      "maxY": 1952,
+      "boxW": 2656,
+      "boxH": 864,
+      "centerX": 1328,
+      "centerY": 1520
+    }
+  },
+  {
+    "file": "_DSC8629.jpg",
+    "num": 8629,
+    "angle": "cenital",
+    "filter": "noche",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      95,
+      33,
+      7
+    ],
+    "rimRGB": [
+      254,
+      156,
+      1
+    ],
+    "aspectRatio": "2.64",
+    "bbox": {
+      "minX": 144,
+      "minY": 1112,
+      "maxX": 2696,
+      "maxY": 2080,
+      "boxW": 2552,
+      "boxH": 968,
+      "centerX": 1420,
+      "centerY": 1596
+    }
+  },
+  {
+    "file": "_DSC8631.jpg",
+    "num": 8631,
+    "angle": "cenital",
+    "filter": "clear",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      53,
+      7,
+      9
+    ],
+    "rimRGB": [
+      218,
+      11,
+      31
+    ],
+    "aspectRatio": "3.21",
+    "bbox": {
+      "minX": 56,
+      "minY": 1112,
+      "maxX": 2624,
+      "maxY": 1912,
+      "boxW": 2568,
+      "boxH": 800,
+      "centerX": 1340,
+      "centerY": 1512
+    }
+  },
+  {
+    "file": "_DSC8633.jpg",
+    "num": 8633,
+    "angle": "frente",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      170,
+      159,
+      152
+    ],
+    "rimRGB": [
+      255,
+      255,
+      255
+    ],
+    "aspectRatio": "2.56",
+    "bbox": {
+      "minX": 144,
+      "minY": 1064,
+      "maxX": 2640,
+      "maxY": 2040,
+      "boxW": 2496,
+      "boxH": 976,
+      "centerX": 1392,
+      "centerY": 1552
+    }
+  },
+  {
+    "file": "_DSC8634.jpg",
+    "num": 8634,
+    "angle": "frente",
+    "filter": "clear",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      156,
+      106,
+      2
+    ],
+    "rimRGB": [
+      248,
+      202,
+      2
+    ],
+    "aspectRatio": "2.73",
+    "bbox": {
+      "minX": 160,
+      "minY": 1048,
+      "maxX": 2648,
+      "maxY": 1960,
+      "boxW": 2488,
+      "boxH": 912,
+      "centerX": 1404,
+      "centerY": 1504
+    }
+  },
+  {
+    "file": "_DSC8635.jpg",
+    "num": 8635,
+    "angle": "frente",
+    "filter": "clear",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      169,
+      55,
+      2
+    ],
+    "rimRGB": [
+      254,
+      143,
+      1
+    ],
+    "aspectRatio": "2.72",
+    "bbox": {
+      "minX": 64,
+      "minY": 1096,
+      "maxX": 2568,
+      "maxY": 2016,
+      "boxW": 2504,
+      "boxH": 920,
+      "centerX": 1316,
+      "centerY": 1556
+    }
+  },
+  {
+    "file": "_DSC8637.jpg",
+    "num": 8637,
+    "angle": "frente",
+    "filter": "noche",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      108,
+      1,
+      2
+    ],
+    "rimRGB": [
+      192,
+      0,
+      5
+    ],
+    "aspectRatio": "2.23",
+    "bbox": {
+      "minX": 152,
+      "minY": 1024,
+      "maxX": 2648,
+      "maxY": 2144,
+      "boxW": 2496,
+      "boxH": 1120,
+      "centerX": 1400,
+      "centerY": 1584
+    }
+  },
+  {
+    "file": "_DSC8638.jpg",
+    "num": 8638,
+    "angle": "frente",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      218,
+      215,
+      204
+    ],
+    "rimRGB": [
+      234,
+      233,
+      229
+    ],
+    "aspectRatio": "3.01",
+    "bbox": {
+      "minX": 176,
+      "minY": 1040,
+      "maxX": 2560,
+      "maxY": 1832,
+      "boxW": 2384,
+      "boxH": 792,
+      "centerX": 1368,
+      "centerY": 1436
+    }
+  },
+  {
+    "file": "_DSC8639.jpg",
+    "num": 8639,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      246,
+      189,
+      1
+    ],
+    "rimRGB": [
+      252,
+      210,
+      2
+    ],
+    "aspectRatio": "3.18",
+    "bbox": {
+      "minX": 64,
+      "minY": 1096,
+      "maxX": 2656,
+      "maxY": 1912,
+      "boxW": 2592,
+      "boxH": 816,
+      "centerX": 1360,
+      "centerY": 1504
+    }
+  },
+  {
+    "file": "_DSC8640.jpg",
+    "num": 8640,
+    "angle": "frente",
+    "filter": "transicion",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      220,
+      97,
+      2
+    ],
+    "rimRGB": [
+      253,
+      154,
+      1
+    ],
+    "aspectRatio": "3.11",
+    "bbox": {
+      "minX": 80,
+      "minY": 1080,
+      "maxX": 2592,
+      "maxY": 1888,
+      "boxW": 2512,
+      "boxH": 808,
+      "centerX": 1336,
+      "centerY": 1484
+    }
+  },
+  {
+    "file": "_DSC8642.jpg",
+    "num": 8642,
+    "angle": "frente",
+    "filter": "noche",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      114,
+      0,
+      2
+    ],
+    "rimRGB": [
+      199,
+      0,
+      11
+    ],
+    "aspectRatio": "3.08",
+    "bbox": {
+      "minX": 128,
+      "minY": 1024,
+      "maxX": 2616,
+      "maxY": 1832,
+      "boxW": 2488,
+      "boxH": 808,
+      "centerX": 1372,
+      "centerY": 1428
+    }
+  },
+  {
+    "file": "_DSC8647 .jpg",
+    "num": 8647,
+    "angle": "frente",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      202,
+      200,
+      198
+    ],
+    "rimRGB": [
+      255,
+      255,
+      255
+    ],
+    "aspectRatio": "3.04",
+    "bbox": {
+      "minX": 192,
+      "minY": 1096,
+      "maxX": 2672,
+      "maxY": 1912,
+      "boxW": 2480,
+      "boxH": 816,
+      "centerX": 1432,
+      "centerY": 1504
+    }
+  },
+  {
+    "file": "_DSC8649.jpg",
+    "num": 8649,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      228,
+      195,
+      29
+    ],
+    "rimRGB": [
+      254,
+      215,
+      0
+    ],
+    "aspectRatio": "3.08",
+    "bbox": {
+      "minX": 112,
+      "minY": 1088,
+      "maxX": 2728,
+      "maxY": 1936,
+      "boxW": 2616,
+      "boxH": 848,
+      "centerX": 1420,
+      "centerY": 1512
+    }
+  },
+  {
+    "file": "_DSC8651.jpg",
+    "num": 8651,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      254,
+      171,
+      11
+    ],
+    "rimRGB": [
+      254,
+      169,
+      0
+    ],
+    "aspectRatio": "2.99",
+    "bbox": {
+      "minX": 288,
+      "minY": 1064,
+      "maxX": 2800,
+      "maxY": 1904,
+      "boxW": 2512,
+      "boxH": 840,
+      "centerX": 1544,
+      "centerY": 1484
+    }
+  },
+  {
+    "file": "_DSC8652.jpg",
+    "num": 8652,
+    "angle": "frente",
+    "filter": "noche",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      198,
+      10,
+      17
+    ],
+    "rimRGB": [
+      212,
+      0,
+      17
+    ],
+    "aspectRatio": "2.93",
+    "bbox": {
+      "minX": 232,
+      "minY": 1104,
+      "maxX": 2720,
+      "maxY": 1952,
+      "boxW": 2488,
+      "boxH": 848,
+      "centerX": 1476,
+      "centerY": 1528
+    }
+  },
+  {
+    "file": "_DSC8653.jpg",
+    "num": 8653,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      237,
+      179,
+      48
+    ],
+    "rimRGB": [
+      255,
+      221,
+      0
+    ],
+    "aspectRatio": "3.00",
+    "bbox": {
+      "minX": 352,
+      "minY": 1104,
+      "maxX": 2656,
+      "maxY": 1872,
+      "boxW": 2304,
+      "boxH": 768,
+      "centerX": 1504,
+      "centerY": 1488
+    }
+  },
+  {
+    "file": "_DSC8654.jpg",
+    "num": 8654,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      212,
+      200,
+      56
+    ],
+    "rimRGB": [
+      254,
+      218,
+      0
+    ],
+    "aspectRatio": "2.93",
+    "bbox": {
+      "minX": 344,
+      "minY": 1080,
+      "maxX": 2688,
+      "maxY": 1880,
+      "boxW": 2344,
+      "boxH": 800,
+      "centerX": 1516,
+      "centerY": 1480
+    }
+  },
+  {
+    "file": "_DSC8655.jpg",
+    "num": 8655,
+    "angle": "frente",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      235,
+      235,
+      236
+    ],
+    "rimRGB": [
+      255,
+      255,
+      255
+    ],
+    "aspectRatio": "2.98",
+    "bbox": {
+      "minX": 0,
+      "minY": 1040,
+      "maxX": 2816,
+      "maxY": 1984,
+      "boxW": 2816,
+      "boxH": 944,
+      "centerX": 1408,
+      "centerY": 1512
+    }
+  },
+  {
+    "file": "_DSC8656.jpg",
+    "num": 8656,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      254,
+      225,
+      56
+    ],
+    "rimRGB": [
+      254,
+      218,
+      0
+    ],
+    "aspectRatio": "2.61",
+    "bbox": {
+      "minX": 224,
+      "minY": 1056,
+      "maxX": 2712,
+      "maxY": 2008,
+      "boxW": 2488,
+      "boxH": 952,
+      "centerX": 1468,
+      "centerY": 1532
+    }
+  },
+  {
+    "file": "_DSC8658.jpg",
+    "num": 8658,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      255,
+      172,
+      27
+    ],
+    "rimRGB": [
+      255,
+      170,
+      1
+    ],
+    "aspectRatio": "2.69",
+    "bbox": {
+      "minX": 272,
+      "minY": 1024,
+      "maxX": 2792,
+      "maxY": 1960,
+      "boxW": 2520,
+      "boxH": 936,
+      "centerX": 1532,
+      "centerY": 1492
+    }
+  },
+  {
+    "file": "_DSC8660.jpg",
+    "num": 8660,
+    "angle": "frente",
+    "filter": "noche",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      225,
+      25,
+      39
+    ],
+    "rimRGB": [
+      217,
+      35,
+      47
+    ],
+    "aspectRatio": "2.74",
+    "bbox": {
+      "minX": 208,
+      "minY": 1056,
+      "maxX": 2728,
+      "maxY": 1976,
+      "boxW": 2520,
+      "boxH": 920,
+      "centerX": 1468,
+      "centerY": 1516
+    }
+  },
+  {
+    "file": "_DSC8662.jpg",
+    "num": 8662,
+    "angle": "frente",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      254,
+      254,
+      254
+    ],
+    "rimRGB": [
+      255,
+      255,
+      255
+    ],
+    "aspectRatio": "3.64",
+    "bbox": {
+      "minX": 80,
+      "minY": 1168,
+      "maxX": 2760,
+      "maxY": 1904,
+      "boxW": 2680,
+      "boxH": 736,
+      "centerX": 1420,
+      "centerY": 1536
+    }
+  },
+  {
+    "file": "_DSC8664.jpg",
+    "num": 8664,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      235,
+      206,
+      38
+    ],
+    "rimRGB": [
+      253,
+      217,
+      0
+    ],
+    "aspectRatio": "3.60",
+    "bbox": {
+      "minX": 56,
+      "minY": 1112,
+      "maxX": 2792,
+      "maxY": 1872,
+      "boxW": 2736,
+      "boxH": 760,
+      "centerX": 1424,
+      "centerY": 1492
+    }
+  },
+  {
+    "file": "_DSC8666.jpg",
+    "num": 8666,
+    "angle": "frente",
+    "filter": "transicion",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      185,
+      115,
+      42
+    ],
+    "rimRGB": [
+      254,
+      165,
+      1
+    ],
+    "aspectRatio": "3.58",
+    "bbox": {
+      "minX": 32,
+      "minY": 1144,
+      "maxX": 2664,
+      "maxY": 1880,
+      "boxW": 2632,
+      "boxH": 736,
+      "centerX": 1348,
+      "centerY": 1512
+    }
+  },
+  {
+    "file": "_DSC8667.jpg",
+    "num": 8667,
+    "angle": "frente",
+    "filter": "noche",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      214,
+      28,
+      40
+    ],
+    "rimRGB": [
+      215,
+      2,
+      19
+    ],
+    "aspectRatio": "3.53",
+    "bbox": {
+      "minX": 32,
+      "minY": 1160,
+      "maxX": 2712,
+      "maxY": 1920,
+      "boxW": 2680,
+      "boxH": 760,
+      "centerX": 1372,
+      "centerY": 1540
+    }
+  },
+  {
+    "file": "_DSC8669.jpg",
+    "num": 8669,
+    "angle": "frente",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      255,
+      255,
+      255
+    ],
+    "rimRGB": [
+      255,
+      255,
+      255
+    ],
+    "aspectRatio": "3.10",
+    "bbox": {
+      "minX": 160,
+      "minY": 1064,
+      "maxX": 2736,
+      "maxY": 1896,
+      "boxW": 2576,
+      "boxH": 832,
+      "centerX": 1448,
+      "centerY": 1480
+    }
+  },
+  {
+    "file": "_DSC8670.jpg",
+    "num": 8670,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      255,
+      226,
+      59
+    ],
+    "rimRGB": [
+      254,
+      220,
+      0
+    ],
+    "aspectRatio": "2.85",
+    "bbox": {
+      "minX": 264,
+      "minY": 1048,
+      "maxX": 2792,
+      "maxY": 1936,
+      "boxW": 2528,
+      "boxH": 888,
+      "centerX": 1528,
+      "centerY": 1492
+    }
+  },
+  {
+    "file": "_DSC8671.jpg",
+    "num": 8671,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      254,
+      176,
+      17
+    ],
+    "rimRGB": [
+      254,
+      172,
+      0
+    ],
+    "aspectRatio": "2.82",
+    "bbox": {
+      "minX": 208,
+      "minY": 1048,
+      "maxX": 2776,
+      "maxY": 1960,
+      "boxW": 2568,
+      "boxH": 912,
+      "centerX": 1492,
+      "centerY": 1504
+    }
+  },
+  {
+    "file": "_DSC8672.jpg",
+    "num": 8672,
+    "angle": "frente",
+    "filter": "noche",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      232,
+      11,
+      33
+    ],
+    "rimRGB": [
+      227,
+      17,
+      37
+    ],
+    "aspectRatio": "3.05",
+    "bbox": {
+      "minX": 160,
+      "minY": 1072,
+      "maxX": 2792,
+      "maxY": 1936,
+      "boxW": 2632,
+      "boxH": 864,
+      "centerX": 1476,
+      "centerY": 1504
+    }
+  },
+  {
+    "file": "_DSC8673.jpg",
+    "num": 8673,
+    "angle": "frente",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      255,
+      255,
+      255
+    ],
+    "rimRGB": [
+      255,
+      255,
+      255
+    ],
+    "aspectRatio": "2.83",
+    "bbox": {
+      "minX": 280,
+      "minY": 1080,
+      "maxX": 2728,
+      "maxY": 1944,
+      "boxW": 2448,
+      "boxH": 864,
+      "centerX": 1504,
+      "centerY": 1512
+    }
+  },
+  {
+    "file": "_DSC8674.jpg",
+    "num": 8674,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      254,
+      225,
+      46
+    ],
+    "rimRGB": [
+      254,
+      220,
+      0
+    ],
+    "aspectRatio": "2.79",
+    "bbox": {
+      "minX": 264,
+      "minY": 1064,
+      "maxX": 2672,
+      "maxY": 1928,
+      "boxW": 2408,
+      "boxH": 864,
+      "centerX": 1468,
+      "centerY": 1496
+    }
+  },
+  {
+    "file": "_DSC8675.jpg",
+    "num": 8675,
+    "angle": "frente",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      254,
+      178,
+      15
+    ],
+    "rimRGB": [
+      254,
+      179,
+      0
+    ],
+    "aspectRatio": "2.81",
+    "bbox": {
+      "minX": 264,
+      "minY": 1072,
+      "maxX": 2688,
+      "maxY": 1936,
+      "boxW": 2424,
+      "boxH": 864,
+      "centerX": 1476,
+      "centerY": 1504
+    }
+  },
+  {
+    "file": "_DSC8676.jpg",
+    "num": 8676,
+    "angle": "frente",
+    "filter": "noche",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      226,
+      6,
+      31
+    ],
+    "rimRGB": [
+      227,
+      7,
+      19
+    ],
+    "aspectRatio": "2.81",
+    "bbox": {
+      "minX": 216,
+      "minY": 1080,
+      "maxX": 2664,
+      "maxY": 1952,
+      "boxW": 2448,
+      "boxH": 872,
+      "centerX": 1440,
+      "centerY": 1516
+    }
+  },
+  {
+    "file": "_DSC8678.jpg",
+    "num": 8678,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      239,
+      237,
+      233
+    ],
+    "rimRGB": [
+      218,
+      214,
+      209
+    ],
+    "aspectRatio": "3.00",
+    "bbox": {
+      "minX": 256,
+      "minY": 1104,
+      "maxX": 2752,
+      "maxY": 1936,
+      "boxW": 2496,
+      "boxH": 832,
+      "centerX": 1504,
+      "centerY": 1520
+    }
+  },
+  {
+    "file": "_DSC8680.jpg",
+    "num": 8680,
+    "angle": "perspectiva",
+    "filter": "dia",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      254,
+      221,
+      7
+    ],
+    "rimRGB": [
+      62,
+      42,
+      34
+    ],
+    "aspectRatio": "3.13",
+    "bbox": {
+      "minX": 56,
+      "minY": 1072,
+      "maxX": 2736,
+      "maxY": 1928,
+      "boxW": 2680,
+      "boxH": 856,
+      "centerX": 1396,
+      "centerY": 1500
+    }
+  },
+  {
+    "file": "_DSC8681.jpg",
+    "num": 8681,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      251,
+      207,
+      122
+    ],
+    "rimRGB": [
+      160,
+      57,
+      17
+    ],
+    "aspectRatio": "3.19",
+    "bbox": {
+      "minX": 48,
+      "minY": 1080,
+      "maxX": 2800,
+      "maxY": 1944,
+      "boxW": 2752,
+      "boxH": 864,
+      "centerX": 1424,
+      "centerY": 1512
+    }
+  },
+  {
+    "file": "_DSC8682.jpg",
+    "num": 8682,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      242,
+      143,
+      148
+    ],
+    "rimRGB": [
+      79,
+      10,
+      16
+    ],
+    "aspectRatio": "3.26",
+    "bbox": {
+      "minX": 32,
+      "minY": 1104,
+      "maxX": 2744,
+      "maxY": 1936,
+      "boxW": 2712,
+      "boxH": 832,
+      "centerX": 1388,
+      "centerY": 1520
+    }
+  },
+  {
+    "file": "_DSC8683.jpg",
+    "num": 8683,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      251,
+      227,
+      112
+    ],
+    "rimRGB": [
+      241,
+      160,
+      1
+    ],
+    "aspectRatio": "3.22",
+    "bbox": {
+      "minX": 72,
+      "minY": 1104,
+      "maxX": 2800,
+      "maxY": 1952,
+      "boxW": 2728,
+      "boxH": 848,
+      "centerX": 1436,
+      "centerY": 1528
+    }
+  },
+  {
+    "file": "_DSC8684.jpg",
+    "num": 8684,
+    "angle": "perspectiva",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      254,
+      221,
+      1
+    ],
+    "rimRGB": [
+      162,
+      144,
+      2
+    ],
+    "aspectRatio": "3.19",
+    "bbox": {
+      "minX": 104,
+      "minY": 1120,
+      "maxX": 2784,
+      "maxY": 1960,
+      "boxW": 2680,
+      "boxH": 840,
+      "centerX": 1444,
+      "centerY": 1540
+    }
+  },
+  {
+    "file": "_DSC8685.jpg",
+    "num": 8685,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      255,
+      255,
+      255
+    ],
+    "rimRGB": [
+      255,
+      255,
+      255
+    ],
+    "aspectRatio": "3.01",
+    "bbox": {
+      "minX": 120,
+      "minY": 1080,
+      "maxX": 2792,
+      "maxY": 1968,
+      "boxW": 2672,
+      "boxH": 888,
+      "centerX": 1456,
+      "centerY": 1524
+    }
+  },
+  {
+    "file": "_DSC8686.jpg",
+    "num": 8686,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      254,
+      234,
+      129
+    ],
+    "rimRGB": [
+      250,
+      210,
+      1
+    ],
+    "aspectRatio": "3.05",
+    "bbox": {
+      "minX": 24,
+      "minY": 1080,
+      "maxX": 2736,
+      "maxY": 1968,
+      "boxW": 2712,
+      "boxH": 888,
+      "centerX": 1380,
+      "centerY": 1524
+    }
+  },
+  {
+    "file": "_DSC8688.jpg",
+    "num": 8688,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      171,
+      121,
+      44
+    ],
+    "rimRGB": [
+      254,
+      159,
+      0
+    ],
+    "aspectRatio": "2.89",
+    "bbox": {
+      "minX": 0,
+      "minY": 1040,
+      "maxX": 2680,
+      "maxY": 1968,
+      "boxW": 2680,
+      "boxH": 928,
+      "centerX": 1340,
+      "centerY": 1504
+    }
+  },
+  {
+    "file": "_DSC8689.jpg",
+    "num": 8689,
+    "angle": "perspectiva",
+    "filter": "noche",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      181,
+      21,
+      37
+    ],
+    "rimRGB": [
+      214,
+      0,
+      22
+    ],
+    "aspectRatio": "2.91",
+    "bbox": {
+      "minX": 0,
+      "minY": 1064,
+      "maxX": 2656,
+      "maxY": 1976,
+      "boxW": 2656,
+      "boxH": 912,
+      "centerX": 1328,
+      "centerY": 1520
+    }
+  },
+  {
+    "file": "_DSC8691.jpg",
+    "num": 8691,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      241,
+      241,
+      240
+    ],
+    "rimRGB": [
+      12,
+      9,
+      8
+    ],
+    "aspectRatio": "3.64",
+    "bbox": {
+      "minX": 64,
+      "minY": 1216,
+      "maxX": 2688,
+      "maxY": 1936,
+      "boxW": 2624,
+      "boxH": 720,
+      "centerX": 1376,
+      "centerY": 1576
+    }
+  },
+  {
+    "file": "_DSC8692.jpg",
+    "num": 8692,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      254,
+      233,
+      126
+    ],
+    "rimRGB": [
+      37,
+      19,
+      6
+    ],
+    "aspectRatio": "3.52",
+    "bbox": {
+      "minX": 48,
+      "minY": 1072,
+      "maxX": 2696,
+      "maxY": 1824,
+      "boxW": 2648,
+      "boxH": 752,
+      "centerX": 1372,
+      "centerY": 1448
+    }
+  },
+  {
+    "file": "_DSC8694.jpg",
+    "num": 8694,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      254,
+      208,
+      127
+    ],
+    "rimRGB": [
+      10,
+      10,
+      8
+    ],
+    "aspectRatio": "3.57",
+    "bbox": {
+      "minX": 16,
+      "minY": 1184,
+      "maxX": 2704,
+      "maxY": 1936,
+      "boxW": 2688,
+      "boxH": 752,
+      "centerX": 1360,
+      "centerY": 1560
+    }
+  },
+  {
+    "file": "_DSC8695.jpg",
+    "num": 8695,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      230,
+      121,
+      132
+    ],
+    "rimRGB": [
+      9,
+      9,
+      10
+    ],
+    "aspectRatio": "3.55",
+    "bbox": {
+      "minX": 0,
+      "minY": 1168,
+      "maxX": 2640,
+      "maxY": 1912,
+      "boxW": 2640,
+      "boxH": 744,
+      "centerX": 1320,
+      "centerY": 1540
+    }
+  },
+  {
+    "file": "_DSC8699.jpg",
+    "num": 8699,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "matte-black",
+    "lensRGB": [
+      246,
+      242,
+      240
+    ],
+    "rimRGB": [
+      209,
+      189,
+      171
+    ],
+    "aspectRatio": "3.34",
+    "bbox": {
+      "minX": 104,
+      "minY": 1104,
+      "maxX": 2720,
+      "maxY": 1888,
+      "boxW": 2616,
+      "boxH": 784,
+      "centerX": 1412,
+      "centerY": 1496
+    }
+  },
+  {
+    "file": "_DSC8701.jpg",
+    "num": 8701,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      251,
+      231,
+      137
+    ],
+    "rimRGB": [
+      251,
+      213,
+      8
+    ],
+    "aspectRatio": "3.25",
+    "bbox": {
+      "minX": 0,
+      "minY": 1128,
+      "maxX": 2728,
+      "maxY": 1968,
+      "boxW": 2728,
+      "boxH": 840,
+      "centerX": 1364,
+      "centerY": 1548
+    }
+  },
+  {
+    "file": "_DSC8703.jpg",
+    "num": 8703,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      254,
+      206,
+      128
+    ],
+    "rimRGB": [
+      255,
+      160,
+      0
+    ],
+    "aspectRatio": "3.23",
+    "bbox": {
+      "minX": 8,
+      "minY": 1120,
+      "maxX": 2672,
+      "maxY": 1944,
+      "boxW": 2664,
+      "boxH": 824,
+      "centerX": 1340,
+      "centerY": 1532
+    }
+  },
+  {
+    "file": "_DSC8705.jpg",
+    "num": 8705,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      232,
+      123,
+      124
+    ],
+    "rimRGB": [
+      213,
+      0,
+      14
+    ],
+    "aspectRatio": "3.32",
+    "bbox": {
+      "minX": 0,
+      "minY": 1136,
+      "maxX": 2656,
+      "maxY": 1936,
+      "boxW": 2656,
+      "boxH": 800,
+      "centerX": 1328,
+      "centerY": 1536
+    }
+  },
+  {
+    "file": "_DSC8706.jpg",
+    "num": 8706,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "crystal-clear",
+    "lensRGB": [
+      253,
+      253,
+      253
+    ],
+    "rimRGB": [
+      255,
+      255,
+      255
+    ],
+    "aspectRatio": "3.09",
+    "bbox": {
+      "minX": 56,
+      "minY": 1112,
+      "maxX": 2648,
+      "maxY": 1952,
+      "boxW": 2592,
+      "boxH": 840,
+      "centerX": 1352,
+      "centerY": 1532
+    }
+  },
+  {
+    "file": "_DSC8707.jpg",
+    "num": 8707,
+    "angle": "perspectiva",
+    "filter": "dia",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      252,
+      223,
+      76
+    ],
+    "rimRGB": [
+      254,
+      218,
+      0
+    ],
+    "aspectRatio": "3.05",
+    "bbox": {
+      "minX": 0,
+      "minY": 1104,
+      "maxX": 2608,
+      "maxY": 1960,
+      "boxW": 2608,
+      "boxH": 856,
+      "centerX": 1304,
+      "centerY": 1532
+    }
+  },
+  {
+    "file": "_DSC8708.jpg",
+    "num": 8708,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "carey-havana",
+    "lensRGB": [
+      248,
+      203,
+      116
+    ],
+    "rimRGB": [
+      255,
+      173,
+      1
+    ],
+    "aspectRatio": "3.14",
+    "bbox": {
+      "minX": 0,
+      "minY": 1120,
+      "maxX": 2664,
+      "maxY": 1968,
+      "boxW": 2664,
+      "boxH": 848,
+      "centerX": 1332,
+      "centerY": 1544
+    }
+  },
+  {
+    "file": "_DSC8710.jpg",
+    "num": 8710,
+    "angle": "perspectiva",
+    "filter": "clear",
+    "frameColor": "crystal-rose",
+    "lensRGB": [
+      233,
+      122,
+      123
+    ],
+    "rimRGB": [
+      210,
+      0,
+      5
+    ],
+    "aspectRatio": "3.10",
+    "bbox": {
+      "minX": 0,
+      "minY": 1112,
+      "maxX": 2680,
+      "maxY": 1976,
+      "boxW": 2680,
+      "boxH": 864,
+      "centerX": 1340,
+      "centerY": 1544
+    }
+  }
+]
