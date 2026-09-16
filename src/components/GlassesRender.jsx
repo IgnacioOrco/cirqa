@@ -50,7 +50,8 @@ export default function GlassesRender({
   // Frame geometries for Q1, Q2, Q3, Q4, Q5
   const renderLensesAndFrame = () => {
     switch (modelId) {
-      case 'q1': // Square Classic
+      case 'q001':
+      case 'q1': // Q 001: Square Classic Negro
         return (
           <g>
             {/* Left Lens Glass */}
@@ -118,37 +119,8 @@ export default function GlassesRender({
           </g>
         );
 
-      case 'q2': // Round Pantos
-        return (
-          <g>
-            {/* Left Round Lens */}
-            <circle cx="220" cy="130" r="72" fill={currentTint.fill} stroke={currentTint.stroke} strokeWidth="1.5" />
-            {/* Right Round Lens */}
-            <circle cx="480" cy="130" r="72" fill={currentTint.fill} stroke={currentTint.stroke} strokeWidth="1.5" />
-
-            {/* Specular Highlight */}
-            {showReflection && (
-              <>
-                <path d="M 175 90 A 68 68 0 0 1 265 85" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.8" />
-                <path d="M 435 90 A 68 68 0 0 1 525 85" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.8" />
-              </>
-            )}
-
-            {/* Outer Frame */}
-            <circle cx="220" cy="130" r="76" fill="none" stroke="#201610" strokeWidth="9" />
-            <circle cx="480" cy="130" r="76" fill="none" stroke="#201610" strokeWidth="9" />
-
-            {/* High Keyhole Bridge */}
-            <path d="M 296 115 C 330 95, 370 95, 404 115" stroke="#201610" strokeWidth="7" strokeLinecap="round" fill="none" />
-            <path d="M 335 125 C 342 110, 358 110, 365 125" stroke="#201610" strokeWidth="4" strokeLinecap="round" fill="none" />
-
-            {/* Temples */}
-            <path d="M 144 115 L 60 100 Q 30 92 18 75" stroke="#201610" strokeWidth="6" strokeLinecap="round" fill="none" />
-            <path d="M 556 115 L 640 100 Q 670 92 682 75" stroke="#201610" strokeWidth="6" strokeLinecap="round" fill="none" />
-          </g>
-        );
-
-      case 'q3': // Double Bridge Minimal Aviator
+      case 'q002':
+      case 'q4': // Q 002: Aviator Wire Dorado
         return (
           <g>
             {/* Left Teardrop Lens */}
@@ -174,82 +146,170 @@ export default function GlassesRender({
               </>
             )}
 
-            {/* Thin Titanium Frame */}
+            {/* Thin Golden Aviator Frame */}
             <path
               d="M 130 90 C 140 60, 270 58, 305 85 C 315 130, 290 195, 215 195 C 150 195, 120 150, 130 90 Z"
               fill="none"
-              stroke="#201610"
-              strokeWidth="7"
+              stroke="#D4AF37"
+              strokeWidth="5"
             />
             <path
               d="M 395 85 C 430 58, 560 60, 570 90 C 580 150, 550 195, 485 195 C 410 195, 385 130, 395 85 Z"
               fill="none"
-              stroke="#201610"
-              strokeWidth="7"
+              stroke="#D4AF37"
+              strokeWidth="5"
             />
 
             {/* Double Brow Bar Bridge */}
-            <path d="M 230 52 L 470 52" stroke="#201610" strokeWidth="5" strokeLinecap="round" />
-            <path d="M 305 85 C 330 75, 370 75, 395 85" stroke="#201610" strokeWidth="5" strokeLinecap="round" fill="none" />
+            <path d="M 230 52 L 470 52" stroke="#D4AF37" strokeWidth="4.5" strokeLinecap="round" />
+            <path d="M 305 85 C 330 75, 370 75, 395 85" stroke="#D4AF37" strokeWidth="4.5" strokeLinecap="round" fill="none" />
 
             {/* Temples */}
-            <path d="M 125 85 L 50 75 Q 25 70 15 55" stroke="#201610" strokeWidth="5" strokeLinecap="round" fill="none" />
-            <path d="M 575 85 L 650 75 Q 675 70 685 55" stroke="#201610" strokeWidth="5" strokeLinecap="round" fill="none" />
+            <path d="M 125 85 L 50 75 Q 25 70 15 55" stroke="#D4AF37" strokeWidth="4.5" strokeLinecap="round" fill="none" />
+            <path d="M 575 85 L 650 75 Q 675 70 685 55" stroke="#D4AF37" strokeWidth="4.5" strokeLinecap="round" fill="none" />
           </g>
         );
 
-      case 'q4': // Octagonal Thin
+      case 'q003':
+      case 'q2': // Q 003: Navigator Flat-Top Negro
         return (
           <g>
-            {/* Left Octagon Lens */}
-            <polygon
-              points="160,70 260,70 300,105 300,165 260,195 160,195 125,160 125,105"
+            {/* Left Navigator Lens */}
+            <path
+              d="M 125 85 L 305 85 C 310 135, 295 195, 215 195 C 145 195, 120 145, 125 85 Z"
               fill={currentTint.fill}
               stroke={currentTint.stroke}
               strokeWidth="1.5"
             />
-            {/* Right Octagon Lens */}
-            <polygon
-              points="440,70 540,70 575,105 575,160 540,195 440,195 400,165 400,105"
+            {/* Right Navigator Lens */}
+            <path
+              d="M 395 85 L 575 85 C 580 145, 555 195, 485 195 C 405 195, 390 135, 395 85 Z"
               fill={currentTint.fill}
               stroke={currentTint.stroke}
               strokeWidth="1.5"
             />
 
-            {/* Reflection */}
             {showReflection && (
               <>
-                <path d="M 150 85 L 270 85" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
-                <path d="M 430 85 L 550 85" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
+                <path d="M 140 95 L 285 95" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
+                <path d="M 415 95 L 560 95" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" opacity="0.8" />
               </>
             )}
 
-            {/* Frame */}
-            <polygon
-              points="160,70 260,70 300,105 300,165 260,195 160,195 125,160 125,105"
-              fill="none"
-              stroke="#201610"
-              strokeWidth="6"
-              strokeLinejoin="round"
-            />
-            <polygon
-              points="440,70 540,70 575,105 575,160 540,195 440,195 400,165 400,105"
-              fill="none"
-              stroke="#201610"
-              strokeWidth="6"
-              strokeLinejoin="round"
-            />
+            {/* Flat-top Brow bar */}
+            <path d="M 100 70 L 600 70" stroke="#201610" strokeWidth="12" strokeLinecap="round" />
 
-            {/* Bridge */}
-            <path d="M 300 115 C 330 105, 370 105, 400 115" stroke="#201610" strokeWidth="5" strokeLinecap="round" fill="none" />
+            {/* Lower Rims */}
+            <path
+              d="M 100 70 L 125 85 C 120 145, 145 195, 215 195 C 295 195, 310 135, 305 85 L 325 85"
+              fill="none"
+              stroke="#201610"
+              strokeWidth="9"
+              strokeLinejoin="round"
+            />
+            <path
+              d="M 375 85 L 395 85 C 390 135, 405 195, 485 195 C 555 195, 580 145, 575 85 L 600 70"
+              fill="none"
+              stroke="#201610"
+              strokeWidth="9"
+              strokeLinejoin="round"
+            />
+            {/* Central Bridge Accent */}
+            <path d="M 315 105 L 385 105" stroke="#201610" strokeWidth="6" strokeLinecap="round" />
 
             {/* Temples */}
-            <path d="M 125 110 L 50 100 Q 25 95 15 80" stroke="#201610" strokeWidth="5" strokeLinecap="round" fill="none" />
-            <path d="M 575 110 L 650 100 Q 675 95 685 80" stroke="#201610" strokeWidth="5" strokeLinecap="round" fill="none" />
+            <path d="M 100 70 L 40 65 Q 20 60 10 50" stroke="#201610" strokeWidth="7" strokeLinecap="round" fill="none" />
+            <path d="M 600 70 L 660 65 Q 680 60 690 50" stroke="#201610" strokeWidth="7" strokeLinecap="round" fill="none" />
           </g>
         );
 
-      case 'q5': // Rectangular Slim
+      case 'q004':
+      case 'q3': // Q 004: Oval Carey Havana
+        return (
+          <g>
+            {/* Left Oval Lens */}
+            <ellipse cx="220" cy="130" rx="90" ry="60" fill={currentTint.fill} stroke={currentTint.stroke} strokeWidth="1.5" />
+            {/* Right Oval Lens */}
+            <ellipse cx="480" cy="130" rx="90" ry="60" fill={currentTint.fill} stroke={currentTint.stroke} strokeWidth="1.5" />
+
+            {showReflection && (
+              <>
+                <path d="M 160 95 Q 220 85 280 100" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.8" />
+                <path d="M 420 100 Q 480 85 540 95" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.8" />
+              </>
+            )}
+
+            {/* Carey Havana Frame (rich warm mottled brown) */}
+            <ellipse cx="220" cy="130" rx="92" ry="62" fill="none" stroke="#5A3825" strokeWidth="11" />
+            <ellipse cx="480" cy="130" rx="92" ry="62" fill="none" stroke="#5A3825" strokeWidth="11" />
+
+            {/* Bridge */}
+            <path d="M 310 120 C 335 108, 365 108, 390 120" stroke="#5A3825" strokeWidth="10" strokeLinecap="round" fill="none" />
+
+            {/* Temples */}
+            <path d="M 128 120 L 55 105 Q 30 98 18 80" stroke="#5A3825" strokeWidth="8" strokeLinecap="round" fill="none" />
+            <path d="M 572 120 L 645 105 Q 670 98 682 80" stroke="#5A3825" strokeWidth="8" strokeLinecap="round" fill="none" />
+          </g>
+        );
+
+      case 'q005':
+      case 'q5': // Q 005: Round Minimal Wire
+        return (
+          <g>
+            {/* Left Round Lens */}
+            <circle cx="220" cy="130" r="72" fill={currentTint.fill} stroke={currentTint.stroke} strokeWidth="1.5" />
+            {/* Right Round Lens */}
+            <circle cx="480" cy="130" r="72" fill={currentTint.fill} stroke={currentTint.stroke} strokeWidth="1.5" />
+
+            {showReflection && (
+              <>
+                <path d="M 175 90 A 68 68 0 0 1 265 85" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.8" />
+                <path d="M 435 90 A 68 68 0 0 1 525 85" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.8" />
+              </>
+            )}
+
+            {/* Wire Rim */}
+            <circle cx="220" cy="130" r="74" fill="none" stroke="#71717A" strokeWidth="5" />
+            <circle cx="480" cy="130" r="74" fill="none" stroke="#71717A" strokeWidth="5" />
+
+            {/* Bridge */}
+            <path d="M 294 125 C 330 110, 370 110, 406 125" stroke="#71717A" strokeWidth="5" strokeLinecap="round" fill="none" />
+
+            {/* Temples */}
+            <path d="M 146 125 L 60 115 Q 30 108 18 90" stroke="#71717A" strokeWidth="4.5" strokeLinecap="round" fill="none" />
+            <path d="M 554 125 L 640 115 Q 670 108 682 90" stroke="#71717A" strokeWidth="4.5" strokeLinecap="round" fill="none" />
+          </g>
+        );
+
+      case 'qkids':
+      case 'kids': // Q KIDS: Edición Infantil Cristal Rosa
+        return (
+          <g>
+            {/* Left Round Lens (Compact) */}
+            <circle cx="230" cy="130" r="64" fill={currentTint.fill} stroke={currentTint.stroke} strokeWidth="1.5" />
+            {/* Right Round Lens (Compact) */}
+            <circle cx="470" cy="130" r="64" fill={currentTint.fill} stroke={currentTint.stroke} strokeWidth="1.5" />
+
+            {showReflection && (
+              <>
+                <path d="M 190 95 A 58 58 0 0 1 270 90" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.8" />
+                <path d="M 430 95 A 58 58 0 0 1 510 90" stroke={currentTint.specular} strokeWidth="2.5" strokeLinecap="round" fill="none" opacity="0.8" />
+              </>
+            )}
+
+            {/* Translucent Rose Frame */}
+            <circle cx="230" cy="130" r="68" fill="none" stroke="#F4B7B2" strokeWidth="8" opacity="0.9" />
+            <circle cx="470" cy="130" r="68" fill="none" stroke="#F4B7B2" strokeWidth="8" opacity="0.9" />
+
+            {/* Keyhole Bridge */}
+            <path d="M 298 122 C 328 108, 372 108, 402 122" stroke="#F4B7B2" strokeWidth="7" strokeLinecap="round" fill="none" opacity="0.9" />
+
+            {/* Temples */}
+            <path d="M 162 122 L 80 110 Q 50 102 30 85" stroke="#F4B7B2" strokeWidth="6.5" strokeLinecap="round" fill="none" opacity="0.9" />
+            <path d="M 538 122 L 620 110 Q 650 102 670 85" stroke="#F4B7B2" strokeWidth="6.5" strokeLinecap="round" fill="none" opacity="0.9" />
+          </g>
+        );
+
       default:
         return (
           <g>
