@@ -17,6 +17,7 @@ export const FILTERS = [
     uvProtection: '100% UV400',
     drivingWarning: false,
     pdfTitle: 'Certificado Homologado — Filtro Clear (26%)',
+    pdfUrl: '/certificates/CIRQA-Certificado-Filtro-Dia.pdf',
     norm: 'ISO 12312-1 / ANSI Z80.3',
   },
   {
@@ -39,6 +40,7 @@ export const FILTERS = [
     uvProtection: '100% UV400',
     drivingWarning: false,
     pdfTitle: 'Certificado Homologado — Filtro Día (84%)',
+    pdfUrl: '/certificates/CIRQA-Certificado-Filtro-Dia.pdf',
     norm: 'EN/ISO 12312-1-2015 / AS/NZS 1067-2016',
   },
   {
@@ -61,6 +63,7 @@ export const FILTERS = [
     uvProtection: '100% UV400',
     drivingWarning: false,
     pdfTitle: 'Certificado Homologado — Filtro Transición (97%)',
+    pdfUrl: '/certificates/CIRQA-Certificado-Filtro-Transicion.pdf',
     norm: 'EN/ISO 12312-1-2015 / AS/NZS 1067-2016',
   },
   {
@@ -85,6 +88,7 @@ export const FILTERS = [
     warningText: 'No apto para conducir',
     warningSubtext: 'Norma ISO 12312-1:2022 / ANSI Z80.3:2018 (Tv < 15%)',
     pdfTitle: 'Certificado Homologado — Filtro Noche (99%)',
+    pdfUrl: '/certificates/CIRQA-Certificado-Filtro-Noche.pdf',
     norm: 'ISO 12312-1:2022 / ANSI Z80.3:2018',
   },
 ];
