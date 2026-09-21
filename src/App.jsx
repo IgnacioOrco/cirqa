@@ -18,27 +18,22 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      {showComingSoon ? (
-        // Modo Próximamente activo: Solo se muestra la pantalla de lanzamiento oficial
-        <Routes>
+      <Routes>
+        {/* Rutas de Administración accesibles para administradores */}
+        <Route path="/login" element={<Login />} />
+        <Route path="/admin" element={<AdminDashboard />} />
+
+        {showComingSoon ? (
+          // Modo Próximamente activo: Se muestra la pantalla de prelanzamiento oficial
           <Route path="*" element={<ComingSoon />} />
-        </Routes>
-      ) : (
-        // Sitio web completo de CIRQA (100% preservado e intacto)
-        <Routes>
-          {/* Ruta Pública Principal: E-commerce CIRQA */}
-          <Route path="/" element={<Home />} />
-
-          {/* Ruta de Acceso Administrativo */}
-          <Route path="/login" element={<Login />} />
-
-          {/* Ruta Privada: Panel de Administración */}
-          <Route path="/admin" element={<AdminDashboard />} />
-
-          {/* Redirección ante cualquier ruta no coincidente */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      )}
+        ) : (
+          // Sitio web completo de CIRQA
+          <>
+            <Route path="/" element={<Home />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        )}
+      </Routes>
     </BrowserRouter>
   );
 }

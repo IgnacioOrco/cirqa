@@ -1,13 +1,18 @@
 import Product from '../models/Product.js';
 
 /**
- * @desc    Obtener todos los armazones activos
+ * @desc    Listar todos los productos
  * @route   GET /api/products
  * @access  Público
  */
 export const getProducts = async (req, res, next) => {
   try {
-    const products = await Product.find({ isActive: true }).sort({ createdAt: -1 });
+    const { all, sort = '-createdAt' } = req.query;
+
+    // Si all=true se listan todos, sino solo los activos
+    const filter = all === 'true' ? {} : { isActive: true };
+
+    const products = await Product.find(filter).sort(sort);
 
     return res.status(200).json({
       success: true,
@@ -20,7 +25,7 @@ export const getProducts = async (req, res, next) => {
 };
 
 /**
- * @desc    Obtener detalle de un armazón por su slug
+ * @desc    Obtener un producto por su slug
  * @route   GET /api/products/:slug
  * @access  Público
  */
@@ -28,12 +33,15 @@ export const getProductBySlug = async (req, res, next) => {
   try {
     const { slug } = req.params;
 
-    const product = await Product.findOne({ slug: slug.toLowerCase().trim(), isActive: true });
+    const product = await Product.findOne({
+      slug: slug.toLowerCase().trim(),
+      isActive: true,
+    });
 
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: `Armazón con slug '${slug}' no encontrado o no disponible.`,
+        message: `Producto con slug '${slug}' no encontrado o inactivo.`,
       });
     }
 
@@ -47,44 +55,66 @@ export const getProductBySlug = async (req, res, next) => {
 };
 
 /**
- * @desc    Crear un nuevo armazón
+ * @desc    Crear un nuevo producto
  * @route   POST /api/products
- * @access  Privado (Solo Admin)
+ * @access  Privado (Admin) / Público según configuración
  */
 export const createProduct = async (req, res, next) => {
   try {
-    const { name, slug, description, basePrice, images, stock, isActive } = req.body;
+    const {
+      name,
+      price,
+      basePrice,
+      stock,
+      description,
+      image_url,
+      cloudinary_public_id,
+      images,
+      slug,
+      isActive,
+    } = req.body;
 
-    // Verificar si ya existe un producto con el mismo slug
-    const generatedSlug = slug
-      ? slug.toLowerCase().trim()
-      : name
-        ? name.toLowerCase().trim().replace(/[\s\W-]+/g, '-')
-        : null;
-
-    if (generatedSlug) {
-      const existingProduct = await Product.findOne({ slug: generatedSlug });
-      if (existingProduct) {
-        return res.status(400).json({
-          success: false,
-          message: `Ya existe un producto registrado con el slug '${generatedSlug}'.`,
-        });
-      }
+    // Validación básica de campos requeridos
+    if (!name || (price === undefined && basePrice === undefined)) {
+      return res.status(400).json({
+        success: false,
+        message: 'El nombre y el precio del producto son obligatorios.',
+      });
     }
+
+    // Slug preventivo para verificación de unicidad
+    const computedSlug = (slug || name)
+      .toLowerCase()
+      .trim()
+      .replace(/[\s\W-]+/g, '-');
+
+    const existingProduct = await Product.findOne({ slug: computedSlug });
+    if (existingProduct) {
+      return res.status(400).json({
+        success: false,
+        message: `Ya existe un producto registrado con el slug '${computedSlug}'.`,
+      });
+    }
+
+    const finalPrice = price !== undefined ? Number(price) : Number(basePrice);
+    const finalStock = stock !== undefined ? Number(stock) : 0;
 
     const product = await Product.create({
       name,
-      slug: generatedSlug,
-      description,
-      basePrice,
-      images,
-      stock,
+      slug: computedSlug,
+      description: description || '',
+      price: finalPrice,
+      basePrice: finalPrice,
+      stock: finalStock,
+      image_url: image_url || (images && images[0]) || '',
+      cloudinary_public_id: cloudinary_public_id || null,
+      images: images || (image_url ? [image_url] : []),
       isActive: isActive !== undefined ? isActive : true,
     });
 
     return res.status(201).json({
       success: true,
-      message: 'Armazón creado exitosamente.',
+      message: 'Producto creado exitosamente.',
       data: product,
     });
   } catch (error) {
@@ -93,15 +123,100 @@ export const createProduct = async (req, res, next) => {
 };
 
 /**
- * @desc    Actualizar un armazón existente por ID
+ * @desc    Actualizar el stock de un producto específico
+ * @route   PATCH /api/products/:id/stock
+ * @access  Privado (Admin / Sistema)
+ */
+export const updateProductStock = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { stock, operation, quantity } = req.body;
+
+    let updateQuery;
+
+    // Modo 1: Asignación directa de stock absoluto ({ stock: 15 })
+    if (stock !== undefined) {
+      const newStock = Number(stock);
+      if (isNaN(newStock) || newStock < 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'El valor de stock debe ser un número mayor o igual a 0.',
+        });
+      }
+      updateQuery = { $set: { stock: newStock } };
+    }
+    // Modo 2: Incremento o decremento relativo ({ operation: 'add'|'subtract', quantity: 5 })
+    else if (operation && quantity !== undefined) {
+      const deltaQty = Number(quantity);
+      if (isNaN(deltaQty) || deltaQty <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'La cantidad a modificar debe ser un número positivo.',
+        });
+      }
+
+      const incrementValue = operation === 'add' ? deltaQty : -deltaQty;
+
+      // Si es resta, aseguramos que el stock no baje de 0
+      if (operation === 'subtract') {
+        const product = await Product.findById(id);
+        if (!product) {
+          return res.status(404).json({
+            success: false,
+            message: 'Producto no encontrado.',
+          });
+        }
+        if (product.stock < deltaQty) {
+          return res.status(400).json({
+            success: false,
+            message: `Stock insuficiente. Stock actual: ${product.stock}, cantidad solicitada: ${deltaQty}.`,
+          });
+        }
+      }
+
+      updateQuery = { $inc: { stock: incrementValue } };
+    } else {
+      return res.status(400).json({
+        success: false,
+        message: 'Debe especificar el nuevo valor en "stock" o la "operation" (add/subtract) y "quantity".',
+      });
+    }
+
+    const updatedProduct = await Product.findByIdAndUpdate(id, updateQuery, {
+      new: true,
+      runValidators: true,
+    });
+
+    if (!updatedProduct) {
+      return res.status(404).json({
+        success: false,
+        message: 'Producto no encontrado para actualizar stock.',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Stock actualizado exitosamente.',
+      data: {
+        _id: updatedProduct._id,
+        name: updatedProduct.name,
+        stock: updatedProduct.stock,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Actualizar un producto existente completo por ID
  * @route   PUT /api/products/:id
- * @access  Privado (Solo Admin)
+ * @access  Privado (Admin)
  */
 export const updateProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Si se envía un nuevo slug, validar que no choque con otro producto
     if (req.body.slug) {
       req.body.slug = req.body.slug.toLowerCase().trim();
       const slugClash = await Product.findOne({
@@ -111,9 +226,16 @@ export const updateProduct = async (req, res, next) => {
       if (slugClash) {
         return res.status(400).json({
           success: false,
-          message: `El slug '${req.body.slug}' ya pertenece a otro armazón.`,
+          message: `El slug '${req.body.slug}' ya pertenece a otro producto.`,
         });
       }
+    }
+
+    // Sincronizar precio y basePrice si se envía uno
+    if (req.body.price !== undefined && req.body.basePrice === undefined) {
+      req.body.basePrice = req.body.price;
+    } else if (req.body.basePrice !== undefined && req.body.price === undefined) {
+      req.body.price = req.body.basePrice;
     }
 
     const product = await Product.findByIdAndUpdate(id, req.body, {
@@ -124,13 +246,13 @@ export const updateProduct = async (req, res, next) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Armazón no encontrado para actualizar.',
+        message: 'Producto no encontrado para actualizar.',
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Armazón actualizado exitosamente.',
+      message: 'Producto actualizado exitosamente.',
       data: product,
     });
   } catch (error) {
@@ -139,9 +261,9 @@ export const updateProduct = async (req, res, next) => {
 };
 
 /**
- * @desc    Eliminar un armazón por ID
+ * @desc    Eliminar un producto por ID
  * @route   DELETE /api/products/:id
- * @access  Privado (Solo Admin)
+ * @access  Privado (Admin)
  */
 export const deleteProduct = async (req, res, next) => {
   try {
@@ -152,13 +274,13 @@ export const deleteProduct = async (req, res, next) => {
     if (!product) {
       return res.status(404).json({
         success: false,
-        message: 'Armazón no encontrado para eliminar.',
+        message: 'Producto no encontrado para eliminar.',
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Armazón eliminado exitosamente de la base de datos.',
+      message: 'Producto eliminado exitosamente.',
       data: {
         id: product._id,
         name: product.name,

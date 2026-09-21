@@ -7,6 +7,12 @@ import connectDB from './config/db.js';
 import authRoutes from './routes/authRoutes.js';
 import productRoutes from './routes/productRoutes.js';
 import filterRoutes from './routes/filterRoutes.js';
+import webhookRoutes from './routes/webhookRoutes.js';
+import orderRoutes from './routes/orderRoutes.js';
+
+// Cron Jobs
+import { initCancelExpiredOrdersCron } from './jobs/cancelExpiredOrders.js';
+
 
 // Importar Middlewares de Error
 import { notFound, errorHandler } from './middlewares/errorMiddleware.js';
@@ -31,6 +37,7 @@ app.use(cors(corsOptions));
 // Middlewares para parseo de solicitudes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static('uploads'));
 
 // Endpoint de prueba / Health Check
 app.get('/', (req, res) => {
@@ -50,6 +57,8 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/filters', filterRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 // Middlewares de captura de errores
 app.use(notFound);
@@ -60,6 +69,9 @@ const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => {
   console.log(`[CIRQA API] Servidor ejecutándose en el puerto ${PORT} en modo ${process.env.NODE_ENV || 'development'}`);
   console.log(`[CIRQA API] Health check disponible en http://localhost:${PORT}/`);
+  
+  // Inicializar cron de cancelación de órdenes vencidas
+  initCancelExpiredOrdersCron();
 });
 
 export default app;
