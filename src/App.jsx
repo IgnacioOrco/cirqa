@@ -4,6 +4,7 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import ComingSoon from './pages/ComingSoon';
+import PrivateRoute from './components/PrivateRoute';
 
 /**
  * MODO PRÓXIMAMENTE / MANTENIMIENTO
@@ -21,7 +22,14 @@ export default function App() {
       <Routes>
         {/* Rutas de Administración accesibles para administradores */}
         <Route path="/login" element={<Login />} />
-        <Route path="/admin" element={<AdminDashboard />} />
+        <Route
+          path="/admin"
+          element={
+            <PrivateRoute>
+              <AdminDashboard />
+            </PrivateRoute>
+          }
+        />
 
         {showComingSoon ? (
           // Modo Próximamente activo: Se muestra la pantalla de prelanzamiento oficial
