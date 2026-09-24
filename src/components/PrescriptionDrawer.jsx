@@ -1,14 +1,13 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, MessageCircle, FileText, CheckCircle2 } from 'lucide-react';
-import { MODELS } from '../data/models';
 import { FILTERS } from '../data/filters';
 
 export default function PrescriptionDrawer({ isOpen, onClose, selectedModel, selectedFilter }) {
   const [prescriptionFile, setPrescriptionFile] = useState(null);
   const [notes, setNotes] = useState('');
   const [dragActive, setDragActive] = useState(false);
-  const [customModel, setCustomModel] = useState(selectedModel || MODELS[0]);
+  const [customModel, setCustomModel] = useState(selectedModel || { name: 'CIRQA Custom', formattedPrice: '$ 42.000' });
   const [customFilter, setCustomFilter] = useState(selectedFilter || FILTERS[1]);
 
   React.useEffect(() => {

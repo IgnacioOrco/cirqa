@@ -199,10 +199,10 @@ export const authService = {
 export const productService = {
   /**
    * Obtener catálogo de productos:
-   * GET /api/products (Público)
-   * GET /api/products?all=true (Admin)
+   * GET /api/products (Público - solo activos)
+   * GET /api/products?all=true (Admin - todos)
    */
-  async getProducts(params = { all: true }) {
+  async getProducts(params = {}) {
     const query = new URLSearchParams();
     if (params.all) query.append('all', 'true');
     if (params.sort) query.append('sort', params.sort);
@@ -213,6 +213,23 @@ export const productService = {
     if (Array.isArray(res)) return res;
     if (res && Array.isArray(res.data)) return res.data;
     return [];
+  },
+
+  /**
+   * Obtener un producto por ID o Slug: GET /api/products/:idOrSlug
+   */
+  async getProductById(idOrSlug) {
+    if (!idOrSlug) return null;
+    const res = await api.get(`/api/products/${idOrSlug}`);
+    if (res && res.data) return res.data;
+    return res;
+  },
+
+  /**
+   * Alias de getProductById
+   */
+  async getProductBySlug(slug) {
+    return this.getProductById(slug);
   },
 
   /**

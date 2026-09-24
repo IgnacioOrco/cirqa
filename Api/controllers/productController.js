@@ -35,11 +35,12 @@ export const getProducts = async (req, res, next) => {
 export const getProductBySlug = async (req, res, next) => {
   try {
     const { slug } = req.params;
+    const isObjectId = mongoose.Types.ObjectId.isValid(slug);
+    const filter = isObjectId
+      ? { $or: [{ slug: slug.toLowerCase().trim() }, { _id: slug }] }
+      : { slug: slug.toLowerCase().trim() };
 
-    const product = await Product.findOne({
-      slug: slug.toLowerCase().trim(),
-      isActive: true,
-    });
+    const product = await Product.findOne(filter);
 
     if (!product) {
       return res.status(404).json({
