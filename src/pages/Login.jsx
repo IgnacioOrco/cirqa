@@ -1,56 +1,55 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Lock, Mail, Eye, EyeOff, ArrowRight, ArrowLeft, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Lock, Mail, Eye, EyeOff, ArrowRight, ArrowLeft, ShieldCheck, AlertCircle, Info } from 'lucide-react';
+import { authService } from '../services/api';
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [sessionNotice, setSessionNotice] = useState(null);
+
+  // Detectar si el usuario fue redirigido porque la sesión expiró
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('expired') === '1') {
+      setSessionNotice('Tu sesión ha expirado o el token ya no es válido. Por favor, ingresa nuevamente.');
+    }
+
+    // Si ya tiene token válido guardado, redirigir directo al admin
+    if (authService.getToken()) {
+      navigate('/admin', { replace: true });
+    }
+  }, [location, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setSessionNotice(null);
     setLoading(true);
 
-    // Obtener la URL base de la API desde la variable de entorno de Vite
-    // Con fallback seguro al puerto 5000 en caso de no estar definida
-    const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
-    // Limpiar barra final si la hubiera para evitar dobles barras en la ruta
-    const cleanBaseUrl = baseUrl.replace(/\/+$/, '');
-    const loginEndpoint = `${cleanBaseUrl}/api/auth/login`;
-
     try {
-      const response = await fetch(loginEndpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const trimmedEmail = email.trim();
+      const res = await authService.login(trimmedEmail, password);
 
-      const data = await response.json();
-
-      if (!response.ok || !data.success) {
-        throw new Error(data.message || 'Error al iniciar sesión. Verifica tus credenciales.');
-      }
-
-      // Guardar el token JWT y los datos del admin en localStorage
-      if (data.token) {
-        localStorage.setItem('cirqa_token', data.token);
-        if (data.admin) {
-          localStorage.setItem('cirqa_admin', JSON.stringify(data.admin));
-        }
-        // Redirigir al panel de administración
-        navigate('/admin');
+      if (res.token) {
+        // Redirigir al dashboard de administración tras login exitoso
+        navigate('/admin', { replace: true });
       } else {
-        throw new Error('La respuesta del servidor no incluyó un token de acceso válido.');
+        throw new Error('La respuesta del servidor no incluyó un token de autenticación.');
       }
     } catch (err) {
-      setError(err.message || 'No fue posible conectar con el servidor.');
+      const message =
+        err.status === 401
+          ? 'Credenciales inválidas. Revisa el correo electrónico y la contraseña.'
+          : err.message || 'No fue posible iniciar sesión. Por favor intenta nuevamente.';
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -59,7 +58,7 @@ export default function Login() {
   return (
     <div className="min-h-screen bg-white text-cirqa-negro font-montserrat flex flex-col justify-between selection:bg-cirqa-arena selection:text-cirqa-negro">
       
-      {/* Minimalist Top Bar */}
+      {/* Barra Superior Minimalista */}
       <header className="px-6 py-6 border-b border-cirqa-negro/5 flex items-center justify-between max-w-7xl mx-auto w-full">
         <Link to="/" className="flex items-center gap-2 text-xs text-cirqa-negro/60 hover:text-cirqa-negro transition-colors group">
           <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
@@ -70,7 +69,7 @@ export default function Login() {
         </span>
       </header>
 
-      {/* Main Login Card */}
+      {/* Tarjeta de Autenticación */}
       <main className="flex items-center justify-center p-6 my-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -78,10 +77,10 @@ export default function Login() {
           transition={{ duration: 0.4, ease: 'easeOut' }}
           className="w-full max-w-md bg-white border border-cirqa-negro/10 rounded-3xl p-8 sm:p-10 shadow-xl relative"
         >
-          {/* Subtle Ambient Brand Glow */}
+          {/* Brillo ambiental de marca */}
           <div className="absolute -top-10 left-1/2 -translate-x-1/2 w-48 h-48 bg-cirqa-surface rounded-full blur-3xl -z-10 opacity-80 pointer-events-none" />
 
-          {/* Header */}
+          {/* Encabezado */}
           <div className="text-center mb-8">
             <span className="text-[10px] uppercase tracking-[0.22em] text-cirqa-primario font-semibold block mb-2">
               ACCESO RESTRINGIDO
@@ -90,11 +89,23 @@ export default function Login() {
               Ingresar a CIRQA
             </h1>
             <p className="text-xs text-cirqa-negro/60 font-light mt-1.5">
-              Introduce tus credenciales autorizadas para gestionar el catálogo.
+              Introduce tus credenciales autorizadas para gestionar el catálogo en producción.
             </p>
           </div>
 
-          {/* Error Message Box */}
+          {/* Aviso de Sesión Expirada */}
+          {sessionNotice && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              className="mb-6 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-800 text-xs flex items-start gap-2.5"
+            >
+              <Info className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
+              <span className="leading-relaxed font-medium">{sessionNotice}</span>
+            </motion.div>
+          )}
+
+          {/* Mensaje de Error */}
           {error && (
             <motion.div
               initial={{ opacity: 0, height: 0 }}
@@ -106,9 +117,9 @@ export default function Login() {
             </motion.div>
           )}
 
-          {/* Form */}
+          {/* Formulario */}
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Email Field */}
+            {/* Campo Email */}
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/70 block mb-2">
                 Correo Electrónico
@@ -119,7 +130,8 @@ export default function Login() {
                   type="email"
                   required
                   autoFocus
-                  placeholder="admin@cirqa.com"
+                  autoComplete="email"
+                  placeholder="admin@cirqa.com.ar"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-11 pr-4 py-3.5 rounded-2xl bg-cirqa-surface/60 border border-cirqa-negro/10 focus:border-cirqa-negro focus:bg-white text-xs text-cirqa-negro placeholder-cirqa-negro/35 focus:outline-none transition-all"
@@ -127,7 +139,7 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Password Field */}
+            {/* Campo Contraseña */}
             <div>
               <label className="text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/70 block mb-2">
                 Contraseña
@@ -137,6 +149,7 @@ export default function Login() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   required
+                  autoComplete="current-password"
                   placeholder="••••••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -153,7 +166,7 @@ export default function Login() {
               </div>
             </div>
 
-            {/* Submit CTA */}
+            {/* Botón de Envío */}
             <div className="pt-2">
               <button
                 type="submit"
@@ -163,7 +176,7 @@ export default function Login() {
                 {loading ? (
                   <span className="inline-flex items-center gap-2">
                     <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Verificando...</span>
+                    <span>Autenticando...</span>
                   </span>
                 ) : (
                   <>
@@ -175,10 +188,10 @@ export default function Login() {
             </div>
           </form>
 
-          {/* Security Badge Footer */}
+          {/* Pie de Seguridad */}
           <div className="mt-8 pt-6 border-t border-cirqa-negro/5 flex items-center justify-center gap-2 text-[11px] text-cirqa-negro/50">
             <ShieldCheck className="w-3.5 h-3.5 text-cirqa-primario" />
-            <span>Autenticación criptográfica JWT · CIRQA 2026</span>
+            <span>Autenticación segura JWT · CIRQA Backend</span>
           </div>
         </motion.div>
       </main>

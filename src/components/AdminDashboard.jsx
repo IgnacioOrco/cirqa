@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -19,32 +19,15 @@ import {
   ArrowRight,
   TrendingUp,
   Menu,
+  ToggleLeft,
+  ToggleRight,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
-import { MODELS } from '../data/models';
+import { productService, authService, handleSessionExpired } from '../services/api';
 
 /**
- * Fallback de datos iniciales para modelos Q1 al Q5
- * Con stock predeterminado para permitir prueba y edición inmediata.
- */
-const DEFAULT_INVENTORY = MODELS.filter((m) =>
-  ['q001', 'q002', 'q003', 'q004', 'q005'].includes(m.id)
-).map((m, idx) => ({
-  _id: m.id,
-  slug: m.id,
-  code: m.code || `CIRQA-${m.name.replace(/\s+/g, '')}`,
-  name: `${m.name} · ${m.title}`,
-  shortName: m.name,
-  title: m.title,
-  price: m.price,
-  basePrice: m.price,
-  stock: [18, 12, 6, 24, 9][idx] ?? 15,
-  previewImage: m.previewImage,
-  material: m.material,
-  isActive: true,
-}));
-
-/**
- * Orden estándar para mostrar modelos del Q1 al Q5
+ * Orden preferente para catalogación estándar CIRQA
  */
 const MODEL_SORT_ORDER = {
   q001: 1,
@@ -58,23 +41,23 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   const navigate = useNavigate();
 
   // Estados de autenticación
-  const [token, setToken] = useState(propToken || null);
-  const [admin, setAdmin] = useState(null);
+  const [admin, setAdmin] = useState(() => authService.getAdmin());
 
   // Estados de navegación interna del panel
   const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' | 'orders'
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Estados de productos e inventario
+  // Estados de productos (directos de MongoDB)
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [syncStatus, setSyncStatus] = useState({ connected: false, message: 'Inicializando...' });
+  const [errorStatus, setErrorStatus] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
 
   // Estados del modal de edición
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [editPrice, setEditPrice] = useState('');
   const [editStock, setEditStock] = useState('');
+  const [editIsActive, setEditIsActive] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [modalError, setModalError] = useState(null);
@@ -86,30 +69,19 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setToast({ message, type });
     setTimeout(() => {
       setToast(null);
-    }, 3500);
+    }, 4000);
   };
 
-  // 1. Verificación de ruta privada y carga de credenciales
-  useEffect(() => {
-    const savedToken = propToken || localStorage.getItem('cirqa_token');
-    const savedAdmin = localStorage.getItem('cirqa_admin');
-
-    if (!savedToken) {
-      navigate('/login');
+  // Helper para cerrar sesión
+  const handleLogout = useCallback(() => {
+    if (propOnLogout) {
+      propOnLogout();
       return;
     }
+    authService.logout();
+  }, [propOnLogout]);
 
-    setToken(savedToken);
-    if (savedAdmin) {
-      try {
-        setAdmin(JSON.parse(savedAdmin));
-      } catch {
-        setAdmin({ email: 'Administrador' });
-      }
-    }
-  }, [propToken, navigate]);
-
-  // Helper para ordenar productos Q1 a Q5
+  // Helper de ordenamiento de modelos
   const sortModels = (items) => {
     return [...items].sort((a, b) => {
       const slugA = (a.slug || a._id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -120,103 +92,81 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     });
   };
 
-  // 2. Cargar inventario desde la API con fallback local resiliente
-  const fetchInventory = async (authTokenParam) => {
-    const currentToken = authTokenParam || token || localStorage.getItem('cirqa_token');
+  // 1. Cargar inventario directamente desde MongoDB en la API en producción
+  const fetchInventory = useCallback(async () => {
     setLoading(true);
-
-    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
+    setErrorStatus(null);
 
     try {
-      const response = await fetch(`${baseUrl}/api/products?all=true`, {
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${currentToken}`,
-        },
-      });
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success && Array.isArray(result.data) && result.data.length > 0) {
-          // Adaptar modelos de la base de datos
-          const mapped = result.data.map((item) => {
-            const matchedLocal = DEFAULT_INVENTORY.find(
-              (d) =>
-                d.shortName.toLowerCase() === (item.name || '').toLowerCase() ||
-                (item.slug && item.slug.toLowerCase() === d.slug)
-            );
-            return {
-              _id: item._id,
-              slug: item.slug || matchedLocal?.slug || item._id,
-              code: matchedLocal?.code || `CIRQA-${item.slug?.toUpperCase() || item.name.replace(/\s+/g, '')}`,
-              name: matchedLocal ? matchedLocal.name : item.name,
-              shortName: matchedLocal?.shortName || item.name,
-              title: matchedLocal?.title || 'Armazón Espectral',
-              price: item.price ?? item.basePrice ?? 42000,
-              basePrice: item.basePrice ?? item.price ?? 42000,
-              stock: item.stock ?? 0,
-              previewImage: item.image_url || matchedLocal?.previewImage || '/products/_DSC8649.webp',
-              material: matchedLocal?.material || 'Acetato de celulosa',
-              isActive: item.isActive !== undefined ? item.isActive : true,
-            };
-          });
-
-          const sorted = sortModels(mapped);
-          setProducts(sorted);
-          setSyncStatus({ connected: true, message: 'Sincronizado con API remota' });
+      // Verificar sesión antes de solicitar recursos protegidos si el endpoint está disponible
+      try {
+        await authService.verify();
+      } catch (authErr) {
+        if (authErr.status === 401 || authErr.status === 403) {
+          handleSessionExpired(true);
           return;
         }
+        // Si verify no está implementado o falla por otra razón, continuar al GET
       }
-      throw new Error('API no devolvió catálogo');
+
+      // GET /products?all=true para obtener el catálogo completo de MongoDB
+      const data = await productService.getProducts({ all: true });
+
+      // Mapear los documentos de MongoDB garantizando campos consistentes
+      const mapped = data.map((item) => ({
+        _id: item._id,
+        slug: item.slug || item._id,
+        code: `CIRQA-${(item.slug || item.name || '').toUpperCase().replace(/[\s-]+/g, '')}`,
+        name: item.name,
+        shortName: item.name,
+        title: item.description || 'Armazón Espectral CIRQA',
+        price: Number(item.price ?? item.basePrice ?? 0),
+        basePrice: Number(item.basePrice ?? item.price ?? 0),
+        stock: Number(item.stock ?? 0),
+        previewImage: item.image_url || (Array.isArray(item.images) && item.images[0]) || '/products/_DSC8649.webp',
+        isActive: item.isActive !== undefined ? Boolean(item.isActive) : true,
+      }));
+
+      const sorted = sortModels(mapped);
+      setProducts(sorted);
     } catch (err) {
-      // Fallback a localStorage o datos locales predeterminados
-      const storedLocal = localStorage.getItem('cirqa_inventory_cache');
-      if (storedLocal) {
-        try {
-          const parsed = JSON.parse(storedLocal);
-          setProducts(sortModels(parsed));
-          setSyncStatus({ connected: false, message: 'Modo Local (Cache persistido)' });
-          return;
-        } catch {
-          // fallback a DEFAULT_INVENTORY
-        }
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
       }
-      const sortedDefault = sortModels(DEFAULT_INVENTORY);
-      setProducts(sortedDefault);
-      localStorage.setItem('cirqa_inventory_cache', JSON.stringify(sortedDefault));
-      setSyncStatus({ connected: false, message: 'Modo Local (Modelos Q1 a Q5 activos)' });
+      setErrorStatus(err.message || 'No fue posible conectar con el backend de producción.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // 2. Verificación de token al montar
   useEffect(() => {
-    if (token) {
-      fetchInventory(token);
-    }
-  }, [token]);
-
-  // Manejo de Cerrar Sesión
-  const handleLogout = () => {
-    if (propOnLogout) {
-      propOnLogout();
+    const currentToken = propToken || authService.getToken();
+    if (!currentToken) {
+      navigate('/login', { replace: true });
       return;
     }
-    localStorage.removeItem('cirqa_token');
-    localStorage.removeItem('cirqa_admin');
-    navigate('/login');
-  };
 
-  // Abrir modal de edición para un producto
+    const currentAdmin = authService.getAdmin();
+    if (currentAdmin) {
+      setAdmin(currentAdmin);
+    }
+
+    fetchInventory();
+  }, [propToken, navigate, fetchInventory]);
+
+  // Abrir modal de edición
   const handleOpenEdit = (product) => {
     setSelectedProduct(product);
     setEditPrice(String(product.price));
     setEditStock(String(product.stock));
+    setEditIsActive(product.isActive !== false);
     setModalError(null);
     setSaveSuccess(false);
   };
 
-  // Cerrar modal
+  // Cerrar modal de edición
   const handleCloseModal = () => {
     if (saving) return;
     setSelectedProduct(null);
@@ -224,7 +174,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setSaveSuccess(false);
   };
 
-  // Actualizar stock y precio con inyección de JWT
+  // 3. Guardar cambios en el backend mediante PUT /products/:id
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     setModalError(null);
@@ -243,115 +193,95 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }
 
     setSaving(true);
-    const currentToken = token || localStorage.getItem('cirqa_token');
-    const baseUrl = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/+$/, '');
 
-    let apiSuccess = false;
+    try {
+      // Petición real protegida hacia el backend de producción
+      const payload = {
+        price: numericPrice,
+        basePrice: numericPrice,
+        stock: numericStock,
+        isActive: editIsActive,
+      };
 
-    // Intentar actualización vía API con Bearer JWT si el producto tiene ID de MongoDB
-    if (selectedProduct._id && selectedProduct._id.length > 10) {
-      try {
-        const response = await fetch(`${baseUrl}/api/products/${selectedProduct._id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${currentToken}`,
-          },
-          body: JSON.stringify({
-            price: numericPrice,
-            basePrice: numericPrice,
-            stock: numericStock,
-          }),
-        });
+      const res = await productService.updateProduct(selectedProduct._id, payload);
+      const updatedData = res.data || res;
 
-        if (response.ok) {
-          const resData = await response.json();
-          if (resData.success) {
-            apiSuccess = true;
+      // Actualizar estado reactivo local con la respuesta de MongoDB
+      setProducts((prev) =>
+        prev.map((p) => {
+          if (p._id === selectedProduct._id) {
+            return {
+              ...p,
+              price: Number(updatedData.price ?? numericPrice),
+              basePrice: Number(updatedData.basePrice ?? numericPrice),
+              stock: Number(updatedData.stock ?? numericStock),
+              isActive: updatedData.isActive !== undefined ? Boolean(updatedData.isActive) : editIsActive,
+            };
           }
-        }
-      } catch (err) {
-        console.warn('No fue posible contactar la API remota, persistiendo cambios localmente.', err);
+          return p;
+        })
+      );
+
+      setSaveSuccess(true);
+      showToast(`"${selectedProduct.shortName}" actualizado con éxito en la base de datos.`);
+
+      setTimeout(() => {
+        handleCloseModal();
+      }, 700);
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
       }
-    } else {
-      // Si el modelo aún no estaba registrado con ID MongoDB, intentar crearlo con el token JWT
-      try {
-        const response = await fetch(`${baseUrl}/api/products`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${currentToken}`,
-          },
-          body: JSON.stringify({
-            name: selectedProduct.shortName || selectedProduct.name,
-            slug: selectedProduct.slug || selectedProduct._id,
-            price: numericPrice,
-            basePrice: numericPrice,
-            stock: numericStock,
-            image_url: selectedProduct.previewImage || '',
-            description: selectedProduct.title || '',
-          }),
-        });
-        if (response.ok) {
-          const resData = await response.json();
-          if (resData.success && resData.data?._id) {
-            selectedProduct._id = resData.data._id;
-            apiSuccess = true;
-          }
-        }
-      } catch (err) {
-        console.warn('No fue posible contactar la API para sincronización inicial:', err);
-      }
+      setModalError(err.message || 'Error al persistir cambios en el backend.');
+    } finally {
+      setSaving(false);
     }
-
-    // Actualización de estado local inmediata y persistencia
-    const updatedProducts = products.map((p) => {
-      if (p._id === selectedProduct._id || p.code === selectedProduct.code || p.slug === selectedProduct.slug) {
-        return {
-          ...p,
-          price: numericPrice,
-          basePrice: numericPrice,
-          stock: numericStock,
-        };
-      }
-      return p;
-    });
-
-    setProducts(updatedProducts);
-    localStorage.setItem('cirqa_inventory_cache', JSON.stringify(updatedProducts));
-
-    setSaving(false);
-    setSaveSuccess(true);
-    showToast(
-      apiSuccess
-        ? `"${selectedProduct.shortName}" actualizado con éxito en la API.`
-        : `"${selectedProduct.shortName}" actualizado correctamente en modo local.`
-    );
-
-    setTimeout(() => {
-      handleCloseModal();
-    }, 700);
   };
 
-  // Filtro de búsqueda
+  // 4. Conmutar estado activo directamente (Toggle rápido)
+  const handleToggleActiveQuick = async (e, product) => {
+    e.stopPropagation();
+    const newStatus = !product.isActive;
+
+    try {
+      await productService.updateProduct(product._id, { isActive: newStatus });
+      setProducts((prev) =>
+        prev.map((p) => (p._id === product._id ? { ...p, isActive: newStatus } : p))
+      );
+      showToast(
+        `"${product.shortName}" ahora está ${newStatus ? 'visible' : 'oculto'} en el catálogo.`
+      );
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
+      }
+      showToast('No se pudo cambiar el estado. Revisa tu conexión.', 'error');
+    }
+  };
+
+  // Filtro de búsqueda en tiempo real
   const filteredProducts = useMemo(() => {
     if (!searchQuery.trim()) return products;
     const q = searchQuery.toLowerCase();
     return products.filter(
       (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.code.toLowerCase().includes(q) ||
-        p.shortName.toLowerCase().includes(q)
+        (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.code && p.code.toLowerCase().includes(q)) ||
+        (p.shortName && p.shortName.toLowerCase().includes(q))
     );
   }, [products, searchQuery]);
 
-  // Métricas rápidas para el dashboard
+  // Métricas dinámicas calculadas desde MongoDB
   const metrics = useMemo(() => {
     const totalUnits = products.reduce((acc, p) => acc + (p.stock || 0), 0);
     const totalValue = products.reduce((acc, p) => acc + (p.price || 0) * (p.stock || 0), 0);
     const lowStockCount = products.filter((p) => (p.stock || 0) <= 5).length;
+    const activeCount = products.filter((p) => p.isActive).length;
     return {
       totalModels: products.length,
+      activeCount,
       totalUnits,
       totalValue,
       lowStockCount,
@@ -364,11 +294,11 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
       style: 'currency',
       currency: 'ARS',
       maximumFractionDigits: 0,
-    }).format(amount);
+    }).format(amount || 0);
   };
 
-  // Helper para el badge de Estado Apple-style
-  const getStatusBadge = (stock) => {
+  // Helper de Badge de Estado
+  const getStockBadge = (stock) => {
     if (stock <= 0) {
       return (
         <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-[#AC1917]/10 text-[#AC1917] border border-[#AC1917]/20">
@@ -397,7 +327,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     <div className="min-h-screen bg-[#FBFBFA] text-cirqa-negro font-montserrat flex flex-col md:flex-row antialiased selection:bg-cirqa-arena selection:text-cirqa-negro">
       
       {/* ========================================================================= */}
-      {/* 1. SIDEBAR: Menú Lateral Neutro Negro (bg-[#201610] text-white)            */}
+      {/* 1. SIDEBAR: Menú Lateral Neutro Negro                                     */}
       {/* ========================================================================= */}
       <aside
         className={`fixed md:sticky top-0 left-0 h-screen w-72 bg-[#201610] text-white z-40 flex flex-col justify-between p-6 transition-transform duration-300 ease-in-out border-r border-[#2d2018] shadow-2xl md:shadow-none ${
@@ -416,7 +346,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               </span>
             </Link>
 
-            {/* Botón cerrar sidebar en móvil */}
             <button
               onClick={() => setSidebarOpen(false)}
               className="md:hidden p-2 text-white/60 hover:text-white rounded-xl hover:bg-white/10"
@@ -426,7 +355,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
             </button>
           </div>
 
-          {/* Subtítulo Estilo Apple */}
           <div className="px-1">
             <p className="text-[11px] font-light text-white/50 tracking-wider uppercase">
               Panel de Arquitectura Óptica
@@ -435,7 +363,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
           {/* Navegación del Menú */}
           <nav className="space-y-2">
-            {/* Opción 1: Inventario */}
             <button
               onClick={() => {
                 setActiveTab('inventory');
@@ -449,7 +376,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
             >
               <div className="flex items-center gap-3">
                 <Boxes className={`w-4 h-4 ${activeTab === 'inventory' ? 'text-cirqa-primario' : 'text-cirqa-arena'}`} />
-                <span>Inventario</span>
+                <span>Inventario MongoDB</span>
               </div>
               <span
                 className={`text-[10px] px-2 py-0.5 rounded-full ${
@@ -462,7 +389,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               </span>
             </button>
 
-            {/* Opción 2: Órdenes (Próximamente) */}
             <button
               onClick={() => {
                 setActiveTab('orders');
@@ -489,13 +415,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         <div className="space-y-4 pt-6 border-t border-white/10">
           <div className="px-2">
             <div className="flex items-center gap-2 text-xs font-medium text-white/90">
-              <ShieldCheck className="w-4 h-4 text-cirqa-arena" />
-              <span className="truncate">{admin?.email || 'admin@cirqa.com'}</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span className="truncate">{admin?.email || 'Admin Producción'}</span>
             </div>
-            <p className="text-[10px] text-white/40 font-light mt-0.5 pl-6">Token JWT activo</p>
+            <p className="text-[10px] text-white/40 font-light mt-0.5 pl-6">JWT Autenticado</p>
           </div>
 
-          {/* Opción 3: Cerrar Sesión */}
           <button
             onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl text-xs font-medium text-white/70 hover:text-white bg-white/5 hover:bg-white/10 transition-all border border-white/5 hover:border-white/15"
@@ -516,7 +441,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         </div>
       </aside>
 
-      {/* Backdrop para cerrar sidebar en mobile */}
+      {/* Backdrop móvil */}
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
@@ -525,7 +450,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
       )}
 
       {/* ========================================================================= */}
-      {/* 2. ÁREA PRINCIPAL: Estética Apple (Neutro-Blanco, Arena, Montserrat)        */}
+      {/* 2. ÁREA PRINCIPAL                                                         */}
       {/* ========================================================================= */}
       <div className="flex-1 flex flex-col min-w-0">
         
@@ -559,9 +484,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 <span className="text-[10px] font-semibold tracking-[0.25em] uppercase text-cirqa-primario">
                   PANEL PRIVADO DE CONTROL
                 </span>
-                <span className="inline-block w-1.5 h-1.5 rounded-full bg-cirqa-arena" />
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500" />
                 <span className="text-[10px] text-cirqa-negro/40 tracking-wider">
-                  {syncStatus.message}
+                  Producción: api.cirqa.com.ar
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-light tracking-tight text-cirqa-negro">
@@ -571,13 +496,13 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
             <div className="flex items-center gap-3">
               <button
-                onClick={() => fetchInventory(token)}
+                onClick={fetchInventory}
                 disabled={loading}
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-cirqa-negro/10 text-cirqa-negro/70 hover:text-cirqa-negro hover:border-cirqa-negro/25 text-xs font-medium transition-all shadow-sm disabled:opacity-50"
-                title="Sincronizar con API"
+                title="Sincronizar con MongoDB"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cirqa-primario' : ''}`} />
-                <span>Actualizar</span>
+                <span>Sincronizar</span>
               </button>
 
               <Link
@@ -591,23 +516,42 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
             </div>
           </div>
 
+          {/* Banner de Error si falló la conexión con MongoDB */}
+          {errorStatus && (
+            <div className="p-4 rounded-3xl bg-cirqa-carmin/5 border border-cirqa-carmin/20 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3 text-xs text-cirqa-carmin">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <div>
+                  <span className="font-semibold block">Error al conectar con la base de datos:</span>
+                  <span>{errorStatus}</span>
+                </div>
+              </div>
+              <button
+                onClick={fetchInventory}
+                className="px-4 py-2 rounded-xl bg-cirqa-carmin text-white text-xs font-medium hover:bg-cirqa-primario transition-colors flex-shrink-0"
+              >
+                Reintentar
+              </button>
+            </div>
+          )}
+
           {/* VISTA 1: INVENTARIO */}
           {activeTab === 'inventory' && (
             <>
-              {/* Tarjetas de Métricas Resumen (Estilo Apple, Fondos Blanco y Arena) */}
+              {/* Tarjetas de Métricas Resumen */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 
-                {/* Métrica 1: Modelos Activos */}
+                {/* Métrica 1: Total Modelos */}
                 <div className="bg-white rounded-3xl p-6 border border-cirqa-negro/5 shadow-sm">
                   <div className="flex items-center justify-between text-cirqa-negro/40 mb-3">
-                    <span className="text-[11px] font-semibold uppercase tracking-wider">Modelos</span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider">Modelos Registrados</span>
                     <Glasses className="w-4 h-4 text-cirqa-arena" />
                   </div>
                   <div className="text-2xl sm:text-3xl font-light text-cirqa-negro">
                     {metrics.totalModels}
                   </div>
                   <p className="text-[11px] text-cirqa-negro/50 font-light mt-1">
-                    Línea Q1 al Q5
+                    {metrics.activeCount} activos en tienda
                   </p>
                 </div>
 
@@ -621,7 +565,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     {metrics.totalUnits}
                   </div>
                   <p className="text-[11px] text-cirqa-negro/50 font-light mt-1">
-                    Piezas disponibles
+                    Piezas físicas disponibles
                   </p>
                 </div>
 
@@ -663,7 +607,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Filtrar por código o modelo (ej. Q001, Aviator)..."
+                    placeholder="Filtrar por código o modelo (ej. Q1, Aviator)..."
                     className="w-full pl-11 pr-4 py-2.5 bg-[#FBFBFA] border border-cirqa-negro/10 rounded-2xl text-xs text-cirqa-negro placeholder-cirqa-negro/40 focus:outline-none focus:border-cirqa-negro focus:bg-white transition-all"
                   />
                   {searchQuery && (
@@ -677,55 +621,57 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </div>
 
                 <div className="flex items-center gap-2 text-[11px] text-cirqa-negro/50 px-2">
-                  <span>Mostrando {filteredProducts.length} de {products.length} modelos</span>
+                  <span>Mostrando {filteredProducts.length} de {products.length} productos en base de datos</span>
                 </div>
               </div>
 
               {/* ========================================================================= */}
-              {/* 3. TABLA DE DATOS: CSS Grid (grid-cols-5), divisorias horizontales finas   */}
+              {/* 3. TABLA DE DATOS: MongoDB Real Data Grid                                 */}
               {/* ========================================================================= */}
               <div className="bg-white rounded-3xl border border-cirqa-negro/10 shadow-sm overflow-hidden">
                 
-                {/* Encabezado de la Tabla (Grid de 5 columnas: Código, Nombre, Precio, Stock, Estado) */}
-                <div className="grid grid-cols-5 px-6 py-4 bg-[#FBFBFA] border-b border-cirqa-negro/10 text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/60 select-none">
-                  <div>Código</div>
-                  <div className="col-span-1">Nombre</div>
-                  <div>Precio</div>
-                  <div>Stock</div>
-                  <div className="text-right">Estado</div>
+                {/* Encabezado de la Tabla */}
+                <div className="grid grid-cols-12 px-6 py-4 bg-[#FBFBFA] border-b border-cirqa-negro/10 text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/60 select-none">
+                  <div className="col-span-2">Código</div>
+                  <div className="col-span-4">Producto</div>
+                  <div className="col-span-2">Precio</div>
+                  <div className="col-span-2">Stock</div>
+                  <div className="col-span-2 text-right">Estado / Acciones</div>
                 </div>
 
-                {/* Filas de la Tabla */}
+                {/* Contenido / Filas */}
                 {loading && products.length === 0 ? (
                   <div className="py-20 text-center space-y-3">
                     <RefreshCw className="w-6 h-6 animate-spin text-cirqa-primario mx-auto" />
-                    <p className="text-xs text-cirqa-negro/60 font-light">Cargando inventario de CIRQA...</p>
+                    <p className="text-xs text-cirqa-negro/60 font-light">
+                      Cargando catálogo directamente desde MongoDB...
+                    </p>
                   </div>
                 ) : filteredProducts.length === 0 ? (
                   <div className="py-16 text-center space-y-2">
                     <Package className="w-8 h-8 text-cirqa-negro/20 mx-auto" />
-                    <p className="text-sm font-medium text-cirqa-negro/70">No se encontraron modelos coincidentes</p>
-                    <p className="text-xs text-cirqa-negro/40 font-light">Prueba ajustando el término de búsqueda.</p>
+                    <p className="text-sm font-medium text-cirqa-negro/70">No se encontraron productos coincidentes</p>
+                    <p className="text-xs text-cirqa-negro/40 font-light">Prueba ajustando el filtro de búsqueda.</p>
                   </div>
                 ) : (
                   <div className="divide-y divide-cirqa-negro/5">
                     {filteredProducts.map((product) => (
                       <motion.div
-                        key={product._id || product.code}
+                        key={product._id}
                         onClick={() => handleOpenEdit(product)}
                         whileHover={{ backgroundColor: 'rgba(251, 249, 246, 0.9)' }}
                         transition={{ duration: 0.15 }}
-                        className="grid grid-cols-5 px-6 py-4 items-center cursor-pointer group transition-colors select-none"
+                        className="grid grid-cols-12 px-6 py-4 items-center cursor-pointer group transition-colors select-none"
                       >
                         {/* Columna 1: Código */}
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-semibold text-cirqa-negro group-hover:text-cirqa-primario transition-colors">
+                        <div className="col-span-2 flex items-center gap-2">
+                          <span className="font-mono text-xs font-semibold text-cirqa-negro group-hover:text-cirqa-primario transition-colors truncate">
                             {product.code}
                           </span>
                         </div>
 
-                        {/* Columna 2: Nombre */}
-                        <div className="flex items-center gap-3 pr-2">
+                        {/* Columna 2: Nombre & Miniatura */}
+                        <div className="col-span-4 flex items-center gap-3 pr-2">
                           <div className="w-10 h-10 rounded-xl bg-[#F4EFEA] overflow-hidden flex-shrink-0 flex items-center justify-center border border-cirqa-negro/5">
                             {product.previewImage ? (
                               <img
@@ -751,25 +697,40 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                         </div>
 
                         {/* Columna 3: Precio */}
-                        <div>
+                        <div className="col-span-2">
                           <span className="text-xs font-medium text-cirqa-negro font-mono">
                             {formatMoney(product.price)}
                           </span>
                         </div>
 
                         {/* Columna 4: Stock */}
-                        <div className="flex items-center gap-2">
+                        <div className="col-span-2 flex items-center gap-2">
                           <span className="text-xs font-semibold text-cirqa-negro font-mono">
                             {product.stock}
                           </span>
                           <span className="text-[10px] text-cirqa-negro/40 font-light hidden sm:inline">
-                            unidades
+                            uds.
                           </span>
+                          <div className="ml-1">
+                            {getStockBadge(product.stock)}
+                          </div>
                         </div>
 
-                        {/* Columna 5: Estado */}
-                        <div className="flex items-center justify-end gap-3">
-                          {getStatusBadge(product.stock)}
+                        {/* Columna 5: Estado & Acciones */}
+                        <div className="col-span-2 flex items-center justify-end gap-3">
+                          <button
+                            type="button"
+                            onClick={(e) => handleToggleActiveQuick(e, product)}
+                            title={product.isActive ? 'Producto visible (clic para ocultar)' : 'Producto oculto (clic para activar)'}
+                            className={`p-1 rounded-lg transition-colors ${
+                              product.isActive
+                                ? 'text-emerald-600 hover:bg-emerald-50'
+                                : 'text-cirqa-negro/30 hover:bg-black/5'
+                            }`}
+                          >
+                            {product.isActive ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                          </button>
+
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-black/5 text-cirqa-primario">
                             <Edit3 className="w-3.5 h-3.5" />
                           </div>
@@ -779,20 +740,20 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   </div>
                 )}
 
-                {/* Pie de Tabla con Guía Rápida */}
+                {/* Pie de Tabla */}
                 <div className="px-6 py-3.5 bg-[#FBFBFA]/60 border-t border-cirqa-negro/5 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-cirqa-negro/50 gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="w-1.5 h-1.5 rounded-full bg-cirqa-primario" />
-                    <span>Haz clic en cualquier fila para editar el precio y stock en tiempo real.</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                    <span>Conectado en vivo con MongoDB. Los cambios modifican la tienda en tiempo real.</span>
                   </div>
-                  <span className="font-mono text-[10px]">CIRQA INVENTORY ENGINE · v1.0</span>
+                  <span className="font-mono text-[10px]">CIRQA ENGINE · API PRODUCCIÓN</span>
                 </div>
 
               </div>
             </>
           )}
 
-          {/* VISTA 2: ÓRDENES (Próximamente) */}
+          {/* VISTA 2: ÓRDENES */}
           {activeTab === 'orders' && (
             <div className="bg-white rounded-3xl p-12 border border-cirqa-negro/10 shadow-sm text-center max-w-2xl mx-auto space-y-6">
               <div className="w-16 h-16 rounded-3xl bg-cirqa-surface mx-auto flex items-center justify-center text-cirqa-arena border border-cirqa-negro/5">
@@ -806,7 +767,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   Gestión de Órdenes & Envíos
                 </h2>
                 <p className="text-xs text-cirqa-negro/60 font-light leading-relaxed max-w-md mx-auto">
-                  La integración directa con Mercado Pago y pasarelas de pago se encuentra en sincronización. Las compras generadas en la tienda pública se registrarán automáticamente aquí.
+                  La integración directa con Mercado Pago se encuentra en sincronización. Las compras generadas en la tienda pública se registrarán automáticamente aquí.
                 </p>
               </div>
 
@@ -825,13 +786,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
       </div>
 
       {/* ========================================================================= */}
-      {/* 4. MODAL DE EDICIÓN: Framer Motion (resorte suave), Glassmorphism, Inputs   */}
+      {/* 4. MODAL DE EDICIÓN: PUT /products/:id hacia producción                   */}
       {/* ========================================================================= */}
       <AnimatePresence>
         {selectedProduct && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
             
-            {/* Backdrop con Glassmorphism (backdrop-blur-xl) */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -841,7 +801,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               className="fixed inset-0 bg-black/40 backdrop-blur-xl"
             />
 
-            {/* Contenedor del Modal con Físicas de Resorte Suaves */}
             <motion.div
               initial={{ opacity: 0, scale: 0.94, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -854,7 +813,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               className="relative w-full max-w-lg bg-white/95 backdrop-blur-2xl border border-white/60 shadow-2xl rounded-3xl p-6 sm:p-8 text-cirqa-negro overflow-hidden z-10"
             >
               
-              {/* Botón Cerrar */}
               <button
                 onClick={handleCloseModal}
                 disabled={saving}
@@ -864,7 +822,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 <X className="w-5 h-5" />
               </button>
 
-              {/* Encabezado del Modal con Thumbnail */}
+              {/* Encabezado del Modal */}
               <div className="flex items-center gap-4 pb-6 border-b border-cirqa-negro/10">
                 <div className="w-16 h-16 rounded-2xl bg-[#F4EFEA] border border-cirqa-negro/5 p-1 flex-shrink-0 flex items-center justify-center overflow-hidden">
                   {selectedProduct.previewImage ? (
@@ -879,7 +837,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </div>
                 <div>
                   <span className="text-[10px] uppercase font-mono tracking-wider text-cirqa-primario font-semibold block">
-                    {selectedProduct.code}
+                    ID: {selectedProduct._id}
                   </span>
                   <h3 className="text-xl font-light tracking-tight text-cirqa-negro">
                     {selectedProduct.shortName}
@@ -901,7 +859,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               {/* Formulario de Edición */}
               <form onSubmit={handleSaveProduct} className="mt-6 space-y-6">
                 
-                {/* Input 1: Precio (border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none) */}
+                {/* Input 1: Precio */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70">
@@ -926,11 +884,11 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     />
                   </div>
                   <p className="text-[10px] text-cirqa-negro/40 mt-1 font-light">
-                    Vista previa formateada: {formatMoney(Number(editPrice) || 0)}
+                    Vista previa: {formatMoney(Number(editPrice) || 0)}
                   </p>
                 </div>
 
-                {/* Input 2: Stock (border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none) */}
+                {/* Input 2: Stock */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70">
@@ -962,16 +920,39 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                       Estado resultante:
                     </span>
                     <div>
-                      {getStatusBadge(Number(editStock) || 0)}
+                      {getStockBadge(Number(editStock) || 0)}
                     </div>
                   </div>
                 </div>
 
+                {/* Input 3: Visibilidad (isActive) */}
+                <div className="flex items-center justify-between p-3.5 bg-cirqa-surface rounded-2xl border border-cirqa-negro/5">
+                  <div>
+                    <span className="text-xs font-semibold text-cirqa-negro block">
+                      Visibilidad en el Catálogo
+                    </span>
+                    <span className="text-[11px] text-cirqa-negro/50 font-light">
+                      {editIsActive ? 'Visible para clientes en la tienda pública' : 'Oculto al público en la tienda'}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setEditIsActive(!editIsActive)}
+                    className="text-cirqa-primario hover:opacity-80 transition-opacity p-1"
+                  >
+                    {editIsActive ? (
+                      <ToggleRight className="w-7 h-7 text-emerald-600" />
+                    ) : (
+                      <ToggleLeft className="w-7 h-7 text-cirqa-negro/30" />
+                    )}
+                  </button>
+                </div>
+
                 {/* Resumen de Seguridad JWT */}
-                <div className="p-3 bg-cirqa-surface rounded-2xl border border-cirqa-negro/5 flex items-center gap-2.5 text-[11px] text-cirqa-negro/60">
+                <div className="p-3 bg-emerald-50/50 rounded-2xl border border-emerald-500/10 flex items-center gap-2.5 text-[11px] text-emerald-800">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                   <span>
-                    La actualización inyectará el token JWT en el encabezado <code className="font-mono text-[10px] bg-black/5 px-1 py-0.5 rounded">Authorization: Bearer</code>.
+                    Petición <code className="font-mono text-[10px] bg-emerald-100 px-1 py-0.5 rounded font-bold">PUT /products/{selectedProduct._id}</code> protegida con Bearer JWT.
                   </span>
                 </div>
 
@@ -994,7 +975,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     {saving ? (
                       <>
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Guardando...</span>
+                        <span>Guardando en MongoDB...</span>
                       </>
                     ) : saveSuccess ? (
                       <>
@@ -1004,7 +985,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     ) : (
                       <>
                         <Check className="w-3.5 h-3.5" />
-                        <span>Actualizar Producto</span>
+                        <span>Actualizar en Producción</span>
                       </>
                     )}
                   </button>
@@ -1027,9 +1008,17 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 20, scale: 0.9 }}
             transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-            className="fixed bottom-8 right-8 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl bg-cirqa-negro text-white shadow-2xl border border-white/10 text-xs font-medium"
+            className={`fixed bottom-8 right-8 z-50 flex items-center gap-3 px-5 py-3.5 rounded-2xl text-white shadow-2xl border text-xs font-medium ${
+              toast.type === 'error'
+                ? 'bg-[#AC1917] border-white/20'
+                : 'bg-cirqa-negro border-white/10'
+            }`}
           >
-            <CheckCircle2 className="w-4 h-4 text-cirqa-arena flex-shrink-0" />
+            {toast.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 text-white flex-shrink-0" />
+            ) : (
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            )}
             <span>{toast.message}</span>
           </motion.div>
         )}
