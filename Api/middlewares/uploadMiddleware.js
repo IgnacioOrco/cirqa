@@ -2,16 +2,17 @@ import multer from 'multer';
 import path from 'node:path';
 import fs from 'node:fs';
 
-// Asegurar que la carpeta de destino exista
-const uploadDir = path.resolve('uploads/receipts');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+// =========================================================================
+// 1. Configuración para Comprobantes de Pago (/uploads/receipts)
+// =========================================================================
+const receiptUploadDir = path.resolve('uploads/receipts');
+if (!fs.existsSync(receiptUploadDir)) {
+  fs.mkdirSync(receiptUploadDir, { recursive: true });
 }
 
-// Configuración de almacenamiento local
-const storage = multer.diskStorage({
+const receiptStorage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir);
+    cb(null, receiptUploadDir);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -20,24 +21,63 @@ const storage = multer.diskStorage({
   },
 });
 
-// Filtro de tipos de archivo permitidos (.jpg, .jpeg, .png, .pdf)
-const fileFilter = (req, file, cb) => {
-  const allowedMimeTypes = ['image/jpeg', 'image/png', 'application/pdf'];
-  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.pdf'];
+const receiptFilter = (req, file, cb) => {
+  const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+  const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp', '.pdf'];
   const ext = path.extname(file.originalname).toLowerCase();
 
   if (allowedMimeTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error('Formato de archivo no válido. Solo se aceptan .jpg, .png o .pdf'), false);
+    cb(new Error('Formato de comprobante no válido. Se aceptan JPG, PNG, WEBP o PDF'), false);
   }
 };
 
-// Límite de 5 MB
 export const uploadReceipt = multer({
-  storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5 MB
-  },
-  fileFilter,
+  storage: receiptStorage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: receiptFilter,
 });
+
+// =========================================================================
+// 2. Configuración para Imágenes de Productos (/uploads o /app/uploads)
+// =========================================================================
+const productUploadDir = path.resolve('uploads');
+if (!fs.existsSync(productUploadDir)) {
+  fs.mkdirSync(productUploadDir, { recursive: true });
+}
+
+const productStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, productUploadDir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase() || '.webp';
+    const cleanName = path
+      .basename(file.originalname, ext)
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '-');
+    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+    cb(null, `product-${cleanName}-${uniqueSuffix}${ext}`);
+  },
+});
+
+const imageFileFilter = (req, file, cb) => {
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif'];
+  const allowedExts = ['.jpg', '.jpeg', '.png', '.webp', '.avif', '.gif'];
+  const ext = path.extname(file.originalname).toLowerCase();
+
+  if (allowedMimes.includes(file.mimetype) || allowedExts.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error('Formato de imagen no soportado. Formatos válidos: JPG, PNG, WEBP, AVIF'), false);
+  }
+};
+
+export const uploadProductImage = multer({
+  storage: productStorage,
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10 MB máximo
+  },
+  fileFilter: imageFileFilter,
+}).single('image');

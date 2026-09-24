@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import Product from '../models/Product.js';
 
 /**
@@ -290,3 +291,64 @@ export const deleteProduct = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc    Subir y actualizar imagen principal de un producto
+ * @route   POST /api/products/:id/image
+ * @access  Privado (Admin)
+ */
+export const updateProductImage = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'No se ha proporcionado ningún archivo de imagen válido.',
+      });
+    }
+
+    // Buscar producto por ID de MongoDB o slug
+    let product;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      product = await Product.findById(id);
+    } else {
+      product = await Product.findOne({ slug: id });
+    }
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: 'Producto no encontrado para asociar la imagen.',
+      });
+    }
+
+    // Construir la URL pública accesible servida por Express
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.get('host');
+    const relativePath = `/uploads/${req.file.filename}`;
+    const fullImageUrl = `${protocol}://${host}${relativePath}`;
+
+    // Actualizar campo image_url y colocarla al inicio de la galería images
+    product.image_url = fullImageUrl;
+    if (!Array.isArray(product.images)) {
+      product.images = [];
+    }
+    if (!product.images.includes(fullImageUrl)) {
+      product.images.unshift(fullImageUrl);
+    }
+
+    await product.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Imagen del producto cargada y vinculada exitosamente.',
+      data: product,
+      image_url: fullImageUrl,
+      relative_url: relativePath,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

@@ -6,8 +6,10 @@ import {
   updateProduct,
   updateProductStock,
   deleteProduct,
+  updateProductImage,
 } from '../controllers/productController.js';
 import { protectAdmin } from '../middlewares/authMiddleware.js';
+import { uploadProductImage } from '../middlewares/uploadMiddleware.js';
 
 const router = Router();
 
@@ -53,6 +55,13 @@ router.patch('/:id/stock', protectAdmin, updateProductStock);
  * @access  Privado (Admin)
  */
 router.put('/:id', protectAdmin, updateProduct);
+
+/**
+ * @route   POST /api/products/:id/image
+ * @desc    Subir y asociar imagen al producto
+ * @access  Privado (Admin)
+ */
+router.post('/:id/image', protectAdmin, uploadProductImage, updateProductImage);
 
 /**
  * @route   DELETE /api/products/:id

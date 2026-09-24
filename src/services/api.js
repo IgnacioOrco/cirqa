@@ -57,9 +57,20 @@ async function request(endpoint, options = {}) {
 
   // Headers por defecto
   const headers = {
-    'Content-Type': 'application/json',
     ...(options.headers || {}),
   };
+
+  const isFormData = options.body instanceof FormData;
+
+  // Solo asignar application/json si no es FormData y no se definió otro Content-Type
+  if (!isFormData && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  // Si es FormData, remover explícitamente Content-Type para que el navegador cree el boundary
+  if (isFormData) {
+    delete headers['Content-Type'];
+  }
 
   // Interceptor: Inyectar Authorization Bearer <token>
   if (token && !headers['Authorization']) {
@@ -71,7 +82,7 @@ async function request(endpoint, options = {}) {
     headers,
   };
 
-  if (config.body && typeof config.body === 'object' && !(config.body instanceof FormData)) {
+  if (config.body && typeof config.body === 'object' && !isFormData) {
     config.body = JSON.stringify(config.body);
   }
 
@@ -233,6 +244,45 @@ export const productService = {
   async deleteProduct(id) {
     return api.delete(`/api/products/${id}`);
   },
+
+  /**
+   * Subir y actualizar imagen de un producto: POST /api/products/:id/image
+   * @param {string} id - MongoDB ObjectId del producto
+   * @param {File} file - Archivo de imagen seleccionado desde el frontend
+   * @returns {Promise<{ success: boolean, image_url: string, data: Object }>}
+   */
+  async uploadProductImage(id, file) {
+    const formData = new FormData();
+    formData.append('image', file);
+
+    return request(`/api/products/${id}/image`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+};
+
+/**
+ * Normaliza la URL de una imagen para que siempre se renderice correctamente en Vercel
+ * o entorno local, resolviendo rutas relativas como /uploads/... hacia la API en producción.
+ */
+export const formatMediaUrl = (url) => {
+  if (!url) return '/products/_DSC8649.webp';
+  if (
+    url.startsWith('http://') ||
+    url.startsWith('https://') ||
+    url.startsWith('blob:') ||
+    url.startsWith('data:')
+  ) {
+    return url;
+  }
+
+  if (url.startsWith('/uploads')) {
+    const baseUrl = getBaseUrl().replace(/\/api$/, '');
+    return `${baseUrl}${url}`;
+  }
+
+  return url;
 };
 
 export default api;

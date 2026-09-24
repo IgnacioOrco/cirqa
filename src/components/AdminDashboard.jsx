@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -23,12 +23,17 @@ import {
   ToggleRight,
   Eye,
   EyeOff,
+  UploadCloud,
+  Image as ImageIcon,
+  Trash2,
 } from 'lucide-react';
-import { productService, authService, handleSessionExpired } from '../services/api';
+import {
+  productService,
+  authService,
+  handleSessionExpired,
+  formatMediaUrl,
+} from '../services/api';
 
-/**
- * Orden preferente para catalogación estándar CIRQA
- */
 const MODEL_SORT_ORDER = {
   q001: 1,
   q002: 2,
@@ -39,12 +44,13 @@ const MODEL_SORT_ORDER = {
 
 export default function AdminDashboard({ authToken: propToken, onLogout: propOnLogout }) {
   const navigate = useNavigate();
+  const fileInputRef = useRef(null);
 
   // Estados de autenticación
   const [admin, setAdmin] = useState(() => authService.getAdmin());
 
   // Estados de navegación interna del panel
-  const [activeTab, setActiveTab] = useState('inventory'); // 'inventory' | 'orders'
+  const [activeTab, setActiveTab] = useState('inventory');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Estados de productos (directos de MongoDB)
@@ -62,6 +68,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [modalError, setModalError] = useState(null);
 
+  // Estados para Carga y Preview de Imágenes
+  const [selectedImageFile, setSelectedImageFile] = useState(null);
+  const [previewImageBlob, setPreviewImageBlob] = useState(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadSuccess, setUploadSuccess] = useState(false);
+
   // Notificación Toast flotante
   const [toast, setToast] = useState(null);
 
@@ -72,7 +84,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }, 4000);
   };
 
-  // Helper para cerrar sesión
   const handleLogout = useCallback(() => {
     if (propOnLogout) {
       propOnLogout();
@@ -81,7 +92,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     authService.logout();
   }, [propOnLogout]);
 
-  // Helper de ordenamiento de modelos
   const sortModels = (items) => {
     return [...items].sort((a, b) => {
       const slugA = (a.slug || a._id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -98,7 +108,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setErrorStatus(null);
 
     try {
-      // Verificar sesión antes de solicitar recursos protegidos si el endpoint está disponible
       try {
         await authService.verify();
       } catch (authErr) {
@@ -106,13 +115,10 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
           handleSessionExpired(true);
           return;
         }
-        // Si verify no está implementado o falla por otra razón, continuar al GET
       }
 
-      // GET /products?all=true para obtener el catálogo completo de MongoDB
       const data = await productService.getProducts({ all: true });
 
-      // Mapear los documentos de MongoDB garantizando campos consistentes
       const mapped = data.map((item) => ({
         _id: item._id,
         slug: item.slug || item._id,
@@ -156,6 +162,18 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     fetchInventory();
   }, [propToken, navigate, fetchInventory]);
 
+  // Limpieza de memoria de Blob URLs temporales
+  const clearTemporaryImage = useCallback(() => {
+    if (previewImageBlob) {
+      URL.revokeObjectURL(previewImageBlob);
+      setPreviewImageBlob(null);
+    }
+    setSelectedImageFile(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  }, [previewImageBlob]);
+
   // Abrir modal de edición
   const handleOpenEdit = (product) => {
     setSelectedProduct(product);
@@ -164,17 +182,93 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setEditIsActive(product.isActive !== false);
     setModalError(null);
     setSaveSuccess(false);
+    setUploadSuccess(false);
+    clearTemporaryImage();
   };
 
   // Cerrar modal de edición
   const handleCloseModal = () => {
-    if (saving) return;
+    if (saving || uploadingImage) return;
+    clearTemporaryImage();
     setSelectedProduct(null);
     setModalError(null);
     setSaveSuccess(false);
+    setUploadSuccess(false);
   };
 
-  // 3. Guardar cambios en el backend mediante PUT /products/:id
+  // Selección de archivo de imagen con preview inmediato
+  const handleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setModalError('Formato no soportado. Selecciona un archivo de imagen (JPG, PNG, WEBP, AVIF).');
+      return;
+    }
+
+    // Límite de 10 MB
+    if (file.size > 10 * 1024 * 1024) {
+      setModalError('La imagen seleccionada supera el límite máximo permitido de 10 MB.');
+      return;
+    }
+
+    if (previewImageBlob) {
+      URL.revokeObjectURL(previewImageBlob);
+    }
+
+    const objectUrl = URL.createObjectURL(file);
+    setSelectedImageFile(file);
+    setPreviewImageBlob(objectUrl);
+    setModalError(null);
+    setUploadSuccess(false);
+  };
+
+  // Subir la imagen al servidor VPS vía POST /api/products/:id/image
+  const handleUploadImageOnly = async () => {
+    if (!selectedImageFile || !selectedProduct) return;
+
+    setUploadingImage(true);
+    setModalError(null);
+
+    try {
+      const res = await productService.uploadProductImage(selectedProduct._id, selectedImageFile);
+      const newImageUrl = res.image_url || res.data?.image_url;
+
+      if (!newImageUrl) {
+        throw new Error('La respuesta del servidor no incluyó la URL de la imagen.');
+      }
+
+      // Actualizar producto actual en el modal
+      setSelectedProduct((prev) => ({
+        ...prev,
+        previewImage: newImageUrl,
+        image_url: newImageUrl,
+      }));
+
+      // Actualizar inmediatamente la grilla reactiva sin recargar la página
+      setProducts((prev) =>
+        prev.map((p) =>
+          p._id === selectedProduct._id
+            ? { ...p, previewImage: newImageUrl, image_url: newImageUrl }
+            : p
+        )
+      );
+
+      setUploadSuccess(true);
+      clearTemporaryImage();
+      showToast(`Imagen de "${selectedProduct.shortName}" subida exitosamente a /uploads.`);
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
+      }
+      setModalError(err.message || 'Error al subir la imagen al servidor.');
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // 3. Guardar cambios en el backend mediante PUT /api/products/:id (y subir imagen si fue seleccionada)
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     setModalError(null);
@@ -195,18 +289,31 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setSaving(true);
 
     try {
-      // Petición real protegida hacia el backend de producción
+      let finalImageUrl = selectedProduct.previewImage;
+
+      // Si el usuario seleccionó una nueva imagen y no la subió por separado, subirla ahora
+      if (selectedImageFile) {
+        try {
+          const imgRes = await productService.uploadProductImage(selectedProduct._id, selectedImageFile);
+          finalImageUrl = imgRes.image_url || imgRes.data?.image_url || finalImageUrl;
+          clearTemporaryImage();
+        } catch (imgErr) {
+          throw new Error(`Error al procesar la imagen: ${imgErr.message}`);
+        }
+      }
+
       const payload = {
         price: numericPrice,
         basePrice: numericPrice,
         stock: numericStock,
         isActive: editIsActive,
+        image_url: finalImageUrl,
       };
 
       const res = await productService.updateProduct(selectedProduct._id, payload);
       const updatedData = res.data || res;
 
-      // Actualizar estado reactivo local con la respuesta de MongoDB
+      // Actualizar estado reactivo local con la confirmación de MongoDB
       setProducts((prev) =>
         prev.map((p) => {
           if (p._id === selectedProduct._id) {
@@ -216,6 +323,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               basePrice: Number(updatedData.basePrice ?? numericPrice),
               stock: Number(updatedData.stock ?? numericStock),
               isActive: updatedData.isActive !== undefined ? Boolean(updatedData.isActive) : editIsActive,
+              previewImage: finalImageUrl,
+              image_url: finalImageUrl,
             };
           }
           return p;
@@ -239,7 +348,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }
   };
 
-  // 4. Conmutar estado activo directamente (Toggle rápido)
+  // 4. Conmutar estado activo rápidamente
   const handleToggleActiveQuick = async (e, product) => {
     e.stopPropagation();
     const newStatus = !product.isActive;
@@ -261,7 +370,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }
   };
 
-  // Filtro de búsqueda en tiempo real
   const filteredProducts = useMemo(() => {
     if (!searchQuery.trim()) return products;
     const q = searchQuery.toLowerCase();
@@ -273,7 +381,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     );
   }, [products, searchQuery]);
 
-  // Métricas dinámicas calculadas desde MongoDB
   const metrics = useMemo(() => {
     const totalUnits = products.reduce((acc, p) => acc + (p.stock || 0), 0);
     const totalValue = products.reduce((acc, p) => acc + (p.price || 0) * (p.stock || 0), 0);
@@ -288,7 +395,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     };
   }, [products]);
 
-  // Formateador de moneda en pesos argentinos
   const formatMoney = (amount) => {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
@@ -297,7 +403,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }).format(amount || 0);
   };
 
-  // Helper de Badge de Estado
   const getStockBadge = (stock) => {
     if (stock <= 0) {
       return (
@@ -326,16 +431,13 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   return (
     <div className="min-h-screen bg-[#FBFBFA] text-cirqa-negro font-montserrat flex flex-col md:flex-row antialiased selection:bg-cirqa-arena selection:text-cirqa-negro">
       
-      {/* ========================================================================= */}
-      {/* 1. SIDEBAR: Menú Lateral Neutro Negro                                     */}
-      {/* ========================================================================= */}
+      {/* 1. SIDEBAR */}
       <aside
         className={`fixed md:sticky top-0 left-0 h-screen w-72 bg-[#201610] text-white z-40 flex flex-col justify-between p-6 transition-transform duration-300 ease-in-out border-r border-[#2d2018] shadow-2xl md:shadow-none ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         }`}
       >
         <div className="space-y-8">
-          {/* Logo & Marca CIRQA */}
           <div className="flex items-center justify-between pt-2">
             <Link to="/" className="flex items-center gap-2 group">
               <span className="text-2xl font-light tracking-widest text-white group-hover:text-cirqa-arena transition-colors">
@@ -361,7 +463,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
             </p>
           </div>
 
-          {/* Navegación del Menú */}
           <nav className="space-y-2">
             <button
               onClick={() => {
@@ -411,7 +512,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
           </nav>
         </div>
 
-        {/* Sección Inferior del Sidebar: Admin info & Cerrar Sesión */}
         <div className="space-y-4 pt-6 border-t border-white/10">
           <div className="px-2">
             <div className="flex items-center gap-2 text-xs font-medium text-white/90">
@@ -441,7 +541,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         </div>
       </aside>
 
-      {/* Backdrop móvil */}
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
@@ -449,12 +548,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         />
       )}
 
-      {/* ========================================================================= */}
-      {/* 2. ÁREA PRINCIPAL                                                         */}
-      {/* ========================================================================= */}
+      {/* 2. ÁREA PRINCIPAL */}
       <div className="flex-1 flex flex-col min-w-0">
         
-        {/* Top bar móvil */}
         <header className="md:hidden bg-white px-6 py-4 border-b border-black/5 flex items-center justify-between sticky top-0 z-20">
           <div className="flex items-center gap-3">
             <button
@@ -474,10 +570,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
           </button>
         </header>
 
-        {/* Contenido Principal */}
         <main className="flex-1 p-6 sm:p-10 max-w-7xl w-full mx-auto space-y-8">
           
-          {/* Header Superior del Dashboard */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -516,7 +610,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
             </div>
           </div>
 
-          {/* Banner de Error si falló la conexión con MongoDB */}
           {errorStatus && (
             <div className="p-4 rounded-3xl bg-cirqa-carmin/5 border border-cirqa-carmin/20 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3 text-xs text-cirqa-carmin">
@@ -535,13 +628,10 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
             </div>
           )}
 
-          {/* VISTA 1: INVENTARIO */}
           {activeTab === 'inventory' && (
             <>
-              {/* Tarjetas de Métricas Resumen */}
+              {/* Tarjetas de Métricas */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                
-                {/* Métrica 1: Total Modelos */}
                 <div className="bg-white rounded-3xl p-6 border border-cirqa-negro/5 shadow-sm">
                   <div className="flex items-center justify-between text-cirqa-negro/40 mb-3">
                     <span className="text-[11px] font-semibold uppercase tracking-wider">Modelos Registrados</span>
@@ -555,7 +645,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   </p>
                 </div>
 
-                {/* Métrica 2: Unidades en Stock */}
                 <div className="bg-white rounded-3xl p-6 border border-cirqa-negro/5 shadow-sm">
                   <div className="flex items-center justify-between text-cirqa-negro/40 mb-3">
                     <span className="text-[11px] font-semibold uppercase tracking-wider">Stock Total</span>
@@ -569,7 +658,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   </p>
                 </div>
 
-                {/* Métrica 3: Valoración de Inventario */}
                 <div className="bg-white rounded-3xl p-6 border border-cirqa-negro/5 shadow-sm">
                   <div className="flex items-center justify-between text-cirqa-negro/40 mb-3">
                     <span className="text-[11px] font-semibold uppercase tracking-wider">Valor Inventario</span>
@@ -583,7 +671,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   </p>
                 </div>
 
-                {/* Métrica 4: Alertas de Stock */}
                 <div className="bg-white rounded-3xl p-6 border border-cirqa-negro/5 shadow-sm">
                   <div className="flex items-center justify-between text-cirqa-negro/40 mb-3">
                     <span className="text-[11px] font-semibold uppercase tracking-wider">Alertas</span>
@@ -596,10 +683,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     {metrics.lowStockCount > 0 ? 'Modelos con ≤ 5 unidades' : 'Inventario equilibrado'}
                   </p>
                 </div>
-
               </div>
 
-              {/* Barra de Filtro y Búsqueda */}
+              {/* Filtro y Búsqueda */}
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white/80 backdrop-blur-md p-4 rounded-3xl border border-cirqa-negro/5 shadow-sm">
                 <div className="relative flex-1 max-w-md">
                   <Search className="w-4 h-4 text-cirqa-negro/40 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
@@ -625,12 +711,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </div>
               </div>
 
-              {/* ========================================================================= */}
-              {/* 3. TABLA DE DATOS: MongoDB Real Data Grid                                 */}
-              {/* ========================================================================= */}
+              {/* TABLA DE PRODUCTOS */}
               <div className="bg-white rounded-3xl border border-cirqa-negro/10 shadow-sm overflow-hidden">
-                
-                {/* Encabezado de la Tabla */}
                 <div className="grid grid-cols-12 px-6 py-4 bg-[#FBFBFA] border-b border-cirqa-negro/10 text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/60 select-none">
                   <div className="col-span-2">Código</div>
                   <div className="col-span-4">Producto</div>
@@ -639,7 +721,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   <div className="col-span-2 text-right">Estado / Acciones</div>
                 </div>
 
-                {/* Contenido / Filas */}
                 {loading && products.length === 0 ? (
                   <div className="py-20 text-center space-y-3">
                     <RefreshCw className="w-6 h-6 animate-spin text-cirqa-primario mx-auto" />
@@ -655,92 +736,89 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   </div>
                 ) : (
                   <div className="divide-y divide-cirqa-negro/5">
-                    {filteredProducts.map((product) => (
-                      <motion.div
-                        key={product._id}
-                        onClick={() => handleOpenEdit(product)}
-                        whileHover={{ backgroundColor: 'rgba(251, 249, 246, 0.9)' }}
-                        transition={{ duration: 0.15 }}
-                        className="grid grid-cols-12 px-6 py-4 items-center cursor-pointer group transition-colors select-none"
-                      >
-                        {/* Columna 1: Código */}
-                        <div className="col-span-2 flex items-center gap-2">
-                          <span className="font-mono text-xs font-semibold text-cirqa-negro group-hover:text-cirqa-primario transition-colors truncate">
-                            {product.code}
-                          </span>
-                        </div>
-
-                        {/* Columna 2: Nombre & Miniatura */}
-                        <div className="col-span-4 flex items-center gap-3 pr-2">
-                          <div className="w-10 h-10 rounded-xl bg-[#F4EFEA] overflow-hidden flex-shrink-0 flex items-center justify-center border border-cirqa-negro/5">
-                            {product.previewImage ? (
-                              <img
-                                src={product.previewImage}
-                                alt={product.shortName}
-                                className="w-full h-full object-contain p-0.5 group-hover:scale-105 transition-transform"
-                                onError={(e) => {
-                                  e.currentTarget.style.display = 'none';
-                                }}
-                              />
-                            ) : (
-                              <Glasses className="w-5 h-5 text-cirqa-negro/30" />
-                            )}
-                          </div>
-                          <div className="truncate">
-                            <span className="text-xs font-medium text-cirqa-negro block truncate">
-                              {product.shortName}
-                            </span>
-                            <span className="text-[10px] text-cirqa-negro/45 font-light truncate block">
-                              {product.title}
+                    {filteredProducts.map((product) => {
+                      const displayImg = formatMediaUrl(product.previewImage);
+                      return (
+                        <motion.div
+                          key={product._id}
+                          onClick={() => handleOpenEdit(product)}
+                          whileHover={{ backgroundColor: 'rgba(251, 249, 246, 0.9)' }}
+                          transition={{ duration: 0.15 }}
+                          className="grid grid-cols-12 px-6 py-4 items-center cursor-pointer group transition-colors select-none"
+                        >
+                          <div className="col-span-2 flex items-center gap-2">
+                            <span className="font-mono text-xs font-semibold text-cirqa-negro group-hover:text-cirqa-primario transition-colors truncate">
+                              {product.code}
                             </span>
                           </div>
-                        </div>
 
-                        {/* Columna 3: Precio */}
-                        <div className="col-span-2">
-                          <span className="text-xs font-medium text-cirqa-negro font-mono">
-                            {formatMoney(product.price)}
-                          </span>
-                        </div>
-
-                        {/* Columna 4: Stock */}
-                        <div className="col-span-2 flex items-center gap-2">
-                          <span className="text-xs font-semibold text-cirqa-negro font-mono">
-                            {product.stock}
-                          </span>
-                          <span className="text-[10px] text-cirqa-negro/40 font-light hidden sm:inline">
-                            uds.
-                          </span>
-                          <div className="ml-1">
-                            {getStockBadge(product.stock)}
+                          <div className="col-span-4 flex items-center gap-3 pr-2">
+                            <div className="w-10 h-10 rounded-xl bg-[#F4EFEA] overflow-hidden flex-shrink-0 flex items-center justify-center border border-cirqa-negro/5">
+                              {displayImg ? (
+                                <img
+                                  src={displayImg}
+                                  alt={product.shortName}
+                                  className="w-full h-full object-contain p-0.5 group-hover:scale-105 transition-transform"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                              ) : (
+                                <Glasses className="w-5 h-5 text-cirqa-negro/30" />
+                              )}
+                            </div>
+                            <div className="truncate">
+                              <span className="text-xs font-medium text-cirqa-negro block truncate">
+                                {product.shortName}
+                              </span>
+                              <span className="text-[10px] text-cirqa-negro/45 font-light truncate block">
+                                {product.title}
+                              </span>
+                            </div>
                           </div>
-                        </div>
 
-                        {/* Columna 5: Estado & Acciones */}
-                        <div className="col-span-2 flex items-center justify-end gap-3">
-                          <button
-                            type="button"
-                            onClick={(e) => handleToggleActiveQuick(e, product)}
-                            title={product.isActive ? 'Producto visible (clic para ocultar)' : 'Producto oculto (clic para activar)'}
-                            className={`p-1 rounded-lg transition-colors ${
-                              product.isActive
-                                ? 'text-emerald-600 hover:bg-emerald-50'
-                                : 'text-cirqa-negro/30 hover:bg-black/5'
-                            }`}
-                          >
-                            {product.isActive ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                          </button>
-
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-black/5 text-cirqa-primario">
-                            <Edit3 className="w-3.5 h-3.5" />
+                          <div className="col-span-2">
+                            <span className="text-xs font-medium text-cirqa-negro font-mono">
+                              {formatMoney(product.price)}
+                            </span>
                           </div>
-                        </div>
-                      </motion.div>
-                    ))}
+
+                          <div className="col-span-2 flex items-center gap-2">
+                            <span className="text-xs font-semibold text-cirqa-negro font-mono">
+                              {product.stock}
+                            </span>
+                            <span className="text-[10px] text-cirqa-negro/40 font-light hidden sm:inline">
+                              uds.
+                            </span>
+                            <div className="ml-1">
+                              {getStockBadge(product.stock)}
+                            </div>
+                          </div>
+
+                          <div className="col-span-2 flex items-center justify-end gap-3">
+                            <button
+                              type="button"
+                              onClick={(e) => handleToggleActiveQuick(e, product)}
+                              title={product.isActive ? 'Producto visible (clic para ocultar)' : 'Producto oculto (clic para activar)'}
+                              className={`p-1 rounded-lg transition-colors ${
+                                product.isActive
+                                  ? 'text-emerald-600 hover:bg-emerald-50'
+                                  : 'text-cirqa-negro/30 hover:bg-black/5'
+                              }`}
+                            >
+                              {product.isActive ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                            </button>
+
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-black/5 text-cirqa-primario">
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
                   </div>
                 )}
 
-                {/* Pie de Tabla */}
                 <div className="px-6 py-3.5 bg-[#FBFBFA]/60 border-t border-cirqa-negro/5 flex flex-col sm:flex-row sm:items-center justify-between text-[11px] text-cirqa-negro/50 gap-2">
                   <div className="flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -748,12 +826,10 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   </div>
                   <span className="font-mono text-[10px]">CIRQA ENGINE · API PRODUCCIÓN</span>
                 </div>
-
               </div>
             </>
           )}
 
-          {/* VISTA 2: ÓRDENES */}
           {activeTab === 'orders' && (
             <div className="bg-white rounded-3xl p-12 border border-cirqa-negro/10 shadow-sm text-center max-w-2xl mx-auto space-y-6">
               <div className="w-16 h-16 rounded-3xl bg-cirqa-surface mx-auto flex items-center justify-center text-cirqa-arena border border-cirqa-negro/5">
@@ -785,9 +861,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         </main>
       </div>
 
-      {/* ========================================================================= */}
-      {/* 4. MODAL DE EDICIÓN: PUT /products/:id hacia producción                   */}
-      {/* ========================================================================= */}
+      {/* 4. MODAL DE EDICIÓN CON ÁREA DE CARGA DE IMÁGENES */}
       <AnimatePresence>
         {selectedProduct && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
@@ -810,24 +884,24 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 stiffness: 350,
                 damping: 28,
               }}
-              className="relative w-full max-w-lg bg-white/95 backdrop-blur-2xl border border-white/60 shadow-2xl rounded-3xl p-6 sm:p-8 text-cirqa-negro overflow-hidden z-10"
+              className="relative w-full max-w-lg bg-white/95 backdrop-blur-2xl border border-white/60 shadow-2xl rounded-3xl p-6 sm:p-8 text-cirqa-negro overflow-hidden z-10 my-8 max-h-[90vh] overflow-y-auto"
             >
               
               <button
                 onClick={handleCloseModal}
-                disabled={saving}
+                disabled={saving || uploadingImage}
                 className="absolute top-6 right-6 p-2 rounded-full text-cirqa-negro/40 hover:text-cirqa-negro hover:bg-black/5 transition-all"
                 aria-label="Cerrar modal"
               >
                 <X className="w-5 h-5" />
               </button>
 
-              {/* Encabezado del Modal */}
-              <div className="flex items-center gap-4 pb-6 border-b border-cirqa-negro/10">
+              {/* Encabezado del Producto */}
+              <div className="flex items-center gap-4 pb-5 border-b border-cirqa-negro/10">
                 <div className="w-16 h-16 rounded-2xl bg-[#F4EFEA] border border-cirqa-negro/5 p-1 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                  {selectedProduct.previewImage ? (
+                  {previewImageBlob || selectedProduct.previewImage ? (
                     <img
-                      src={selectedProduct.previewImage}
+                      src={previewImageBlob || formatMediaUrl(selectedProduct.previewImage)}
                       alt={selectedProduct.shortName}
                       className="w-full h-full object-contain"
                     />
@@ -848,6 +922,96 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </div>
               </div>
 
+              {/* SECCIÓN DE CARGA Y GESTIÓN DE IMAGEN */}
+              <div className="mt-5 p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <ImageIcon className="w-4 h-4 text-cirqa-primario" />
+                    <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro/80">
+                      Imagen del Producto
+                    </span>
+                  </div>
+                  {uploadSuccess && (
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                      <Check className="w-3 h-3" /> ¡Imagen sincronizada!
+                    </span>
+                  )}
+                </div>
+
+                {/* Input de archivo oculto con botón estético Apple */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  id="product-image-upload-input"
+                  accept="image/jpeg,image/png,image/webp,image/avif"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+
+                {/* Vista previa o dropzone */}
+                {selectedImageFile && previewImageBlob ? (
+                  <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-cirqa-negro/10">
+                    <div className="w-14 h-14 rounded-lg bg-[#F4EFEA] border border-cirqa-negro/5 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                      <img
+                        src={previewImageBlob}
+                        alt="Vista previa seleccionada"
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-medium text-cirqa-negro truncate">
+                        {selectedImageFile.name}
+                      </p>
+                      <p className="text-[10px] text-cirqa-negro/40 font-mono">
+                        {(selectedImageFile.size / 1024).toFixed(1)} KB · Nueva imagen lista
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={clearTemporaryImage}
+                        disabled={uploadingImage}
+                        className="p-1.5 text-cirqa-negro/40 hover:text-cirqa-carmin hover:bg-cirqa-carmin/10 rounded-lg transition-colors"
+                        title="Descartar imagen"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleUploadImageOnly}
+                        disabled={uploadingImage}
+                        className="px-3 py-1.5 bg-cirqa-primario hover:bg-cirqa-negro text-white text-[11px] font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
+                      >
+                        {uploadingImage ? (
+                          <>
+                            <RefreshCw className="w-3 h-3 animate-spin" />
+                            <span>Subiendo...</span>
+                          </>
+                        ) : (
+                          <>
+                            <UploadCloud className="w-3.5 h-3.5" />
+                            <span>Subir Ahora</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-cirqa-negro/15 hover:border-cirqa-primario/60 bg-white/70 hover:bg-white rounded-2xl p-4 text-center cursor-pointer transition-all group"
+                  >
+                    <UploadCloud className="w-6 h-6 text-cirqa-negro/35 group-hover:text-cirqa-primario mx-auto mb-1.5 transition-colors" />
+                    <p className="text-xs font-medium text-cirqa-negro/80">
+                      Haz clic para cambiar la imagen
+                    </p>
+                    <p className="text-[10px] text-cirqa-negro/40 mt-0.5">
+                      Archivos soportados: JPG, PNG, WEBP o AVIF (máx. 10 MB)
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {/* Mensaje de Error en Modal */}
               {modalError && (
                 <div className="mt-4 p-3.5 rounded-2xl bg-[#AC1917]/10 border border-[#AC1917]/20 text-[#AC1917] text-xs flex items-center gap-2">
@@ -856,10 +1020,10 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </div>
               )}
 
-              {/* Formulario de Edición */}
-              <form onSubmit={handleSaveProduct} className="mt-6 space-y-6">
+              {/* Formulario de Propiedades */}
+              <form onSubmit={handleSaveProduct} className="mt-5 space-y-5">
                 
-                {/* Input 1: Precio */}
+                {/* Input Precio */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70">
@@ -880,15 +1044,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                       value={editPrice}
                       onChange={(e) => setEditPrice(e.target.value)}
                       placeholder="42000"
-                      className="w-full pl-6 pr-4 py-3 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-lg font-mono text-cirqa-negro transition-colors"
+                      className="w-full pl-6 pr-4 py-2.5 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-base font-mono text-cirqa-negro transition-colors"
                     />
                   </div>
-                  <p className="text-[10px] text-cirqa-negro/40 mt-1 font-light">
-                    Vista previa: {formatMoney(Number(editPrice) || 0)}
-                  </p>
                 </div>
 
-                {/* Input 2: Stock */}
+                {/* Input Stock */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70">
@@ -908,7 +1069,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                       value={editStock}
                       onChange={(e) => setEditStock(e.target.value)}
                       placeholder="10"
-                      className="w-full pr-16 py-3 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-lg font-mono text-cirqa-negro transition-colors"
+                      className="w-full pr-16 py-2.5 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-base font-mono text-cirqa-negro transition-colors"
                     />
                     <span className="absolute right-0 text-xs text-cirqa-negro/40 font-light">
                       unidades
@@ -917,7 +1078,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
                   <div className="flex items-center justify-between mt-2">
                     <span className="text-[10px] text-cirqa-negro/40">
-                      Estado resultante:
+                      Estado:
                     </span>
                     <div>
                       {getStockBadge(Number(editStock) || 0)}
@@ -925,7 +1086,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   </div>
                 </div>
 
-                {/* Input 3: Visibilidad (isActive) */}
+                {/* Toggle Visibilidad */}
                 <div className="flex items-center justify-between p-3.5 bg-cirqa-surface rounded-2xl border border-cirqa-negro/5">
                   <div>
                     <span className="text-xs font-semibold text-cirqa-negro block">
@@ -948,20 +1109,18 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   </button>
                 </div>
 
-                {/* Resumen de Seguridad JWT */}
                 <div className="p-3 bg-emerald-50/50 rounded-2xl border border-emerald-500/10 flex items-center gap-2.5 text-[11px] text-emerald-800">
                   <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
                   <span>
-                    Petición <code className="font-mono text-[10px] bg-emerald-100 px-1 py-0.5 rounded font-bold">PUT /products/{selectedProduct._id}</code> protegida con Bearer JWT.
+                    Conexión protegida mediante Bearer JWT con el VPS en producción.
                   </span>
                 </div>
 
-                {/* Botones de Acción */}
                 <div className="pt-2 flex items-center justify-end gap-3">
                   <button
                     type="button"
                     onClick={handleCloseModal}
-                    disabled={saving}
+                    disabled={saving || uploadingImage}
                     className="px-5 py-3 rounded-full text-xs font-medium text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5 transition-all"
                   >
                     Cancelar
@@ -969,7 +1128,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
                   <button
                     type="submit"
-                    disabled={saving}
+                    disabled={saving || uploadingImage}
                     className="px-7 py-3 rounded-full bg-cirqa-negro hover:bg-cirqa-primario active:scale-[0.98] text-white text-xs font-semibold tracking-wider uppercase transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
                   >
                     {saving ? (
@@ -998,9 +1157,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         )}
       </AnimatePresence>
 
-      {/* ========================================================================= */}
-      {/* 5. TOAST NOTIFICACIÓN FLOTANTE                                            */}
-      {/* ========================================================================= */}
+      {/* 5. TOAST */}
       <AnimatePresence>
         {toast && (
           <motion.div

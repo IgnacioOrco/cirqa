@@ -1,6 +1,8 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'node:path';
+import fs from 'node:fs';
 import connectDB from './config/db.js';
 
 // Importar Rutas
@@ -37,7 +39,13 @@ app.use(cors(corsOptions));
 // Middlewares para parseo de solicitudes
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use('/uploads', express.static('uploads'));
+
+// Servir carpeta de subidas de forma estática y persistente (/uploads)
+const uploadsPath = path.resolve('uploads');
+if (!fs.existsSync(uploadsPath)) {
+  fs.mkdirSync(uploadsPath, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsPath));
 
 // Endpoint de prueba / Health Check
 app.get('/', (req, res) => {

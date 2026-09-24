@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  # Servicio de la API Express
+  api:
+    build: .
+    container_name: cirqa-api
+    restart: always
+    ports:
+      - "5000:5000"
+    environment:
+      - PORT=5000
+      - NODE_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/cirqa
+      - JWT_SECRET=cirqa_secret_jwt_key_prod_2026
+      - CLIENT_URL=https://cirqa.com.ar
+    volumes:
+      # =========================================================================
+      # VOLUMEN PERSISTENTE: Mapea la carpeta ./uploads del host VPS a /app/uploads
+      # Garantiza que las imágenes subidas no se pierdan al rebuildear el contenedor
+      # =========================================================================
+      - ./uploads:/app/uploads
+    depends_on:
+      - mongo
+
+  # Servicio de Base de Datos MongoDB
+  mongo:
+    image: mongo:6-jammy
+    container_name: cirqa-mongo
+    restart: always
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+volumes:
+  mongo-data:
+    driver: local
