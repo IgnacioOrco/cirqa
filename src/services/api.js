@@ -1,15 +1,13 @@
 /**
  * CIRQA API Client & Services
- * Capa de red centralizada con cliente Fetch resiliente, inyección automática de JWT
+ * Capa de red centralizada con cliente Fetch, inyección automática de JWT
  * y manejo global de errores 401/403 (sesión expirada).
  */
 
 // 1. Resolución y normalización de la URL base
-const getBaseUrl = () => {
-  const envUrl = import.meta.env.VITE_API_URL || 'https://api.cirqa.com.ar/api';
-  const cleanUrl = envUrl.replace(/\/+$/, '');
-  // Asegurar que termine en /api sin duplicar
-  return cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+export const getBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL || 'https://api.cirqa.com.ar';
+  return envUrl.replace(/\/+$/, '');
 };
 
 export const API_BASE_URL = getBaseUrl();
@@ -21,7 +19,7 @@ export const STORAGE_KEYS = {
 };
 
 /**
- * Limpia las credenciales y redirige a /login si la sesión expiró.
+ * Limpia las credenciales y redirige a /login?expired=1 si la sesión expiró.
  */
 export const handleSessionExpired = (redirect = true) => {
   if (typeof window !== 'undefined') {
@@ -34,22 +32,36 @@ export const handleSessionExpired = (redirect = true) => {
 };
 
 /**
+ * Normaliza endpoints y URLs para soportar tanto rutas absolutas "/api/..." como relativas "/..."
+ * evitando duplicación de "/api" si la variable VITE_API_URL ya la incluye o la omite.
+ */
+const buildFullUrl = (endpoint) => {
+  const baseUrl = getBaseUrl();
+  let cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+
+  if (baseUrl.endsWith('/api') && cleanEndpoint.startsWith('/api/')) {
+    cleanEndpoint = cleanEndpoint.replace(/^\/api/, '');
+  } else if (!baseUrl.endsWith('/api') && !cleanEndpoint.startsWith('/api/')) {
+    cleanEndpoint = `/api${cleanEndpoint}`;
+  }
+
+  return `${baseUrl}${cleanEndpoint}`;
+};
+
+/**
  * Cliente HTTP Base basado en Fetch (Fetch Wrapper)
  */
 async function request(endpoint, options = {}) {
   const token = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_KEYS.TOKEN) : null;
+  const url = buildFullUrl(endpoint);
 
-  // Normalizar endpoint: permitir "/products" o "products"
-  const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-  const url = `${API_BASE_URL}${cleanEndpoint}`;
-
-  // Configurar headers por defecto
+  // Headers por defecto
   const headers = {
     'Content-Type': 'application/json',
     ...(options.headers || {}),
   };
 
-  // Interceptor: Adjuntar Authorization Bearer si existe token
+  // Interceptor: Inyectar Authorization Bearer <token>
   if (token && !headers['Authorization']) {
     headers['Authorization'] = `Bearer ${token}`;
   }
@@ -66,15 +78,15 @@ async function request(endpoint, options = {}) {
   try {
     const response = await fetch(url, config);
 
-    // Interceptor: Manejo de sesión no autorizada (401 / 403)
+    // Interceptor: Manejo de sesión expirada o no autorizada (401 / 403)
     if (response.status === 401 || response.status === 403) {
-      // Solo forzamos logout automático si no es la propia petición de login
-      if (!cleanEndpoint.includes('/auth/login')) {
+      // No forzar redirección si la petición es el propio formulario de login
+      if (!endpoint.includes('/auth/login')) {
         handleSessionExpired(true);
       }
     }
 
-    // Intentar parsear JSON de la respuesta
+    // Parsear respuesta
     let data;
     const contentType = response.headers.get('content-type');
     if (contentType && contentType.includes('application/json')) {
@@ -95,9 +107,8 @@ async function request(endpoint, options = {}) {
 
     return data;
   } catch (error) {
-    // Si fue error de red (backend caído, CORS, etc.)
     if (!error.status) {
-      error.message = error.message || 'No fue posible conectar con el servidor. Revisa tu conexión.';
+      error.message = error.message || 'No fue posible conectar con el servidor de CIRQA. Revisa tu conexión.';
     }
     throw error;
   }
@@ -119,10 +130,11 @@ export const api = {
  */
 export const authService = {
   /**
-   * Iniciar sesión con email y contraseña (POST /auth/login)
+   * Iniciar sesión con email y contraseña: POST /api/auth/login
+   * @returns {Promise<{ token: string, admin: Object }>}
    */
   async login(email, password) {
-    const data = await api.post('/auth/login', { email, password });
+    const data = await api.post('/api/auth/login', { email, password });
     if (data.token) {
       localStorage.setItem(STORAGE_KEYS.TOKEN, data.token);
       if (data.admin) {
@@ -133,14 +145,14 @@ export const authService = {
   },
 
   /**
-   * Verificar validez del token JWT del administrador (GET /auth/verify)
+   * Verificar validez del token JWT: GET /api/auth/verify
    */
   async verify() {
-    return api.get('/auth/verify');
+    return api.get('/api/auth/verify');
   },
 
   /**
-   * Cerrar sesión en el frontend
+   * Cerrar sesión en el frontend y limpiar storage
    */
   logout() {
     handleSessionExpired(false);
@@ -171,12 +183,13 @@ export const authService = {
 };
 
 /**
- * Servicio de Productos y Catálogo
+ * Servicio de Productos
  */
 export const productService = {
   /**
-   * Obtener catálogo de productos (GET /products)
-   * @param {Object} params - { all: true } para obtener activos e inactivos en el admin
+   * Obtener catálogo de productos:
+   * GET /api/products (Público)
+   * GET /api/products?all=true (Admin)
    */
   async getProducts(params = { all: true }) {
     const query = new URLSearchParams();
@@ -184,40 +197,41 @@ export const productService = {
     if (params.sort) query.append('sort', params.sort);
 
     const queryString = query.toString() ? `?${query.toString()}` : '';
-    const res = await api.get(`/products${queryString}`);
+    const res = await api.get(`/api/products${queryString}`);
     
-    // Normalizar respuesta si viene como { success: true, data: [...] } o array directo
     if (Array.isArray(res)) return res;
     if (res && Array.isArray(res.data)) return res.data;
     return [];
   },
 
   /**
-   * Actualizar un producto por ID (PUT /products/:id)
+   * Actualizar propiedades de un producto: PUT /api/products/:id
+   * @param {string} id - MongoDB ObjectId
+   * @param {Object} updateData - { price, stock, isActive, etc. }
    */
   async updateProduct(id, updateData) {
-    return api.put(`/products/${id}`, updateData);
+    return api.put(`/api/products/${id}`, updateData);
   },
 
   /**
-   * Actualizar stock directamente (PATCH /products/:id/stock)
+   * Actualizar stock individual: PATCH /api/products/:id/stock
    */
   async updateStock(id, stock) {
-    return api.patch(`/products/${id}/stock`, { stock: Number(stock) });
+    return api.patch(`/api/products/${id}/stock`, { stock: Number(stock) });
   },
 
   /**
-   * Crear un nuevo producto (POST /products)
+   * Crear un nuevo producto: POST /api/products
    */
   async createProduct(productData) {
-    return api.post('/products', productData);
+    return api.post('/api/products', productData);
   },
 
   /**
-   * Eliminar un producto (DELETE /products/:id)
+   * Eliminar un producto: DELETE /api/products/:id
    */
   async deleteProduct(id) {
-    return api.delete(`/products/${id}`);
+    return api.delete(`/api/products/${id}`);
   },
 };
 
