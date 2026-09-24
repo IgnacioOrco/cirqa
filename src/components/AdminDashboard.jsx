@@ -26,6 +26,12 @@ import {
   UploadCloud,
   Image as ImageIcon,
   Trash2,
+  Plus,
+  Star,
+  ChevronUp,
+  ChevronDown,
+  Layers,
+  Tag,
 } from 'lucide-react';
 import {
   productService,
@@ -42,37 +48,34 @@ const MODEL_SORT_ORDER = {
   q005: 5,
 };
 
+// Etiquetas legibles para los roles o ubicaciones de fotos
+export const IMAGE_TAG_OPTIONS = [
+  { value: 'front', label: 'Frontal (Cara)' },
+  { value: 'side', label: 'Perfil / Lateral' },
+  { value: 'angle', label: 'Ángulo 45°' },
+  { value: 'model', label: 'Puesta en Modelo' },
+  { value: 'detail', label: 'Detalle Técnico / Bisagra' },
+  { value: 'gallery', label: 'Galería General' },
+];
+
 export default function AdminDashboard({ authToken: propToken, onLogout: propOnLogout }) {
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
+
+  // Referencias a inputs de archivos
+  const galleryFileInputRef = useRef(null);
 
   // Estados de autenticación
   const [admin, setAdmin] = useState(() => authService.getAdmin());
 
-  // Estados de navegación interna del panel
+  // Navegación interna del panel
   const [activeTab, setActiveTab] = useState('inventory');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  // Estados de productos (directos de MongoDB)
+  // Catálogo de productos (MongoDB)
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [errorStatus, setErrorStatus] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
-
-  // Estados del modal de edición
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [editPrice, setEditPrice] = useState('');
-  const [editStock, setEditStock] = useState('');
-  const [editIsActive, setEditIsActive] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [modalError, setModalError] = useState(null);
-
-  // Estados para Carga y Preview de Imágenes
-  const [selectedImageFile, setSelectedImageFile] = useState(null);
-  const [previewImageBlob, setPreviewImageBlob] = useState(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [uploadSuccess, setUploadSuccess] = useState(false);
 
   // Notificación Toast flotante
   const [toast, setToast] = useState(null);
@@ -92,17 +95,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     authService.logout();
   }, [propOnLogout]);
 
-  const sortModels = (items) => {
-    return [...items].sort((a, b) => {
-      const slugA = (a.slug || a._id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const slugB = (b.slug || b._id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-      const orderA = MODEL_SORT_ORDER[slugA] ?? 99;
-      const orderB = MODEL_SORT_ORDER[slugB] ?? 99;
-      return orderA - orderB;
-    });
-  };
-
-  // 1. Cargar inventario directamente desde MongoDB en la API en producción
+  // =========================================================================
+  // 1. CARGA DE CATÁLOGO DESDE MONGODB
+  // =========================================================================
   const fetchInventory = useCallback(async () => {
     setLoading(true);
     setErrorStatus(null);
@@ -119,21 +114,63 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
       const data = await productService.getProducts({ all: true });
 
-      const mapped = data.map((item) => ({
-        _id: item._id,
-        slug: item.slug || item._id,
-        code: `CIRQA-${(item.slug || item.name || '').toUpperCase().replace(/[\s-]+/g, '')}`,
-        name: item.name,
-        shortName: item.name,
-        title: item.description || 'Armazón Espectral CIRQA',
-        price: Number(item.price ?? item.basePrice ?? 0),
-        basePrice: Number(item.basePrice ?? item.price ?? 0),
-        stock: Number(item.stock ?? 0),
-        previewImage: item.image_url || (Array.isArray(item.images) && item.images[0]) || '/products/_DSC8649.webp',
-        isActive: item.isActive !== undefined ? Boolean(item.isActive) : true,
-      }));
+      const mapped = data.map((item) => {
+        let primaryImgUrl = item.image_url;
+        let imagesList = [];
 
-      const sorted = sortModels(mapped);
+        if (Array.isArray(item.images) && item.images.length > 0) {
+          imagesList = item.images.map((img, idx) => {
+            if (typeof img === 'string') {
+              return {
+                _id: `img-${idx}`,
+                url: img,
+                tag: idx === 0 ? 'front' : 'gallery',
+                isPrimary: idx === 0,
+                order: idx,
+              };
+            }
+            return {
+              _id: img._id || `img-${idx}`,
+              url: img.url,
+              tag: img.tag || 'gallery',
+              isPrimary: Boolean(img.isPrimary),
+              order: img.order !== undefined ? Number(img.order) : idx,
+            };
+          });
+
+          const primaryObj = imagesList.find((i) => i.isPrimary) || imagesList[0];
+          if (primaryObj) primaryImgUrl = primaryObj.url;
+        }
+
+        const modelCode = item.modelCode || `Q-${(item.slug || item.name || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4) || '001'}`;
+
+        return {
+          _id: item._id,
+          modelCode,
+          code: modelCode,
+          slug: item.slug || item._id,
+          name: item.name,
+          shortName: item.name,
+          title: item.description || 'Armazón Espectral CIRQA',
+          description: item.description || '',
+          price: Number(item.price ?? item.basePrice ?? 0),
+          basePrice: Number(item.basePrice ?? item.price ?? 0),
+          stock: Number(item.stock ?? 0),
+          previewImage: primaryImgUrl || '/products/_DSC8649.webp',
+          image_url: primaryImgUrl || '',
+          images: imagesList,
+          isActive: item.isActive !== undefined ? Boolean(item.isActive) : true,
+        };
+      });
+
+      const sorted = [...mapped].sort((a, b) => {
+        const slugA = (a.slug || a._id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const slugB = (b.slug || b._id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const orderA = MODEL_SORT_ORDER[slugA] ?? 99;
+        const orderB = MODEL_SORT_ORDER[slugB] ?? 99;
+        return orderA - orderB;
+      });
+
       setProducts(sorted);
     } catch (err) {
       if (err.status === 401 || err.status === 403) {
@@ -146,7 +183,6 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }
   }, []);
 
-  // 2. Verificación de token al montar
   useEffect(() => {
     const currentToken = propToken || authService.getToken();
     if (!currentToken) {
@@ -162,17 +198,116 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     fetchInventory();
   }, [propToken, navigate, fetchInventory]);
 
-  // Limpieza de memoria de Blob URLs temporales
-  const clearTemporaryImage = useCallback(() => {
-    if (previewImageBlob) {
-      URL.revokeObjectURL(previewImageBlob);
-      setPreviewImageBlob(null);
+  // =========================================================================
+  // 2. MODAL DE CREACIÓN DE NUEVO PRODUCTO
+  // =========================================================================
+  const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createName, setCreateName] = useState('');
+  const [createModelCode, setCreateModelCode] = useState('');
+  const [createPrice, setCreatePrice] = useState('');
+  const [createStock, setCreateStock] = useState('10');
+  const [createDescription, setCreateDescription] = useState('');
+  const [createIsActive, setCreateIsActive] = useState(true);
+  const [createLoading, setCreateLoading] = useState(false);
+  const [createError, setCreateError] = useState(null);
+
+  const resetCreateForm = () => {
+    setCreateName('');
+    setCreateModelCode('');
+    setCreatePrice('');
+    setCreateStock('10');
+    setCreateDescription('');
+    setCreateIsActive(true);
+    setCreateError(null);
+  };
+
+  const handleOpenCreateModal = () => {
+    resetCreateForm();
+    setCreateModalOpen(true);
+  };
+
+  const handleCreateProductSubmit = async (e) => {
+    e.preventDefault();
+    setCreateError(null);
+
+    const priceNum = Number(createPrice);
+    const stockNum = Number(createStock);
+
+    if (!createName.trim()) {
+      setCreateError('El nombre del producto es obligatorio.');
+      return;
     }
-    setSelectedImageFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+
+    if (isNaN(priceNum) || priceNum < 0) {
+      setCreateError('Ingresa un precio válido mayor o igual a 0.');
+      return;
     }
-  }, [previewImageBlob]);
+
+    if (isNaN(stockNum) || stockNum < 0 || !Number.isInteger(stockNum)) {
+      setCreateError('El stock debe ser un número entero mayor o igual a 0.');
+      return;
+    }
+
+    setCreateLoading(true);
+
+    try {
+      const payload = {
+        name: createName.trim(),
+        modelCode: createModelCode.trim().toUpperCase() || undefined,
+        price: priceNum,
+        basePrice: priceNum,
+        stock: stockNum,
+        description: createDescription.trim(),
+        isActive: createIsActive,
+      };
+
+      const res = await productService.createProduct(payload);
+      const newProd = res.data || res;
+
+      showToast(`Producto "${newProd.name}" creado con éxito.`);
+      setCreateModalOpen(false);
+      resetCreateForm();
+      // Recargar catálogo para tener el producto con todos los defaults de Mongo
+      await fetchInventory();
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
+      }
+      setCreateError(err.message || 'No fue posible crear el producto.');
+    } finally {
+      setCreateLoading(false);
+    }
+  };
+
+  // =========================================================================
+  // 3. MODAL DE EDICIÓN & GESTIÓN DE GALERÍA
+  // =========================================================================
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [editPrice, setEditPrice] = useState('');
+  const [editStock, setEditStock] = useState('');
+  const [editIsActive, setEditIsActive] = useState(true);
+  const [editDescription, setEditDescription] = useState('');
+  const [editModelCode, setEditModelCode] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [modalError, setModalError] = useState(null);
+
+  // Estados de subida múltiple a la galería
+  const [selectedGalleryFiles, setSelectedGalleryFiles] = useState([]);
+  const [selectedGalleryTag, setSelectedGalleryTag] = useState('gallery');
+  const [uploadingGallery, setUploadingGallery] = useState(false);
+  const [galleryPreviews, setGalleryPreviews] = useState([]);
+
+  // Limpiar previews temporales de subida
+  const clearGalleryUploadSelection = () => {
+    galleryPreviews.forEach((p) => URL.revokeObjectURL(p.url));
+    setGalleryPreviews([]);
+    setSelectedGalleryFiles([]);
+    if (galleryFileInputRef.current) {
+      galleryFileInputRef.current.value = '';
+    }
+  };
 
   // Abrir modal de edición
   const handleOpenEdit = (product) => {
@@ -180,96 +315,273 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setEditPrice(String(product.price));
     setEditStock(String(product.stock));
     setEditIsActive(product.isActive !== false);
+    setEditDescription(product.description || '');
+    setEditModelCode(product.modelCode || product.code || '');
     setModalError(null);
     setSaveSuccess(false);
-    setUploadSuccess(false);
-    clearTemporaryImage();
+    clearGalleryUploadSelection();
   };
 
-  // Cerrar modal de edición
+  // Cerrar modal
   const handleCloseModal = () => {
-    if (saving || uploadingImage) return;
-    clearTemporaryImage();
+    if (saving || uploadingGallery) return;
+    clearGalleryUploadSelection();
     setSelectedProduct(null);
     setModalError(null);
     setSaveSuccess(false);
-    setUploadSuccess(false);
   };
 
-  // Selección de archivo de imagen con preview inmediato
-  const handleFileChange = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // Selección de múltiples archivos para la galería
+  const handleGalleryFilesChange = (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    if (!file.type.startsWith('image/')) {
-      setModalError('Formato no soportado. Selecciona un archivo de imagen (JPG, PNG, WEBP, AVIF).');
+    if (files.length > 5) {
+      setModalError('Puedes subir un máximo de 5 fotos por vez.');
       return;
     }
 
-    // Límite de 10 MB
-    if (file.size > 10 * 1024 * 1024) {
-      setModalError('La imagen seleccionada supera el límite máximo permitido de 10 MB.');
-      return;
+    // Validar formato y tamaño
+    for (const f of files) {
+      if (!f.type.startsWith('image/')) {
+        setModalError(`El archivo "${f.name}" no es una imagen válida.`);
+        return;
+      }
+      if (f.size > 10 * 1024 * 1024) {
+        setModalError(`"${f.name}" supera el límite de 10 MB.`);
+        return;
+      }
     }
 
-    if (previewImageBlob) {
-      URL.revokeObjectURL(previewImageBlob);
-    }
+    // Crear previews
+    const newPreviews = files.map((f) => ({
+      file: f,
+      url: URL.createObjectURL(f),
+      name: f.name,
+      size: (f.size / 1024).toFixed(0),
+    }));
 
-    const objectUrl = URL.createObjectURL(file);
-    setSelectedImageFile(file);
-    setPreviewImageBlob(objectUrl);
+    setGalleryPreviews(newPreviews);
+    setSelectedGalleryFiles(files);
     setModalError(null);
-    setUploadSuccess(false);
   };
 
-  // Subir la imagen al servidor VPS vía POST /api/products/:id/image
-  const handleUploadImageOnly = async () => {
-    if (!selectedImageFile || !selectedProduct) return;
+  // Ejecutar subida de las fotos seleccionadas a la galería
+  const handleUploadGalleryPhotos = async () => {
+    if (selectedGalleryFiles.length === 0 || !selectedProduct) return;
 
-    setUploadingImage(true);
+    setUploadingGallery(true);
     setModalError(null);
 
     try {
-      const res = await productService.uploadProductImage(selectedProduct._id, selectedImageFile);
-      const newImageUrl = res.image_url || res.data?.image_url;
+      const res = await productService.uploadProductImages(
+        selectedProduct._id,
+        selectedGalleryFiles,
+        selectedGalleryTag
+      );
 
-      if (!newImageUrl) {
-        throw new Error('La respuesta del servidor no incluyó la URL de la imagen.');
-      }
+      const updatedProduct = res.data;
+      if (!updatedProduct) throw new Error('Respuesta inválida del servidor.');
 
-      // Actualizar producto actual en el modal
-      setSelectedProduct((prev) => ({
-        ...prev,
-        previewImage: newImageUrl,
-        image_url: newImageUrl,
+      // Extraer imágenes actualizadas
+      const updatedImages = (updatedProduct.images || []).map((img, idx) => ({
+        _id: img._id,
+        url: img.url,
+        tag: img.tag || 'gallery',
+        isPrimary: Boolean(img.isPrimary),
+        order: img.order !== undefined ? img.order : idx,
       }));
 
-      // Actualizar inmediatamente la grilla reactiva sin recargar la página
+      const primary = updatedImages.find((img) => img.isPrimary) || updatedImages[0];
+      const newPreview = primary?.url || updatedProduct.image_url;
+
+      // Actualizar producto seleccionado
+      setSelectedProduct((prev) => ({
+        ...prev,
+        images: updatedImages,
+        previewImage: newPreview,
+        image_url: newPreview,
+      }));
+
+      // Actualizar estado global reactivo
       setProducts((prev) =>
         prev.map((p) =>
           p._id === selectedProduct._id
-            ? { ...p, previewImage: newImageUrl, image_url: newImageUrl }
+            ? { ...p, images: updatedImages, previewImage: newPreview, image_url: newPreview }
             : p
         )
       );
 
-      setUploadSuccess(true);
-      clearTemporaryImage();
-      showToast(`Imagen de "${selectedProduct.shortName}" subida exitosamente a /uploads.`);
+      clearGalleryUploadSelection();
+      showToast(`${selectedGalleryFiles.length} foto(s) añadidas a la galería con éxito.`);
     } catch (err) {
       if (err.status === 401 || err.status === 403) {
         handleSessionExpired(true);
         return;
       }
-      setModalError(err.message || 'Error al subir la imagen al servidor.');
+      setModalError(err.message || 'Error al subir fotos a la galería.');
     } finally {
-      setUploadingImage(false);
+      setUploadingGallery(false);
     }
   };
 
-  // 3. Guardar cambios en el backend mediante PUT /api/products/:id (y subir imagen si fue seleccionada)
-  const handleSaveProduct = async (e) => {
+  // Marcar una imagen puntual como portada / primaria
+  const handleSetPrimaryImage = async (imageId) => {
+    if (!selectedProduct) return;
+
+    try {
+      await productService.updateProductImageMetadata(selectedProduct._id, imageId, {
+        isPrimary: true,
+      });
+
+      const updatedImages = selectedProduct.images.map((img) => ({
+        ...img,
+        isPrimary: img._id === imageId,
+      }));
+
+      const primary = updatedImages.find((i) => i.isPrimary) || updatedImages[0];
+      const newPreview = primary?.url || selectedProduct.previewImage;
+
+      setSelectedProduct((prev) => ({
+        ...prev,
+        images: updatedImages,
+        previewImage: newPreview,
+        image_url: newPreview,
+      }));
+
+      setProducts((prev) =>
+        prev.map((p) =>
+          p._id === selectedProduct._id
+            ? { ...p, images: updatedImages, previewImage: newPreview, image_url: newPreview }
+            : p
+        )
+      );
+
+      showToast('Foto de portada actualizada exitosamente.');
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
+      }
+      showToast('Error al actualizar la foto de portada.', 'error');
+    }
+  };
+
+  // Modificar el tag (rol/ubicación) de una foto existente
+  const handleUpdateImageTag = async (imageId, newTag) => {
+    if (!selectedProduct) return;
+
+    try {
+      await productService.updateProductImageMetadata(selectedProduct._id, imageId, {
+        tag: newTag,
+      });
+
+      const updatedImages = selectedProduct.images.map((img) =>
+        img._id === imageId ? { ...img, tag: newTag } : img
+      );
+
+      setSelectedProduct((prev) => ({ ...prev, images: updatedImages }));
+      setProducts((prev) =>
+        prev.map((p) => (p._id === selectedProduct._id ? { ...p, images: updatedImages } : p))
+      );
+
+      showToast('Categoría de imagen actualizada.');
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
+      }
+      showToast('Error al actualizar la categoría.', 'error');
+    }
+  };
+
+  // Eliminar foto puntual de la galería y del disco
+  const handleDeleteImage = async (imageId) => {
+    if (!selectedProduct) return;
+
+    const confirmDelete = window.confirm(
+      '¿Estás seguro de que deseas eliminar permanentemente esta foto del producto y del servidor?'
+    );
+    if (!confirmDelete) return;
+
+    try {
+      const res = await productService.deleteProductImage(selectedProduct._id, imageId);
+      const updatedProduct = res.data;
+
+      const updatedImages = (updatedProduct.images || []).map((img, idx) => ({
+        _id: img._id,
+        url: img.url,
+        tag: img.tag || 'gallery',
+        isPrimary: Boolean(img.isPrimary),
+        order: img.order !== undefined ? img.order : idx,
+      }));
+
+      const primary = updatedImages.find((img) => img.isPrimary) || updatedImages[0];
+      const newPreview = primary?.url || updatedProduct.image_url;
+
+      setSelectedProduct((prev) => ({
+        ...prev,
+        images: updatedImages,
+        previewImage: newPreview,
+        image_url: newPreview,
+      }));
+
+      setProducts((prev) =>
+        prev.map((p) =>
+          p._id === selectedProduct._id
+            ? { ...p, images: updatedImages, previewImage: newPreview, image_url: newPreview }
+            : p
+        )
+      );
+
+      showToast('Foto eliminada del catálogo y del disco.');
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
+      }
+      showToast('No fue posible eliminar la foto.', 'error');
+    }
+  };
+
+  // Reordenar imágenes (Mover arriba / abajo)
+  const handleReorderImage = async (currentIndex, direction) => {
+    if (!selectedProduct) return;
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= selectedProduct.images.length) return;
+
+    const newImages = [...selectedProduct.images];
+    const [movedItem] = newImages.splice(currentIndex, 1);
+    newImages.splice(targetIndex, 0, movedItem);
+
+    // Reasignar order consecutivo
+    const reorderedImages = newImages.map((img, idx) => ({
+      ...img,
+      order: idx,
+    }));
+
+    setSelectedProduct((prev) => ({ ...prev, images: reorderedImages }));
+
+    try {
+      // Persistir reordenamiento en backend
+      await productService.updateProduct(selectedProduct._id, {
+        images: reorderedImages,
+      });
+
+      setProducts((prev) =>
+        prev.map((p) => (p._id === selectedProduct._id ? { ...p, images: reorderedImages } : p))
+      );
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
+      }
+      showToast('Error al persistir el nuevo orden de imágenes.', 'error');
+    }
+  };
+
+  // Guardar datos generales del producto (PUT /api/products/:id)
+  const handleSaveProductGeneral = async (e) => {
     e.preventDefault();
     setModalError(null);
 
@@ -289,42 +601,31 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setSaving(true);
 
     try {
-      let finalImageUrl = selectedProduct.previewImage;
-
-      // Si el usuario seleccionó una nueva imagen y no la subió por separado, subirla ahora
-      if (selectedImageFile) {
-        try {
-          const imgRes = await productService.uploadProductImage(selectedProduct._id, selectedImageFile);
-          finalImageUrl = imgRes.image_url || imgRes.data?.image_url || finalImageUrl;
-          clearTemporaryImage();
-        } catch (imgErr) {
-          throw new Error(`Error al procesar la imagen: ${imgErr.message}`);
-        }
-      }
-
       const payload = {
+        modelCode: editModelCode.trim().toUpperCase() || undefined,
         price: numericPrice,
         basePrice: numericPrice,
         stock: numericStock,
+        description: editDescription.trim(),
         isActive: editIsActive,
-        image_url: finalImageUrl,
       };
 
       const res = await productService.updateProduct(selectedProduct._id, payload);
       const updatedData = res.data || res;
 
-      // Actualizar estado reactivo local con la confirmación de MongoDB
       setProducts((prev) =>
         prev.map((p) => {
           if (p._id === selectedProduct._id) {
             return {
               ...p,
+              modelCode: updatedData.modelCode || p.modelCode,
+              code: updatedData.modelCode || p.code,
               price: Number(updatedData.price ?? numericPrice),
               basePrice: Number(updatedData.basePrice ?? numericPrice),
               stock: Number(updatedData.stock ?? numericStock),
+              description: updatedData.description ?? editDescription,
+              title: updatedData.description ?? p.title,
               isActive: updatedData.isActive !== undefined ? Boolean(updatedData.isActive) : editIsActive,
-              previewImage: finalImageUrl,
-              image_url: finalImageUrl,
             };
           }
           return p;
@@ -348,7 +649,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }
   };
 
-  // 4. Conmutar estado activo rápidamente
+  // Conmutador rápido de visibilidad desde la tabla
   const handleToggleActiveQuick = async (e, product) => {
     e.stopPropagation();
     const newStatus = !product.isActive;
@@ -370,12 +671,16 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }
   };
 
+  // =========================================================================
+  // 4. FILTROS & MÉTRICAS
+  // =========================================================================
   const filteredProducts = useMemo(() => {
     if (!searchQuery.trim()) return products;
     const q = searchQuery.toLowerCase();
     return products.filter(
       (p) =>
         (p.name && p.name.toLowerCase().includes(q)) ||
+        (p.modelCode && p.modelCode.toLowerCase().includes(q)) ||
         (p.code && p.code.toLowerCase().includes(q)) ||
         (p.shortName && p.shortName.toLowerCase().includes(q))
     );
@@ -572,6 +877,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
         <main className="flex-1 p-6 sm:p-10 max-w-7xl w-full mx-auto space-y-8">
           
+          {/* Header Superior del Dashboard */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
             <div>
               <div className="flex items-center gap-2 mb-1">
@@ -588,7 +894,16 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               </h1>
             </div>
 
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Botón de Creación de Producto */}
+              <button
+                onClick={handleOpenCreateModal}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-cirqa-primario hover:bg-cirqa-negro text-white text-xs font-semibold tracking-wide transition-all shadow-md active:scale-95"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Nuevo Producto</span>
+              </button>
+
               <button
                 onClick={fetchInventory}
                 disabled={loading}
@@ -630,7 +945,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
           {activeTab === 'inventory' && (
             <>
-              {/* Tarjetas de Métricas */}
+              {/* Métricas */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 <div className="bg-white rounded-3xl p-6 border border-cirqa-negro/5 shadow-sm">
                   <div className="flex items-center justify-between text-cirqa-negro/40 mb-3">
@@ -693,7 +1008,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Filtrar por código o modelo (ej. Q1, Aviator)..."
+                    placeholder="Filtrar por código o modelo (ej. Q-001, Aviator)..."
                     className="w-full pl-11 pr-4 py-2.5 bg-[#FBFBFA] border border-cirqa-negro/10 rounded-2xl text-xs text-cirqa-negro placeholder-cirqa-negro/40 focus:outline-none focus:border-cirqa-negro focus:bg-white transition-all"
                   />
                   {searchQuery && (
@@ -707,7 +1022,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </div>
 
                 <div className="flex items-center gap-2 text-[11px] text-cirqa-negro/50 px-2">
-                  <span>Mostrando {filteredProducts.length} de {products.length} productos en base de datos</span>
+                  <span>Mostrando {filteredProducts.length} de {products.length} productos</span>
                 </div>
               </div>
 
@@ -715,7 +1030,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               <div className="bg-white rounded-3xl border border-cirqa-negro/10 shadow-sm overflow-hidden">
                 <div className="grid grid-cols-12 px-6 py-4 bg-[#FBFBFA] border-b border-cirqa-negro/10 text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/60 select-none">
                   <div className="col-span-2">Código</div>
-                  <div className="col-span-4">Producto</div>
+                  <div className="col-span-4">Producto & Galería</div>
                   <div className="col-span-2">Precio</div>
                   <div className="col-span-2">Stock</div>
                   <div className="col-span-2 text-right">Estado / Acciones</div>
@@ -738,6 +1053,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   <div className="divide-y divide-cirqa-negro/5">
                     {filteredProducts.map((product) => {
                       const displayImg = formatMediaUrl(product.previewImage);
+                      const imageCount = Array.isArray(product.images) ? product.images.length : (product.previewImage ? 1 : 0);
+
                       return (
                         <motion.div
                           key={product._id}
@@ -746,14 +1063,16 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                           transition={{ duration: 0.15 }}
                           className="grid grid-cols-12 px-6 py-4 items-center cursor-pointer group transition-colors select-none"
                         >
+                          {/* Columna 1: Código */}
                           <div className="col-span-2 flex items-center gap-2">
                             <span className="font-mono text-xs font-semibold text-cirqa-negro group-hover:text-cirqa-primario transition-colors truncate">
-                              {product.code}
+                              {product.modelCode || product.code}
                             </span>
                           </div>
 
+                          {/* Columna 2: Nombre, Miniatura & Conteo de Galería */}
                           <div className="col-span-4 flex items-center gap-3 pr-2">
-                            <div className="w-10 h-10 rounded-xl bg-[#F4EFEA] overflow-hidden flex-shrink-0 flex items-center justify-center border border-cirqa-negro/5">
+                            <div className="relative w-12 h-12 rounded-xl bg-[#F4EFEA] overflow-hidden flex-shrink-0 flex items-center justify-center border border-cirqa-negro/5">
                               {displayImg ? (
                                 <img
                                   src={displayImg}
@@ -766,6 +1085,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                               ) : (
                                 <Glasses className="w-5 h-5 text-cirqa-negro/30" />
                               )}
+                              <span className="absolute bottom-0.5 right-0.5 bg-black/70 text-white text-[8px] font-mono px-1 rounded-sm">
+                                {imageCount}
+                              </span>
                             </div>
                             <div className="truncate">
                               <span className="text-xs font-medium text-cirqa-negro block truncate">
@@ -777,12 +1099,14 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                             </div>
                           </div>
 
+                          {/* Columna 3: Precio */}
                           <div className="col-span-2">
                             <span className="text-xs font-medium text-cirqa-negro font-mono">
                               {formatMoney(product.price)}
                             </span>
                           </div>
 
+                          {/* Columna 4: Stock */}
                           <div className="col-span-2 flex items-center gap-2">
                             <span className="text-xs font-semibold text-cirqa-negro font-mono">
                               {product.stock}
@@ -795,12 +1119,13 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                             </div>
                           </div>
 
+                          {/* Columna 5: Estado / Acciones */}
                           <div className="col-span-2 flex items-center justify-end gap-3">
                             <button
                               type="button"
                               onClick={(e) => handleToggleActiveQuick(e, product)}
                               title={product.isActive ? 'Producto visible (clic para ocultar)' : 'Producto oculto (clic para activar)'}
-                              className={`p-1 rounded-lg transition-colors ${
+                              className={`p-1.5 rounded-lg transition-colors ${
                                 product.isActive
                                   ? 'text-emerald-600 hover:bg-emerald-50'
                                   : 'text-cirqa-negro/30 hover:bg-black/5'
@@ -861,7 +1186,190 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         </main>
       </div>
 
-      {/* 4. MODAL DE EDICIÓN CON ÁREA DE CARGA DE IMÁGENES */}
+      {/* ========================================================================= */}
+      {/* MODAL 1: CREAR NUEVO PRODUCTO                                             */}
+      {/* ========================================================================= */}
+      <AnimatePresence>
+        {createModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !createLoading && setCreateModalOpen(false)}
+              className="fixed inset-0 bg-black/40 backdrop-blur-xl"
+            />
+
+            <motion.div
+              initial={{ opacity: 0, scale: 0.94, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+              className="relative w-full max-w-lg bg-white/95 backdrop-blur-2xl border border-white/60 shadow-2xl rounded-3xl p-6 sm:p-8 text-cirqa-negro overflow-hidden z-10 my-8 max-h-[90vh] overflow-y-auto"
+            >
+              <button
+                onClick={() => !createLoading && setCreateModalOpen(false)}
+                disabled={createLoading}
+                className="absolute top-6 right-6 p-2 rounded-full text-cirqa-negro/40 hover:text-cirqa-negro hover:bg-black/5 transition-all"
+                aria-label="Cerrar modal de creación"
+              >
+                <X className="w-5 h-5" />
+              </button>
+
+              <div className="pb-5 border-b border-cirqa-negro/10">
+                <span className="text-[10px] uppercase font-mono tracking-wider text-cirqa-primario font-semibold block mb-1">
+                  CATÁLOGO CIRQA
+                </span>
+                <h3 className="text-xl font-light tracking-tight text-cirqa-negro">
+                  Crear Nuevo Producto
+                </h3>
+                <p className="text-xs text-cirqa-negro/50 font-light mt-0.5">
+                  Registra un nuevo modelo con código único y stock en MongoDB.
+                </p>
+              </div>
+
+              {createError && (
+                <div className="mt-4 p-3.5 rounded-2xl bg-[#AC1917]/10 border border-[#AC1917]/20 text-[#AC1917] text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{createError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleCreateProductSubmit} className="mt-5 space-y-4">
+                {/* Nombre */}
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                    Nombre del Producto *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="ej. CIRQA Q-006 · Solsticio"
+                    value={createName}
+                    onChange={(e) => setCreateName(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-cirqa-negro/15 bg-white text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario transition-all"
+                  />
+                </div>
+
+                {/* Código de Modelo */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                      Código de Modelo *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Q-006"
+                      value={createModelCode}
+                      onChange={(e) => setCreateModelCode(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-cirqa-negro/15 bg-white text-xs font-mono uppercase text-cirqa-negro focus:outline-none focus:border-cirqa-primario transition-all"
+                    />
+                  </div>
+
+                  {/* Precio */}
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                      Precio ($ ARS) *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      step="100"
+                      placeholder="42000"
+                      value={createPrice}
+                      onChange={(e) => setCreatePrice(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-cirqa-negro/15 bg-white text-xs font-mono text-cirqa-negro focus:outline-none focus:border-cirqa-primario transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Stock y Visibilidad */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                      Stock Inicial *
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      value={createStock}
+                      onChange={(e) => setCreateStock(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-cirqa-negro/15 bg-white text-xs font-mono text-cirqa-negro focus:outline-none focus:border-cirqa-primario transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                      Visibilidad
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setCreateIsActive(!createIsActive)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-xl border border-cirqa-negro/15 bg-white text-xs text-cirqa-negro hover:bg-black/5 transition-all"
+                    >
+                      <span className="text-[11px]">{createIsActive ? 'Visible en tienda' : 'Oculto'}</span>
+                      {createIsActive ? (
+                        <ToggleRight className="w-5 h-5 text-emerald-600" />
+                      ) : (
+                        <ToggleLeft className="w-5 h-5 text-cirqa-negro/30" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Descripción */}
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                    Descripción Técnica / Óptica
+                  </label>
+                  <textarea
+                    rows={3}
+                    placeholder="Lentes espectrales de ingeniería biomimética..."
+                    value={createDescription}
+                    onChange={(e) => setCreateDescription(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-cirqa-negro/15 bg-white text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario transition-all resize-none"
+                  />
+                </div>
+
+                <div className="pt-2 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCreateModalOpen(false)}
+                    disabled={createLoading}
+                    className="px-5 py-2.5 rounded-full text-xs font-medium text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5 transition-all"
+                  >
+                    Cancelar
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={createLoading}
+                    className="px-6 py-2.5 rounded-full bg-cirqa-primario hover:bg-cirqa-negro text-white text-xs font-semibold tracking-wider uppercase transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                  >
+                    {createLoading ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Creando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-4 h-4" />
+                        <span>Guardar Producto</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: EDICIÓN DE PRODUCTO & GESTIÓN DE GALERÍA CLASIFICADA             */}
+      {/* ========================================================================= */}
       <AnimatePresence>
         {selectedProduct && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto">
@@ -884,12 +1392,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 stiffness: 350,
                 damping: 28,
               }}
-              className="relative w-full max-w-lg bg-white/95 backdrop-blur-2xl border border-white/60 shadow-2xl rounded-3xl p-6 sm:p-8 text-cirqa-negro overflow-hidden z-10 my-8 max-h-[90vh] overflow-y-auto"
+              className="relative w-full max-w-2xl bg-white/95 backdrop-blur-2xl border border-white/60 shadow-2xl rounded-3xl p-6 sm:p-8 text-cirqa-negro overflow-hidden z-10 my-8 max-h-[92vh] overflow-y-auto"
             >
               
               <button
                 onClick={handleCloseModal}
-                disabled={saving || uploadingImage}
+                disabled={saving || uploadingGallery}
                 className="absolute top-6 right-6 p-2 rounded-full text-cirqa-negro/40 hover:text-cirqa-negro hover:bg-black/5 transition-all"
                 aria-label="Cerrar modal"
               >
@@ -899,98 +1407,119 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               {/* Encabezado del Producto */}
               <div className="flex items-center gap-4 pb-5 border-b border-cirqa-negro/10">
                 <div className="w-16 h-16 rounded-2xl bg-[#F4EFEA] border border-cirqa-negro/5 p-1 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                  {previewImageBlob || selectedProduct.previewImage ? (
-                    <img
-                      src={previewImageBlob || formatMediaUrl(selectedProduct.previewImage)}
-                      alt={selectedProduct.shortName}
-                      className="w-full h-full object-contain"
-                    />
-                  ) : (
-                    <Glasses className="w-8 h-8 text-cirqa-negro/30" />
-                  )}
+                  <img
+                    src={formatMediaUrl(selectedProduct.previewImage)}
+                    alt={selectedProduct.shortName}
+                    className="w-full h-full object-contain"
+                  />
                 </div>
                 <div>
-                  <span className="text-[10px] uppercase font-mono tracking-wider text-cirqa-primario font-semibold block">
-                    ID: {selectedProduct._id}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase font-mono tracking-wider text-cirqa-primario font-semibold">
+                      {selectedProduct.modelCode || selectedProduct.code}
+                    </span>
+                    <span className="text-[10px] text-cirqa-negro/30 font-mono">
+                      (ID: {selectedProduct._id})
+                    </span>
+                  </div>
                   <h3 className="text-xl font-light tracking-tight text-cirqa-negro">
                     {selectedProduct.shortName}
                   </h3>
-                  <p className="text-xs text-cirqa-negro/50 font-light">
-                    {selectedProduct.title}
+                  <p className="text-xs text-cirqa-negro/50 font-light truncate max-w-md">
+                    {selectedProduct.description || selectedProduct.title}
                   </p>
                 </div>
               </div>
 
-              {/* SECCIÓN DE CARGA Y GESTIÓN DE IMAGEN */}
-              <div className="mt-5 p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-3">
+              {/* SECCIÓN INTERACTIVA: GESTIÓN DE GALERÍA CLASIFICADA */}
+              <div className="mt-5 p-5 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-cirqa-primario" />
+                    <Layers className="w-4 h-4 text-cirqa-primario" />
                     <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro/80">
-                      Imagen del Producto
+                      Galería de Fotos Clasificada
+                    </span>
+                    <span className="text-[10px] font-mono text-cirqa-negro/40 bg-black/5 px-2 py-0.5 rounded-full">
+                      {selectedProduct.images?.length || 0} fotos
                     </span>
                   </div>
-                  {uploadSuccess && (
-                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
-                      <Check className="w-3 h-3" /> ¡Imagen sincronizada!
-                    </span>
-                  )}
+                  <span className="text-[10px] text-cirqa-negro/50 font-light hidden sm:inline">
+                    Marca la estrella para definir la foto de portada
+                  </span>
                 </div>
 
-                {/* Input de archivo oculto con botón estético Apple */}
+                {/* Input file múltiple (hasta 5 fotos simultáneas) */}
                 <input
-                  ref={fileInputRef}
+                  ref={galleryFileInputRef}
                   type="file"
-                  id="product-image-upload-input"
+                  multiple
                   accept="image/jpeg,image/png,image/webp,image/avif"
-                  onChange={handleFileChange}
+                  onChange={handleGalleryFilesChange}
                   className="hidden"
                 />
 
-                {/* Vista previa o dropzone */}
-                {selectedImageFile && previewImageBlob ? (
-                  <div className="flex items-center gap-3 p-3 bg-white rounded-xl border border-cirqa-negro/10">
-                    <div className="w-14 h-14 rounded-lg bg-[#F4EFEA] border border-cirqa-negro/5 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                      <img
-                        src={previewImageBlob}
-                        alt="Vista previa seleccionada"
-                        className="w-full h-full object-contain"
-                      />
+                {/* Dropzone o Previews pendientes de subida */}
+                {galleryPreviews.length > 0 ? (
+                  <div className="p-3 bg-white rounded-2xl border border-cirqa-negro/10 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-cirqa-negro">
+                        {galleryPreviews.length} foto(s) lista(s) para subir:
+                      </span>
+                      <div className="flex items-center gap-2">
+                        {/* Selector de Tag previo a subir */}
+                        <div className="flex items-center gap-1.5 text-xs text-cirqa-negro/60">
+                          <Tag className="w-3.5 h-3.5 text-cirqa-primario" />
+                          <select
+                            value={selectedGalleryTag}
+                            onChange={(e) => setSelectedGalleryTag(e.target.value)}
+                            className="text-xs bg-[#FBFBFA] border border-cirqa-negro/15 rounded-lg px-2 py-1 font-medium text-cirqa-negro focus:outline-none"
+                          >
+                            {IMAGE_TAG_OPTIONS.map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium text-cirqa-negro truncate">
-                        {selectedImageFile.name}
-                      </p>
-                      <p className="text-[10px] text-cirqa-negro/40 font-mono">
-                        {(selectedImageFile.size / 1024).toFixed(1)} KB · Nueva imagen lista
-                      </p>
+
+                    {/* Grilla de previews antes de confirmar */}
+                    <div className="grid grid-cols-4 sm:grid-cols-5 gap-2">
+                      {galleryPreviews.map((prev, idx) => (
+                        <div key={idx} className="relative aspect-square rounded-xl bg-[#F4EFEA] border border-cirqa-negro/10 overflow-hidden group">
+                          <img src={prev.url} alt={prev.name} className="w-full h-full object-cover" />
+                          <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[8px] font-mono px-1 rounded truncate max-w-[90%]">
+                            {prev.size} KB
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex items-center gap-1 flex-shrink-0">
+
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-cirqa-negro/5">
                       <button
                         type="button"
-                        onClick={clearTemporaryImage}
-                        disabled={uploadingImage}
-                        className="p-1.5 text-cirqa-negro/40 hover:text-cirqa-carmin hover:bg-cirqa-carmin/10 rounded-lg transition-colors"
-                        title="Descartar imagen"
+                        onClick={clearGalleryUploadSelection}
+                        disabled={uploadingGallery}
+                        className="px-3 py-1.5 text-xs text-cirqa-negro/60 hover:text-cirqa-negro hover:bg-black/5 rounded-lg transition-colors"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        Cancelar
                       </button>
                       <button
                         type="button"
-                        onClick={handleUploadImageOnly}
-                        disabled={uploadingImage}
-                        className="px-3 py-1.5 bg-cirqa-primario hover:bg-cirqa-negro text-white text-[11px] font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
+                        onClick={handleUploadGalleryPhotos}
+                        disabled={uploadingGallery}
+                        className="px-4 py-1.5 bg-cirqa-primario hover:bg-cirqa-negro text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all disabled:opacity-50"
                       >
-                        {uploadingImage ? (
+                        {uploadingGallery ? (
                           <>
-                            <RefreshCw className="w-3 h-3 animate-spin" />
-                            <span>Subiendo...</span>
+                            <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                            <span>Subiendo fotos...</span>
                           </>
                         ) : (
                           <>
                             <UploadCloud className="w-3.5 h-3.5" />
-                            <span>Subir Ahora</span>
+                            <span>Subir a la Galería</span>
                           </>
                         )}
                       </button>
@@ -998,16 +1527,117 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   </div>
                 ) : (
                   <div
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => galleryFileInputRef.current?.click()}
                     className="border-2 border-dashed border-cirqa-negro/15 hover:border-cirqa-primario/60 bg-white/70 hover:bg-white rounded-2xl p-4 text-center cursor-pointer transition-all group"
                   >
                     <UploadCloud className="w-6 h-6 text-cirqa-negro/35 group-hover:text-cirqa-primario mx-auto mb-1.5 transition-colors" />
                     <p className="text-xs font-medium text-cirqa-negro/80">
-                      Haz clic para cambiar la imagen
+                      Haz clic para subir fotos clasificadas a la galería
                     </p>
                     <p className="text-[10px] text-cirqa-negro/40 mt-0.5">
-                      Archivos soportados: JPG, PNG, WEBP o AVIF (máx. 10 MB)
+                      Soporta selección múltiple (hasta 5 fotos JPG, PNG, WEBP, AVIF)
                     </p>
+                  </div>
+                )}
+
+                {/* Grilla visual de fotos existentes en el producto */}
+                {selectedProduct.images && selectedProduct.images.length > 0 && (
+                  <div className="space-y-2 pt-2">
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/60 block">
+                      Fotos Actuales en MongoDB:
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto pr-1">
+                      {selectedProduct.images.map((img, idx) => (
+                        <div
+                          key={img._id || idx}
+                          className={`flex items-center gap-3 p-2.5 rounded-xl border transition-all ${
+                            img.isPrimary
+                              ? 'bg-amber-500/5 border-amber-500/30'
+                              : 'bg-white border-cirqa-negro/10'
+                          }`}
+                        >
+                          {/* Miniatura */}
+                          <div className="relative w-14 h-14 rounded-lg bg-[#F4EFEA] border border-cirqa-negro/10 overflow-hidden flex-shrink-0">
+                            <img
+                              src={formatMediaUrl(img.url)}
+                              alt={`Foto ${idx + 1}`}
+                              className="w-full h-full object-contain"
+                            />
+                            {img.isPrimary && (
+                              <span className="absolute top-0.5 left-0.5 bg-amber-500 text-white p-0.5 rounded-full shadow-sm" title="Foto de Portada">
+                                <Star className="w-2.5 h-2.5 fill-current" />
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Opciones por foto: Selector de Tag & Portada */}
+                          <div className="flex-1 min-w-0 space-y-1">
+                            <div className="flex items-center justify-between">
+                              <select
+                                value={img.tag || 'gallery'}
+                                onChange={(e) => handleUpdateImageTag(img._id, e.target.value)}
+                                className="text-[11px] bg-[#FBFBFA] border border-cirqa-negro/15 rounded-md px-1.5 py-0.5 font-medium text-cirqa-negro focus:outline-none"
+                              >
+                                {IMAGE_TAG_OPTIONS.map((opt) => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+
+                              {/* Botón Portada */}
+                              <button
+                                type="button"
+                                onClick={() => handleSetPrimaryImage(img._id)}
+                                title={img.isPrimary ? 'Foto de Portada Actual' : 'Establecer como Portada'}
+                                className={`text-[10px] font-semibold px-2 py-0.5 rounded-md transition-colors flex items-center gap-1 ${
+                                  img.isPrimary
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'text-cirqa-negro/40 hover:text-amber-700 hover:bg-amber-50'
+                                }`}
+                              >
+                                <Star className={`w-3 h-3 ${img.isPrimary ? 'fill-current text-amber-500' : ''}`} />
+                                <span className="hidden sm:inline">{img.isPrimary ? 'Portada' : 'Hacer Portada'}</span>
+                              </button>
+                            </div>
+
+                            {/* Controles de orden y eliminación */}
+                            <div className="flex items-center justify-between text-[10px] text-cirqa-negro/40 pt-0.5">
+                              <span className="font-mono">Pos: #{idx + 1}</span>
+
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleReorderImage(idx, 'up')}
+                                  disabled={idx === 0}
+                                  className="p-1 hover:bg-black/5 rounded disabled:opacity-20"
+                                  title="Subir posición"
+                                >
+                                  <ChevronUp className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleReorderImage(idx, 'down')}
+                                  disabled={idx === selectedProduct.images.length - 1}
+                                  className="p-1 hover:bg-black/5 rounded disabled:opacity-20"
+                                  title="Bajar posición"
+                                >
+                                  <ChevronDown className="w-3.5 h-3.5" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteImage(img._id)}
+                                  className="p-1 text-cirqa-carmin hover:bg-cirqa-carmin/10 rounded transition-colors ml-1"
+                                  title="Eliminar foto del producto y disco"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -1020,47 +1650,62 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </div>
               )}
 
-              {/* Formulario de Propiedades */}
-              <form onSubmit={handleSaveProduct} className="mt-5 space-y-5">
+              {/* Formulario de Propiedades Generales */}
+              <form onSubmit={handleSaveProductGeneral} className="mt-5 space-y-4">
                 
-                {/* Input Precio */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70">
-                      Precio de Venta ($ ARS)
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Código de Modelo */}
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                      Código de Modelo (modelCode)
                     </label>
-                    <span className="text-[10px] text-cirqa-negro/40">
-                      Actual: {formatMoney(selectedProduct.price)}
-                    </span>
+                    <input
+                      type="text"
+                      required
+                      value={editModelCode}
+                      onChange={(e) => setEditModelCode(e.target.value)}
+                      placeholder="Q-001"
+                      className="w-full px-4 py-2 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-sm font-mono text-cirqa-negro uppercase transition-colors"
+                    />
                   </div>
 
-                  <div className="relative flex items-center">
-                    <span className="absolute left-0 text-sm font-mono text-cirqa-negro/40 font-semibold">$</span>
-                    <input
-                      type="number"
-                      step="100"
-                      min="0"
-                      required
-                      value={editPrice}
-                      onChange={(e) => setEditPrice(e.target.value)}
-                      placeholder="42000"
-                      className="w-full pl-6 pr-4 py-2.5 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-base font-mono text-cirqa-negro transition-colors"
-                    />
+                  {/* Precio */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70">
+                        Precio ($ ARS)
+                      </label>
+                      <span className="text-[10px] text-cirqa-negro/40">
+                        Actual: {formatMoney(selectedProduct.price)}
+                      </span>
+                    </div>
+                    <div className="relative flex items-center">
+                      <span className="absolute left-0 text-xs font-mono text-cirqa-negro/40 font-semibold">$</span>
+                      <input
+                        type="number"
+                        step="100"
+                        min="0"
+                        required
+                        value={editPrice}
+                        onChange={(e) => setEditPrice(e.target.value)}
+                        placeholder="42000"
+                        className="w-full pl-5 pr-4 py-2 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-sm font-mono text-cirqa-negro transition-colors"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {/* Input Stock */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70">
-                      Unidades Disponibles (Stock)
-                    </label>
-                    <span className="text-[10px] text-cirqa-negro/40">
-                      Actual: {selectedProduct.stock} uds.
-                    </span>
-                  </div>
-
-                  <div className="relative flex items-center">
+                <div className="grid grid-cols-2 gap-4">
+                  {/* Stock */}
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70">
+                        Stock
+                      </label>
+                      <span className="text-[10px] text-cirqa-negro/40">
+                        {selectedProduct.stock} uds.
+                      </span>
+                    </div>
                     <input
                       type="number"
                       step="1"
@@ -1069,72 +1714,63 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                       value={editStock}
                       onChange={(e) => setEditStock(e.target.value)}
                       placeholder="10"
-                      className="w-full pr-16 py-2.5 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-base font-mono text-cirqa-negro transition-colors"
+                      className="w-full py-2 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-sm font-mono text-cirqa-negro transition-colors"
                     />
-                    <span className="absolute right-0 text-xs text-cirqa-negro/40 font-light">
-                      unidades
-                    </span>
                   </div>
 
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="text-[10px] text-cirqa-negro/40">
-                      Estado:
-                    </span>
-                    <div>
-                      {getStockBadge(Number(editStock) || 0)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Toggle Visibilidad */}
-                <div className="flex items-center justify-between p-3.5 bg-cirqa-surface rounded-2xl border border-cirqa-negro/5">
+                  {/* Visibilidad */}
                   <div>
-                    <span className="text-xs font-semibold text-cirqa-negro block">
-                      Visibilidad en el Catálogo
-                    </span>
-                    <span className="text-[11px] text-cirqa-negro/50 font-light">
-                      {editIsActive ? 'Visible para clientes en la tienda pública' : 'Oculto al público en la tienda'}
-                    </span>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                      Visibilidad en Catálogo
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setEditIsActive(!editIsActive)}
+                      className="w-full flex items-center justify-between py-2 border-b border-cirqa-negro/20 bg-transparent text-xs text-cirqa-negro transition-colors"
+                    >
+                      <span className="text-xs">{editIsActive ? 'Visible para clientes' : 'Oculto al público'}</span>
+                      {editIsActive ? (
+                        <ToggleRight className="w-6 h-6 text-emerald-600" />
+                      ) : (
+                        <ToggleLeft className="w-6 h-6 text-cirqa-negro/30" />
+                      )}
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setEditIsActive(!editIsActive)}
-                    className="text-cirqa-primario hover:opacity-80 transition-opacity p-1"
-                  >
-                    {editIsActive ? (
-                      <ToggleRight className="w-7 h-7 text-emerald-600" />
-                    ) : (
-                      <ToggleLeft className="w-7 h-7 text-cirqa-negro/30" />
-                    )}
-                  </button>
                 </div>
 
-                <div className="p-3 bg-emerald-50/50 rounded-2xl border border-emerald-500/10 flex items-center gap-2.5 text-[11px] text-emerald-800">
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 flex-shrink-0" />
-                  <span>
-                    Conexión protegida mediante Bearer JWT con el VPS en producción.
-                  </span>
+                {/* Descripción */}
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                    Descripción del Modelo
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    placeholder="Descripción óptica y características de ingeniería..."
+                    className="w-full px-4 py-2 rounded-xl border border-cirqa-negro/15 bg-white text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario transition-all resize-none"
+                  />
                 </div>
 
-                <div className="pt-2 flex items-center justify-end gap-3">
+                <div className="pt-2 flex items-center justify-end gap-3 border-t border-cirqa-negro/10">
                   <button
                     type="button"
                     onClick={handleCloseModal}
-                    disabled={saving || uploadingImage}
-                    className="px-5 py-3 rounded-full text-xs font-medium text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5 transition-all"
+                    disabled={saving || uploadingGallery}
+                    className="px-5 py-2.5 rounded-full text-xs font-medium text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5 transition-all"
                   >
-                    Cancelar
+                    Cerrar
                   </button>
 
                   <button
                     type="submit"
-                    disabled={saving || uploadingImage}
-                    className="px-7 py-3 rounded-full bg-cirqa-negro hover:bg-cirqa-primario active:scale-[0.98] text-white text-xs font-semibold tracking-wider uppercase transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                    disabled={saving || uploadingGallery}
+                    className="px-7 py-2.5 rounded-full bg-cirqa-negro hover:bg-cirqa-primario active:scale-[0.98] text-white text-xs font-semibold tracking-wider uppercase transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
                   >
                     {saving ? (
                       <>
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Guardando en MongoDB...</span>
+                        <span>Guardando...</span>
                       </>
                     ) : saveSuccess ? (
                       <>
@@ -1144,7 +1780,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     ) : (
                       <>
                         <Check className="w-3.5 h-3.5" />
-                        <span>Actualizar en Producción</span>
+                        <span>Guardar Cambios</span>
                       </>
                     )}
                   </button>
@@ -1157,7 +1793,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         )}
       </AnimatePresence>
 
-      {/* 5. TOAST */}
+      {/* ========================================================================= */}
+      {/* 5. TOAST                                                                  */}
+      {/* ========================================================================= */}
       <AnimatePresence>
         {toast && (
           <motion.div

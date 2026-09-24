@@ -246,19 +246,53 @@ export const productService = {
   },
 
   /**
-   * Subir y actualizar imagen de un producto: POST /api/products/:id/image
-   * @param {string} id - MongoDB ObjectId del producto
-   * @param {File} file - Archivo de imagen seleccionado desde el frontend
-   * @returns {Promise<{ success: boolean, image_url: string, data: Object }>}
+   * Subir y actualizar imagen individual de un producto: POST /api/products/:id/image
    */
-  async uploadProductImage(id, file) {
+  async uploadProductImage(id, file, tag = 'front') {
     const formData = new FormData();
     formData.append('image', file);
+    formData.append('tag', tag);
 
     return request(`/api/products/${id}/image`, {
       method: 'POST',
       body: formData,
     });
+  },
+
+  /**
+   * Subir múltiples imágenes a la galería clasificada: POST /api/products/:id/images
+   * @param {string} id - ID del producto
+   * @param {FileList|File[]} files - Array o FileList de imágenes
+   * @param {string} tag - Tag inicial asignado ('front', 'side', 'angle', 'model', 'detail', 'gallery')
+   */
+  async uploadProductImages(id, files, tag = 'gallery') {
+    const formData = new FormData();
+    Array.from(files).forEach((file) => {
+      formData.append('images', file);
+    });
+    formData.append('tag', tag);
+
+    return request(`/api/products/${id}/images`, {
+      method: 'POST',
+      body: formData,
+    });
+  },
+
+  /**
+   * Eliminar una imagen de la galería de un producto: DELETE /api/products/:id/images/:imageId
+   */
+  async deleteProductImage(id, imageId) {
+    return api.delete(`/api/products/${id}/images/${imageId}`);
+  },
+
+  /**
+   * Actualizar rol (tag), foto primaria o posición (order): PATCH /api/products/:id/images/:imageId
+   * @param {string} id - ID del producto
+   * @param {string} imageId - ID de la imagen en el subdocumento
+   * @param {Object} metadata - { tag, isPrimary, order }
+   */
+  async updateProductImageMetadata(id, imageId, metadata) {
+    return api.patch(`/api/products/${id}/images/${imageId}`, metadata);
   },
 };
 

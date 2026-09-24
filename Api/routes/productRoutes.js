@@ -7,9 +7,15 @@ import {
   updateProductStock,
   deleteProduct,
   updateProductImage,
+  uploadProductImagesController,
+  deleteProductImage,
+  updateProductImageMetadata,
 } from '../controllers/productController.js';
 import { protectAdmin } from '../middlewares/authMiddleware.js';
-import { uploadProductImage } from '../middlewares/uploadMiddleware.js';
+import {
+  uploadProductImage,
+  uploadProductImages,
+} from '../middlewares/uploadMiddleware.js';
 
 const router = Router();
 
@@ -19,7 +25,7 @@ const router = Router();
 
 /**
  * @route   GET /api/products
- * @desc    Listar todos los productos
+ * @desc    Listar productos (con ?all=true para administradores)
  * @access  Público
  */
 router.get('/', getProducts);
@@ -32,7 +38,7 @@ router.get('/', getProducts);
 router.get('/:slug', getProductBySlug);
 
 // ==========================================
-// Rutas de Administración / Modificación
+// Rutas Protegidas de Administración
 // ==========================================
 
 /**
@@ -43,29 +49,50 @@ router.get('/:slug', getProductBySlug);
 router.post('/', protectAdmin, createProduct);
 
 /**
- * @route   PATCH /api/products/:id/stock
- * @desc    Actualizar el stock de un producto específico
- * @access  Privado (Admin)
- */
-router.patch('/:id/stock', protectAdmin, updateProductStock);
-
-/**
  * @route   PUT /api/products/:id
- * @desc    Actualizar todos los datos de un producto
+ * @desc    Actualizar todos los datos de un producto (incluye reorganización de galería)
  * @access  Privado (Admin)
  */
 router.put('/:id', protectAdmin, updateProduct);
 
 /**
+ * @route   PATCH /api/products/:id/stock
+ * @desc    Actualizar stock de un producto
+ * @access  Privado (Admin)
+ */
+router.patch('/:id/stock', protectAdmin, updateProductStock);
+
+/**
  * @route   POST /api/products/:id/image
- * @desc    Subir y asociar imagen al producto
+ * @desc    Subir imagen individual (retrocompatibilidad)
  * @access  Privado (Admin)
  */
 router.post('/:id/image', protectAdmin, uploadProductImage, updateProductImage);
 
 /**
+ * @route   POST /api/products/:id/images
+ * @desc    Subir múltiples imágenes a la galería clasificada (hasta 5 simultáneas)
+ * @access  Privado (Admin)
+ */
+router.post('/:id/images', protectAdmin, uploadProductImages, uploadProductImagesController);
+
+/**
+ * @route   DELETE /api/products/:id/images/:imageId
+ * @desc    Eliminar una imagen puntual del producto y del disco
+ * @access  Privado (Admin)
+ */
+router.delete('/:id/images/:imageId', protectAdmin, deleteProductImage);
+
+/**
+ * @route   PATCH /api/products/:id/images/:imageId
+ * @desc    Modificar rol (tag), si es principal (isPrimary) o posición (order)
+ * @access  Privado (Admin)
+ */
+router.patch('/:id/images/:imageId', protectAdmin, updateProductImageMetadata);
+
+/**
  * @route   DELETE /api/products/:id
- * @desc    Eliminar un producto
+ * @desc    Eliminar un producto por completo
  * @access  Privado (Admin)
  */
 router.delete('/:id', protectAdmin, deleteProduct);

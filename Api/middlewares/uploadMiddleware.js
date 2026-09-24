@@ -40,7 +40,7 @@ export const uploadReceipt = multer({
 });
 
 // =========================================================================
-// 2. Configuración para Imágenes de Productos (/uploads o /app/uploads)
+// 2. Configuración para Galería de Productos (/uploads)
 // =========================================================================
 const productUploadDir = path.resolve('uploads');
 if (!fs.existsSync(productUploadDir)) {
@@ -74,10 +74,16 @@ const imageFileFilter = (req, file, cb) => {
   }
 };
 
+// Subida individual (retrocompatibilidad)
 export const uploadProductImage = multer({
   storage: productStorage,
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10 MB máximo
-  },
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
   fileFilter: imageFileFilter,
 }).single('image');
+
+// Subida múltiple para galería (hasta 5 fotos simultáneas)
+export const uploadProductImages = multer({
+  storage: productStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB por archivo
+  fileFilter: imageFileFilter,
+}).array('images', 5);
