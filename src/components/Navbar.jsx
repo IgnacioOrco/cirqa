@@ -1,6 +1,10 @@
 import React from 'react';
+import { ShoppingBag } from 'lucide-react';
+import { useCart } from '../context/CartContext';
 
 export default function Navbar({ isDark = false }) {
+  const { cartCount, openCheckout } = useCart();
+
   return (
     <header
       className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 backdrop-blur-md ${
@@ -25,29 +29,50 @@ export default function Navbar({ isDark = false }) {
           </svg>
         </a>
 
-        {/* Minimalist Navigation: Positioned on the Right */}
-        <nav className="flex items-center gap-8 sm:gap-12 text-[11px] sm:text-[12px] font-medium tracking-[0.18em] uppercase">
-          <a
-            href="#ritmo-circadiano"
-            className="hover:text-cirqa-primario transition-colors duration-200"
+        {/* Minimalist Navigation & Cart Action */}
+        <div className="flex items-center gap-6 sm:gap-10">
+          <nav className="flex items-center gap-6 sm:gap-10 text-[11px] sm:text-[12px] font-medium tracking-[0.18em] uppercase">
+            <a
+              href="#ritmo-circadiano"
+              className="hover:text-cirqa-primario transition-colors duration-200"
+            >
+              Tecnología
+            </a>
+            <a
+              href="#pasarela-productos"
+              className="hover:text-cirqa-primario transition-colors duration-200"
+            >
+              Modelos
+            </a>
+            <a
+              href="#nosotros"
+              className="hover:text-cirqa-primario transition-colors duration-200"
+            >
+              Nosotros
+            </a>
+          </nav>
+
+          {/* Botón Bolsa / Carrito */}
+          <button
+            onClick={() => openCheckout()}
+            className={`relative p-2.5 rounded-full transition-all duration-300 flex items-center justify-center ${
+              isDark
+                ? 'hover:bg-white/10 text-white'
+                : 'hover:bg-cirqa-negro/5 text-cirqa-negro'
+            }`}
+            aria-label="Abrir carrito de compras"
           >
-            Tecnología
-          </a>
-          <a
-            href="#pasarela-productos"
-            className="hover:text-cirqa-primario transition-colors duration-200"
-          >
-            Modelos
-          </a>
-          <a
-            href="#nosotros"
-            className="hover:text-cirqa-primario transition-colors duration-200"
-          >
-            Nosotros
-          </a>
-        </nav>
+            <ShoppingBag className="w-5 h-5" />
+            {cartCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-cirqa-primario text-white text-[10px] font-bold flex items-center justify-center shadow-sm animate-in zoom-in">
+                {cartCount}
+              </span>
+            )}
+          </button>
+        </div>
 
       </div>
     </header>
   );
 }
+

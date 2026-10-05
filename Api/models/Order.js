@@ -5,11 +5,15 @@ const orderItemSchema = new mongoose.Schema(
     product: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Product',
-      required: [true, 'La referencia al producto es obligatoria'],
+      required: false,
     },
     name: {
       type: String,
       required: [true, 'El nombre del producto al momento de la compra es obligatorio'],
+      trim: true,
+    },
+    modelCode: {
+      type: String,
       trim: true,
     },
     price: {
@@ -23,12 +27,31 @@ const orderItemSchema = new mongoose.Schema(
       min: [1, 'La cantidad mínima es 1'],
       default: 1,
     },
+    filter: {
+      type: String,
+      trim: true,
+    },
+    prescription: {
+      type: String,
+      trim: true,
+    },
+    image: {
+      type: String,
+      trim: true,
+    },
   },
   { _id: false }
 );
 
 const orderSchema = new mongoose.Schema(
   {
+    // Código legible de orden para el cliente y seguimiento (ej: CQ-849201)
+    orderNumber: {
+      type: String,
+      trim: true,
+      index: true,
+    },
+
     // Items comprados con referencia a Product
     items: {
       type: [orderItemSchema],
@@ -78,10 +101,24 @@ const orderSchema = new mongoose.Schema(
       },
       shippingAddress: {
         street: { type: String, trim: true },
+        floor: { type: String, trim: true },
+        apartment: { type: String, trim: true },
         city: { type: String, trim: true },
         state: { type: String, trim: true },
         zipCode: { type: String, trim: true },
       },
+    },
+
+    // Logística y Envío
+    shipping: {
+      carrier: { type: String, trim: true, default: '' },
+      trackingNumber: { type: String, trim: true, default: '' },
+      status: {
+        type: String,
+        enum: ['PENDIENTE', 'PREPARACION', 'ENVIADO', 'ENTREGADO'],
+        default: 'PENDIENTE',
+      },
+      cost: { type: Number, default: 0 },
     },
 
     // Método de pago soportado
@@ -92,6 +129,7 @@ const orderSchema = new mongoose.Schema(
         values: ['MERCADO_PAGO', 'TRANSFERENCIA'],
         message: '{VALUE} no es un método de pago válido. Debe ser MERCADO_PAGO o TRANSFERENCIA',
       },
+      default: 'MERCADO_PAGO',
     },
 
     // Control de estados

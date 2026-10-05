@@ -314,6 +314,55 @@ export const productService = {
 };
 
 /**
+ * Servicio de Gestión de Pedidos y Pagos (Mercado Pago Checkout Pro)
+ */
+export const orderService = {
+  /**
+   * Crear preferencia de pago en Mercado Pago Checkout Pro y registrar orden
+   * POST /api/orders/create-preference
+   * @param {Object} orderData - { customer, items, shippingCost }
+   * @returns {Promise<{ success: boolean, orderId: string, orderNumber: string, initPoint: string, sandboxInitPoint: string }>}
+   */
+  async createPreference(orderData) {
+    const res = await api.post('/api/orders/create-preference', orderData);
+    return res.data || res;
+  },
+
+  /**
+   * Obtener detalle de una orden por ID
+   * GET /api/orders/:orderId
+   * @param {string} orderId
+   */
+  async getOrderById(orderId) {
+    const res = await api.get(`/api/orders/${orderId}`);
+    return res.data || res;
+  },
+
+  /**
+   * Listar todas las órdenes de compra (Admin - requiere JWT inyectado automáticamente)
+   * GET /api/orders
+   */
+  async getOrders() {
+    const res = await api.get('/api/orders');
+    if (Array.isArray(res)) return res;
+    if (res && Array.isArray(res.data)) return res.data;
+    if (res && Array.isArray(res.orders)) return res.orders;
+    return [];
+  },
+
+  /**
+   * Actualizar estado logístico y de envío de una orden
+   * PATCH /api/orders/:orderId/shipping
+   * @param {string} orderId
+   * @param {Object} shippingData - { carrier, trackingNumber, status, ... }
+   */
+  async updateOrderShipping(orderId, shippingData) {
+    const res = await api.patch(`/api/orders/${orderId}/shipping`, shippingData);
+    return res.data || res;
+  },
+};
+
+/**
  * Normaliza la URL de una imagen para que siempre se renderice correctamente en Vercel
  * o entorno local, resolviendo rutas relativas como /uploads/... hacia la API en producción.
  */
@@ -336,4 +385,8 @@ export const formatMediaUrl = (url) => {
   return url;
 };
 
+// Adjuntar orderService al objeto api default para flexibilidad de importación
+api.orderService = orderService;
+
 export default api;
+

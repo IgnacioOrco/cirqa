@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import Order from '../models/Order.js';
 
@@ -177,4 +178,251 @@ export const uploadOrderReceipt = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * @desc    Crear preferencia de Mercado Pago y registrar orden directa
+ * @route   POST /api/orders/create-preference
+ * @access  Público
+ */
+export const createPreference = async (req, res, next) => {
+  try {
+    const { customer, items, shippingCost = 0 } = req.body;
+
+    if (!customer || !customer.email || !customer.name) {
+      return res.status(400).json({
+        success: false,
+        message: 'Los datos del comprador (nombre y email) son obligatorios.',
+      });
+    }
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'El pedido debe incluir al menos un producto.',
+      });
+    }
+
+    const totalAmount =
+      items.reduce(
+        (acc, it) => acc + (Number(it.price) || 0) * (Number(it.quantity) || 1),
+        0
+      ) + (Number(shippingCost) || 0);
+
+    const orderNumber = `CQ-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const order = new Order({
+      orderNumber,
+      customer,
+      items: items.map((it) => ({
+        product:
+          it.product && mongoose.Types.ObjectId.isValid(it.product)
+            ? it.product
+            : undefined,
+        name: it.name || 'Armazón CIRQA',
+        modelCode: it.modelCode || 'Q-001',
+        price: Number(it.price) || 0,
+        quantity: Number(it.quantity) || 1,
+        filter: it.filter || 'Día (84%)',
+        prescription: it.prescription || undefined,
+        image: it.image || undefined,
+      })),
+      totalAmount,
+      shipping: {
+        cost: Number(shippingCost) || 0,
+        status: 'PENDIENTE',
+      },
+      paymentMethod: 'MERCADO_PAGO',
+      status: 'PENDING',
+    });
+
+    await order.save();
+
+    // Intentar crear preferencia en Mercado Pago
+    let initPoint = '';
+    let sandboxInitPoint = '';
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+    const apiUrl = process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`;
+
+    try {
+      const client = getMercadoPagoClient();
+      const preference = new Preference(client);
+
+      const mpItems = items.map((it) => ({
+        id: String(it.product || it.modelCode || 'cirqa-item'),
+        title: `${it.name || 'Armazón CIRQA'}${it.filter ? ` · Cristal ${it.filter}` : ''}`,
+        description: `Armazón óptico CIRQA ${it.name || ''}`,
+        picture_url: it.image || undefined,
+        quantity: Number(it.quantity) || 1,
+        unit_price: Number(it.price) || 0,
+        currency_id: 'ARS',
+      }));
+
+      if (Number(shippingCost) > 0) {
+        mpItems.push({
+          id: 'shipping-cost',
+          title: 'Costo de Envío Asegurado',
+          quantity: 1,
+          unit_price: Number(shippingCost),
+          currency_id: 'ARS',
+        });
+      }
+
+      const preferenceData = {
+        body: {
+          items: mpItems,
+          payer: {
+            name: customer.name,
+            email: customer.email,
+            phone: customer.phone ? { number: customer.phone } : undefined,
+            identification: customer.dni
+              ? { type: 'DNI', number: String(customer.dni) }
+              : undefined,
+            address: customer.shippingAddress
+              ? {
+                  street_name: customer.shippingAddress.street || '',
+                  zip_code: customer.shippingAddress.zipCode || '',
+                }
+              : undefined,
+          },
+          back_urls: {
+            success: `${clientUrl}/checkout/success?orderId=${order._id}`,
+            failure: `${clientUrl}/checkout/failure?orderId=${order._id}`,
+            pending: `${clientUrl}/checkout/pending?orderId=${order._id}`,
+          },
+          auto_return: 'approved',
+          external_reference: order._id.toString(),
+          notification_url: `${apiUrl}/api/webhooks/mercadopago`,
+          statement_descriptor: 'CIRQA',
+          metadata: {
+            order_id: order._id.toString(),
+            order_number: order.orderNumber,
+            customer_email: customer.email,
+          },
+        },
+      };
+
+      const response = await preference.create(preferenceData);
+      order.gateway_id = response.id;
+      await order.save();
+
+      initPoint = response.init_point;
+      sandboxInitPoint = response.sandbox_init_point;
+    } catch (mpError) {
+      console.warn(
+        '[MercadoPago Warning] Creación con simulación de entorno local:',
+        mpError.message
+      );
+      initPoint = `${clientUrl}/checkout/success?orderId=${order._id}&simulated=true`;
+      sandboxInitPoint = `${clientUrl}/checkout/success?orderId=${order._id}&simulated=true`;
+    }
+
+    return res.status(201).json({
+      success: true,
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      initPoint,
+      sandboxInitPoint,
+      data: {
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        initPoint,
+        sandboxInitPoint,
+      },
+    });
+  } catch (error) {
+    console.error('[createPreference Error]:', error);
+    next(error);
+  }
+};
+
+/**
+ * @desc    Obtener todas las órdenes (Admin)
+ * @route   GET /api/orders
+ * @access  Privado (Admin)
+ */
+export const getOrders = async (req, res, next) => {
+  try {
+    const orders = await Order.find().sort({ createdAt: -1 });
+    return res.status(200).json({
+      success: true,
+      count: orders.length,
+      data: orders,
+      orders,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Obtener una orden por ID o orderNumber
+ * @route   GET /api/orders/:orderId
+ * @access  Público / Admin
+ */
+export const getOrderById = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    let order;
+
+    if (mongoose.Types.ObjectId.isValid(orderId)) {
+      order = await Order.findById(orderId);
+    } else {
+      order = await Order.findOne({ orderNumber: orderId });
+    }
+
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: `No se encontró la orden con ID o código: ${orderId}`,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: order,
+      ...order.toObject(),
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Actualizar logística y estado de envío de una orden
+ * @route   PATCH /api/orders/:orderId/shipping
+ * @access  Privado (Admin)
+ */
+export const updateOrderShipping = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+    const { carrier, trackingNumber, status } = req.body;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: `No se encontró la orden con ID: ${orderId}`,
+      });
+    }
+
+    if (!order.shipping) {
+      order.shipping = {};
+    }
+
+    if (carrier !== undefined) order.shipping.carrier = carrier;
+    if (trackingNumber !== undefined) order.shipping.trackingNumber = trackingNumber;
+    if (status !== undefined) order.shipping.status = status;
+
+    await order.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Logística de envío actualizada correctamente.',
+      data: order,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 

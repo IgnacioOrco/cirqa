@@ -39,6 +39,7 @@ import {
   handleSessionExpired,
   formatMediaUrl,
 } from '../services/api';
+import OrdersTab from './admin/OrdersTab';
 
 const MODEL_SORT_ORDER = {
   q001: 1,
@@ -70,6 +71,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   // Navegación interna del panel
   const [activeTab, setActiveTab] = useState('inventory');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [ordersCount, setOrdersCount] = useState(0);
 
   // Catálogo de productos (MongoDB)
   const [products, setProducts] = useState([]);
@@ -807,11 +809,17 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               }`}
             >
               <div className="flex items-center gap-3">
-                <ClipboardList className={`w-4 h-4 ${activeTab === 'orders' ? 'text-cirqa-primario' : 'text-white/40'}`} />
-                <span>Órdenes (Próximamente)</span>
+                <ClipboardList className={`w-4 h-4 ${activeTab === 'orders' ? 'text-cirqa-primario' : 'text-cirqa-arena'}`} />
+                <span>Pedidos</span>
               </div>
-              <span className="text-[9px] uppercase tracking-wider font-semibold bg-cirqa-arena/20 text-cirqa-arena px-2 py-0.5 rounded-full border border-cirqa-arena/30">
-                Próximamente
+              <span
+                className={`text-[10px] px-2 py-0.5 rounded-full ${
+                  activeTab === 'orders'
+                    ? 'bg-cirqa-negro/5 text-cirqa-negro font-bold'
+                    : 'bg-white/10 text-white/70'
+                }`}
+              >
+                {ordersCount}
               </span>
             </button>
           </nav>
@@ -890,29 +898,33 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-light tracking-tight text-cirqa-negro">
-                {activeTab === 'inventory' ? 'Gestión de Inventario' : 'Órdenes de Compra'}
+                {activeTab === 'inventory' ? 'Gestión de Inventario' : 'Gestión de Pedidos'}
               </h1>
             </div>
 
             <div className="flex items-center gap-3 flex-wrap">
-              {/* Botón de Creación de Producto */}
-              <button
-                onClick={handleOpenCreateModal}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-cirqa-primario hover:bg-cirqa-negro text-white text-xs font-semibold tracking-wide transition-all shadow-md active:scale-95"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Nuevo Producto</span>
-              </button>
+              {/* Botón de Creación de Producto (solo en Inventario) */}
+              {activeTab === 'inventory' && (
+                <button
+                  onClick={handleOpenCreateModal}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-cirqa-primario hover:bg-cirqa-negro text-white text-xs font-semibold tracking-wide transition-all shadow-md active:scale-95"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Nuevo Producto</span>
+                </button>
+              )}
 
-              <button
-                onClick={fetchInventory}
-                disabled={loading}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-cirqa-negro/10 text-cirqa-negro/70 hover:text-cirqa-negro hover:border-cirqa-negro/25 text-xs font-medium transition-all shadow-sm disabled:opacity-50"
-                title="Sincronizar con MongoDB"
-              >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cirqa-primario' : ''}`} />
-                <span>Sincronizar</span>
-              </button>
+              {activeTab === 'inventory' && (
+                <button
+                  onClick={fetchInventory}
+                  disabled={loading}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-white border border-cirqa-negro/10 text-cirqa-negro/70 hover:text-cirqa-negro hover:border-cirqa-negro/25 text-xs font-medium transition-all shadow-sm disabled:opacity-50"
+                  title="Sincronizar con MongoDB"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-cirqa-primario' : ''}`} />
+                  <span>Sincronizar</span>
+                </button>
+              )}
 
               <Link
                 to="/"
@@ -1156,31 +1168,10 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
           )}
 
           {activeTab === 'orders' && (
-            <div className="bg-white rounded-3xl p-12 border border-cirqa-negro/10 shadow-sm text-center max-w-2xl mx-auto space-y-6">
-              <div className="w-16 h-16 rounded-3xl bg-cirqa-surface mx-auto flex items-center justify-center text-cirqa-arena border border-cirqa-negro/5">
-                <ClipboardList className="w-8 h-8" />
-              </div>
-              <div className="space-y-2">
-                <span className="text-[10px] uppercase font-bold tracking-[0.25em] text-cirqa-primario">
-                  MÓDULO EN CONSTRUCCIÓN
-                </span>
-                <h2 className="text-2xl font-light tracking-tight text-cirqa-negro">
-                  Gestión de Órdenes & Envíos
-                </h2>
-                <p className="text-xs text-cirqa-negro/60 font-light leading-relaxed max-w-md mx-auto">
-                  La integración directa con Mercado Pago se encuentra en sincronización. Las compras generadas en la tienda pública se registrarán automáticamente aquí.
-                </p>
-              </div>
-
-              <div className="pt-4">
-                <button
-                  onClick={() => setActiveTab('inventory')}
-                  className="px-6 py-3 rounded-full bg-cirqa-negro hover:bg-cirqa-primario text-white text-xs font-semibold tracking-wider uppercase transition-all shadow-md"
-                >
-                  Volver al Inventario
-                </button>
-              </div>
-            </div>
+            <OrdersTab
+              showToast={showToast}
+              onOrdersCountChange={setOrdersCount}
+            />
           )}
 
         </main>

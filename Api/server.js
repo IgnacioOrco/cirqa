@@ -67,6 +67,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/filters', filterRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/payments', webhookRoutes);
 
 // Middlewares de captura de errores
 app.use(notFound);

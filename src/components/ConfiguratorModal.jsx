@@ -6,6 +6,8 @@ import { FILTERS } from '../data/filters';
 import { getProductImage as getStudioProductImage } from '../data/productImages';
 import { normalizeImageUrl } from '../utils/productImages';
 
+import { useCart } from '../context/CartContext';
+
 export default function ConfiguratorModal({
   isOpen,
   onClose,
@@ -14,6 +16,7 @@ export default function ConfiguratorModal({
   onOpenPrescription,
 }) {
   const { products } = useProducts({ all: false });
+  const { openCheckout } = useCart();
 
   const [selectedModel, setSelectedModel] = useState(initialModel || null);
   const [selectedFilter, setSelectedFilter] = useState(initialFilter || FILTERS[1]); // Default Día (84%)
@@ -62,16 +65,20 @@ export default function ConfiguratorModal({
 
   const currentPhoto = getCurrentPhoto();
 
-  // Acción de compra directa o contacto vía WhatsApp
+  // Acción de compra directa: Abre el Checkout Pro de CIRQA con el armazón y cristal configurados
   const handleDirectBuy = () => {
-    const modelName = currentModel.name || 'Modelo CIRQA';
-    const filterName = selectedFilter?.name || 'Día';
-    const price = currentModel.formattedPrice || '$ 42.000';
-    const message = encodeURIComponent(
-      `Hola CIRQA. Quiero encargar mi ${modelName} con cristal ${filterName} (${price}). ¿Cómo procedemos con el pago y envío asegurado?`
-    );
-    window.open(`https://wa.me/5491155891782?text=${message}`, '_blank');
+    onClose();
+    openCheckout({
+      productId: currentModel._id || currentModel.id,
+      name: currentModel.name,
+      modelCode: currentModel.modelCode || currentModel.code || 'Q-001',
+      price: Number(currentModel.price) || 42000,
+      image: currentPhoto,
+      filter: selectedFilter,
+      quantity: 1,
+    });
   };
+
 
   return (
     <AnimatePresence>
