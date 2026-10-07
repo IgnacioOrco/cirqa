@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 /**
- * Subdocumento de Imagen Clasificada
+ * Subdocumento de Imagen Clasificada con soporte de Asociación a Variante
  */
 const productImageSchema = new mongoose.Schema(
   {
@@ -16,6 +16,11 @@ const productImageSchema = new mongoose.Schema(
       default: 'gallery',
       required: true,
     },
+    variantKey: {
+      type: String,
+      default: null,
+      trim: true,
+    },
     isPrimary: {
       type: Boolean,
       default: false,
@@ -28,6 +33,46 @@ const productImageSchema = new mongoose.Schema(
   {
     _id: true,
     timestamps: true,
+  }
+);
+
+/**
+ * Subdocumento de Variante Dinámica de Producto
+ */
+const productVariantSchema = new mongoose.Schema(
+  {
+    key: {
+      type: String,
+      required: [true, 'La clave de variante es obligatoria (ej: clear, dia, noche)'],
+      trim: true,
+      lowercase: true,
+    },
+    name: {
+      type: String,
+      required: [true, 'El nombre de la variante es obligatorio (ej: Clear, Día, Transición)'],
+      trim: true,
+    },
+    subtitle: {
+      type: String,
+      default: '',
+      trim: true,
+    },
+    badgeColor: {
+      type: String,
+      default: '#FFFFFF',
+      trim: true,
+    },
+    priceModifier: {
+      type: Number,
+      default: 0,
+    },
+    isDefault: {
+      type: Boolean,
+      default: false,
+    },
+  },
+  {
+    _id: true,
   }
 );
 
@@ -75,7 +120,21 @@ const productSchema = new mongoose.Schema(
       default: true,
       index: true,
     },
-    // Galería estructurada de fotos con categorización y orden
+    // Configuración de Variantes Dinámicas
+    hasVariants: {
+      type: Boolean,
+      default: false,
+    },
+    variantAxisTitle: {
+      type: String,
+      default: 'Seleccionar Variante',
+      trim: true,
+    },
+    variants: {
+      type: [productVariantSchema],
+      default: [],
+    },
+    // Galería estructurada de fotos con categorización, orden y enlace a variante
     images: {
       type: [productImageSchema],
       default: [],

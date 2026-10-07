@@ -183,7 +183,10 @@ export default function CheckoutModal() {
           modelCode: item.modelCode || 'Q-001',
           price: Number(item.price) || 0,
           quantity: item.quantity || 1,
-          filter: typeof item.filter === 'object' ? item.filter.name : item.filter,
+          variantKey: item.variantKey || undefined,
+          variantName: item.variantName || undefined,
+          variantSubtitle: item.variantSubtitle || undefined,
+          filter: item.variantName || (typeof item.filter === 'object' ? item.filter.name : item.filter),
           prescription: item.prescription?.notes || (item.prescription ? 'Con receta médica adjunta' : null),
           image: item.image || '/products/_DSC8649.webp',
         })),
@@ -609,19 +612,21 @@ export default function CheckoutModal() {
                 ) : (
                   <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1">
                     {activeItems.map((item) => {
-                      const filterName =
-                        typeof item.filter === 'object'
-                          ? item.filter?.name
-                          : item.filter || 'Día (84%)';
-                      const filterHex =
-                        typeof item.filter === 'object' ? item.filter?.hexCode : '#F3B93A';
+                      const variantLabel =
+                        item.variantName ||
+                        (typeof item.filter === 'object' ? item.filter?.name : item.filter) ||
+                        'Día (84%)';
+                      const badgeHex =
+                        item.badgeColor ||
+                        (typeof item.filter === 'object' ? item.filter?.hexCode : '#F3B93A') ||
+                        '#F3B93A';
 
                       return (
                         <div
                           key={item.id}
                           className="p-3.5 bg-white rounded-2xl border border-cirqa-negro/10 flex items-center gap-3 relative shadow-xs"
                         >
-                          {/* Miniatura */}
+                          {/* Miniatura correspondiente a la variante elegida */}
                           <div className="w-16 h-16 rounded-xl bg-[#F6F5F2] border border-cirqa-negro/5 p-1 flex-shrink-0 flex items-center justify-center overflow-hidden">
                             <img
                               src={formatMediaUrl(item.image)}
@@ -654,12 +659,17 @@ export default function CheckoutModal() {
 
                             <div className="flex items-center gap-1.5 mt-0.5">
                               <span
-                                className="w-2 h-2 rounded-full border"
-                                style={{ backgroundColor: filterHex, borderColor: `${filterHex}99` }}
+                                className="w-2.5 h-2.5 rounded-full border flex-shrink-0"
+                                style={{ backgroundColor: badgeHex, borderColor: `${badgeHex}88` }}
                               />
-                              <span className="text-[11px] text-cirqa-negro/70 font-light truncate">
-                                Cristal {filterName}
+                              <span className="text-[11px] text-cirqa-negro/80 font-medium truncate">
+                                {variantLabel}
                               </span>
+                              {item.variantSubtitle && (
+                                <span className="text-[9px] font-mono text-cirqa-primario font-semibold uppercase tracking-wider truncate">
+                                  · {item.variantSubtitle}
+                                </span>
+                              )}
                             </div>
 
                             {item.prescription && (

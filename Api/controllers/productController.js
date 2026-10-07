@@ -74,6 +74,9 @@ export const createProduct = async (req, res, next) => {
       description,
       slug,
       isActive,
+      hasVariants,
+      variantAxisTitle,
+      variants,
       images,
       image_url,
     } = req.body;
@@ -116,7 +119,20 @@ export const createProduct = async (req, res, next) => {
     const finalPrice = price !== undefined ? Number(price) : Number(basePrice);
     const finalStock = stock !== undefined ? Number(stock) : 0;
 
-    // Formatear imágenes iniciales si vienen como strings u objetos
+    // Formatear variantes dinámicas si se envían
+    let formattedVariants = [];
+    if (Array.isArray(variants) && variants.length > 0) {
+      formattedVariants = variants.map((v, idx) => ({
+        key: (v.key || v.name || `var-${idx + 1}`).toLowerCase().trim().replace(/[\s\W-]+/g, '-'),
+        name: (v.name || `Variante ${idx + 1}`).trim(),
+        subtitle: (v.subtitle || '').trim(),
+        badgeColor: (v.badgeColor || '#FFFFFF').trim(),
+        priceModifier: Number(v.priceModifier) || 0,
+        isDefault: Boolean(v.isDefault),
+      }));
+    }
+
+    // Formatear imágenes iniciales si vienen como strings u objetos (incluyendo variantKey)
     let formattedImages = [];
     if (Array.isArray(images) && images.length > 0) {
       formattedImages = images.map((img, idx) => {
@@ -124,6 +140,7 @@ export const createProduct = async (req, res, next) => {
           return {
             url: img,
             tag: idx === 0 ? 'front' : 'gallery',
+            variantKey: null,
             isPrimary: idx === 0,
             order: idx,
           };
@@ -131,6 +148,7 @@ export const createProduct = async (req, res, next) => {
         return {
           url: img.url,
           tag: img.tag || 'gallery',
+          variantKey: img.variantKey ? img.variantKey.trim().toLowerCase() : null,
           isPrimary: Boolean(img.isPrimary),
           order: img.order !== undefined ? Number(img.order) : idx,
         };
@@ -140,6 +158,7 @@ export const createProduct = async (req, res, next) => {
         {
           url: image_url,
           tag: 'front',
+          variantKey: null,
           isPrimary: true,
           order: 0,
         },
@@ -155,6 +174,9 @@ export const createProduct = async (req, res, next) => {
       basePrice: finalPrice,
       stock: finalStock,
       isActive: isActive !== undefined ? Boolean(isActive) : true,
+      hasVariants: Boolean(hasVariants),
+      variantAxisTitle: (variantAxisTitle || 'Seleccionar Variante').trim(),
+      variants: formattedVariants,
       images: formattedImages,
       image_url: formattedImages[0]?.url || image_url || '',
     });
@@ -297,8 +319,34 @@ export const updateProduct = async (req, res, next) => {
       req.body.price = req.body.basePrice;
     }
 
-    // Si viene actualización del array de imágenes, asegurar unicidad de isPrimary
+    // Normalizar hasVariants y variantAxisTitle si se proporcionan
+    if (req.body.hasVariants !== undefined) {
+      req.body.hasVariants = Boolean(req.body.hasVariants);
+    }
+    if (req.body.variantAxisTitle !== undefined) {
+      req.body.variantAxisTitle = (req.body.variantAxisTitle || 'Seleccionar Variante').trim();
+    }
+
+    // Normalizar array de variantes si viene en req.body
+    if (Array.isArray(req.body.variants)) {
+      req.body.variants = req.body.variants.map((v, idx) => ({
+        _id: v._id,
+        key: (v.key || v.name || `var-${idx + 1}`).toLowerCase().trim().replace(/[\s\W-]+/g, '-'),
+        name: (v.name || `Variante ${idx + 1}`).trim(),
+        subtitle: (v.subtitle || '').trim(),
+        badgeColor: (v.badgeColor || '#FFFFFF').trim(),
+        priceModifier: Number(v.priceModifier) || 0,
+        isDefault: Boolean(v.isDefault),
+      }));
+    }
+
+    // Si viene actualización del array de imágenes, asegurar unicidad de isPrimary y preservar variantKey
     if (Array.isArray(req.body.images)) {
+      req.body.images = req.body.images.map((img) => ({
+        ...img,
+        variantKey: img.variantKey && img.variantKey !== 'null' ? img.variantKey.trim().toLowerCase() : null,
+      }));
+
       const primaryCount = req.body.images.filter((img) => img.isPrimary).length;
       if (primaryCount === 0 && req.body.images.length > 0) {
         req.body.images[0].isPrimary = true;
@@ -398,7 +446,7 @@ export const deleteProduct = async (req, res, next) => {
 export const updateProductImage = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { tag = 'front' } = req.body;
+    const { tag = 'front', variantKey = null } = req.body;
 
     if (!req.file) {
       return res.status(400).json({
@@ -430,6 +478,7 @@ export const updateProductImage = async (req, res, next) => {
     const newImageObj = {
       url: fullImageUrl,
       tag: ['front', 'side', 'angle', 'model', 'detail', 'gallery'].includes(tag) ? tag : 'front',
+      variantKey: variantKey && variantKey !== 'null' ? variantKey.trim().toLowerCase() : null,
       isPrimary: !hasPrimary,
       order: product.images.length,
     };
@@ -458,7 +507,7 @@ export const updateProductImage = async (req, res, next) => {
 export const uploadProductImagesController = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { tag = 'gallery' } = req.body;
+    const { tag = 'gallery', variantKey = null } = req.body;
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -491,6 +540,8 @@ export const uploadProductImagesController = async (req, res, next) => {
       ? tag
       : 'gallery';
 
+    const normalizedVariantKey = variantKey && variantKey !== 'null' ? variantKey.trim().toLowerCase() : null;
+
     const newImageSubdocs = req.files.map((file, idx) => {
       const relativePath = `/uploads/${file.filename}`;
       const fullImageUrl = `${protocol}://${host}${relativePath}`;
@@ -499,6 +550,7 @@ export const uploadProductImagesController = async (req, res, next) => {
       return {
         url: fullImageUrl,
         tag: validTag,
+        variantKey: normalizedVariantKey,
         isPrimary: !hasPrimary && idx === 0,
         order: currentMaxOrder,
       };
@@ -601,7 +653,7 @@ export const deleteProductImage = async (req, res, next) => {
 export const updateProductImageMetadata = async (req, res, next) => {
   try {
     const { id, imageId } = req.params;
-    const { tag, isPrimary, order } = req.body;
+    const { tag, isPrimary, order, variantKey } = req.body;
 
     let product;
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -627,6 +679,10 @@ export const updateProductImageMetadata = async (req, res, next) => {
 
     if (tag && ['front', 'side', 'angle', 'model', 'detail', 'gallery'].includes(tag)) {
       targetImage.tag = tag;
+    }
+
+    if (variantKey !== undefined) {
+      targetImage.variantKey = variantKey && variantKey !== 'null' ? variantKey.trim().toLowerCase() : null;
     }
 
     if (order !== undefined) {

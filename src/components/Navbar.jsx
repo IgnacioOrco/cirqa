@@ -1,5 +1,6 @@
 import React from 'react';
 import { ShoppingBag } from 'lucide-react';
+import { Link } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
 export default function Navbar({ isDark = false }) {
@@ -16,7 +17,7 @@ export default function Navbar({ isDark = false }) {
       <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         
         {/* Brand Logo (Left) */}
-        <a href="#" className="flex items-center gap-2 group focus:outline-none" aria-label="CIRQA Home">
+        <Link to="/" className="flex items-center gap-2 group focus:outline-none" aria-label="CIRQA Home">
           <svg
             viewBox="0 0 612 179.15"
             className="h-6 w-auto fill-current transition-colors duration-500 group-hover:opacity-80"
@@ -27,25 +28,31 @@ export default function Navbar({ isDark = false }) {
             <path d="m147.73,142.71c-.11.28-.21.56-.32.83-1.93,4.59-4.65,8.66-8.1,12.11-3.43,3.43-7.54,6.13-12.22,8.02-9.39,3.78-21.43,3.78-30.8,0-4.68-1.89-8.82-4.59-12.29-8.03-3.48-3.43-6.22-7.5-8.15-12.1-1.93-4.58-2.9-9.66-2.9-15.1s.98-10.62,2.9-15.16c1.93-4.55,4.67-8.6,8.16-12.04,3.48-3.44,7.62-6.14,12.29-8.02,4.69-1.89,9.88-2.85,15.41-2.85s10.71.96,15.4,2.85c4.67,1.88,8.78,4.58,12.22,8.01,3.45,3.45,6.17,7.5,8.1,12.05.07.16.12.32.19.48h14.1c-.54-1.9-1.18-3.75-1.94-5.53-2.6-6.11-6.29-11.52-10.95-16.09-4.66-4.56-10.22-8.14-16.53-10.66-12.62-5.02-28.55-5.02-41.16,0-6.31,2.52-11.9,6.12-16.6,10.73-4.71,4.61-8.39,10.05-10.96,16.18-2.57,6.13-3.87,12.88-3.87,20.06s1.3,13.93,3.87,20.06c2.57,6.13,6.26,11.57,10.96,16.18,4.7,4.61,10.28,8.22,16.6,10.73,6.29,2.51,13.21,3.78,20.58,3.78s14.28-1.27,20.58-3.78c6.3-2.51,11.86-6.1,16.53-10.66,4.66-4.57,8.35-9.98,10.95-16.09.82-1.91,1.49-3.9,2.06-5.94h-14.08Z"/>
             <path d="m304.9,179.15l-21.28-32.64-.15-.23.24-.13c2.66-1.45,5.11-3.18,7.29-5.15,3.63-3.28,6.47-7.16,8.45-11.53,1.98-4.38,2.99-9.19,2.99-14.31s-1.01-9.93-2.99-14.31c-1.98-4.37-4.82-8.25-8.45-11.53-3.61-3.27-7.89-5.83-12.73-7.61-3.77-1.39-8.09-2.26-12.41-2.55l-41.76-.11v100.1h13.93v-35.09l.39.26c2.58,1.73,5.43,3.18,8.47,4.3,4.71,1.73,10.14,2.65,15.7,2.65,2.36,0,4.71-.17,7-.5l.16-.02.09.13,18.43,28.27h16.63Zm-31.64-41.77c-3.24,1.21-6.84,1.82-10.68,1.82s-7.44-.61-10.67-1.82c-3.2-1.19-6.02-2.9-8.38-5.07-2.32-2.15-4.16-4.66-5.47-7.48l-.02-.05v-33.63h25.41l.59.02c3.28.14,6.47.75,9.22,1.78,3.22,1.2,6.06,2.92,8.44,5.09,2.38,2.17,4.25,4.73,5.56,7.63,1.31,2.87,1.97,6.07,1.97,9.5s-.66,6.7-1.96,9.54c-1.31,2.87-3.19,5.42-5.57,7.59-2.38,2.17-5.22,3.89-8.43,5.08"/>
           </svg>
-        </a>
+        </Link>
 
         {/* Minimalist Navigation & Cart Action */}
         <div className="flex items-center gap-6 sm:gap-10">
-          <nav className="flex items-center gap-6 sm:gap-10 text-[11px] sm:text-[12px] font-medium tracking-[0.18em] uppercase">
+          <nav className="flex items-center gap-5 sm:gap-8 text-[11px] sm:text-[12px] font-medium tracking-[0.18em] uppercase">
+            <Link
+              to="/catalogo"
+              className="text-cirqa-primario font-semibold hover:opacity-80 transition-opacity"
+            >
+              Catálogo
+            </Link>
             <a
-              href="#ritmo-circadiano"
+              href="/#ritmo-circadiano"
               className="hover:text-cirqa-primario transition-colors duration-200"
             >
               Tecnología
             </a>
             <a
-              href="#pasarela-productos"
+              href="/#pasarela-productos"
               className="hover:text-cirqa-primario transition-colors duration-200"
             >
               Modelos
             </a>
             <a
-              href="#nosotros"
+              href="/#nosotros"
               className="hover:text-cirqa-primario transition-colors duration-200"
             >
               Nosotros

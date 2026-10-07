@@ -34,7 +34,7 @@ export const getClassicModelKey = (product) => {
  * Normaliza URLs y estructura.
  */
 export const getSortedProductImages = (product) => {
-  if (!product) return [{ url: FALLBACK_IMAGE, tag: 'front', isPrimary: true, order: 0 }];
+  if (!product) return [{ url: FALLBACK_IMAGE, tag: 'front', isPrimary: true, order: 0, variantKey: null }];
 
   if (Array.isArray(product.images) && product.images.length > 0) {
     const sorted = [...product.images]
@@ -46,6 +46,7 @@ export const getSortedProductImages = (product) => {
         _id: img._id || `img-${index}`,
         url: normalizeImageUrl(img.url || img.imageUrl),
         tag: img.tag || 'gallery',
+        variantKey: img.variantKey || null,
         isPrimary: Boolean(img.isPrimary),
         order: Number(img.order) || index,
       }));
@@ -59,6 +60,7 @@ export const getSortedProductImages = (product) => {
         _id: 'primary-legacy',
         url: normalizeImageUrl(product.image_url),
         tag: 'front',
+        variantKey: null,
         isPrimary: true,
         order: 0,
       },
@@ -179,6 +181,13 @@ export const getHoverProductImage = (product, primaryUrl = null) => {
   return resolvedPrimary;
 };
 
+export const DEFAULT_CIRCADIAN_VARIANTS = [
+  { key: 'clear', name: 'Clear', subtitle: 'USO DIARIO', badgeColor: '#E2E8F0', priceModifier: 0, isDefault: false },
+  { key: 'dia', name: 'Día', subtitle: 'PANTALLAS · FOCO', badgeColor: '#F3B93A', priceModifier: 0, isDefault: true },
+  { key: 'transicion', name: 'Transición', subtitle: 'CAÍDA SOLAR', badgeColor: '#D97706', priceModifier: 0, isDefault: false },
+  { key: 'noche', name: 'Noche', subtitle: 'DESCANSO TOTAL', badgeColor: '#EF4444', priceModifier: 0, isDefault: false },
+];
+
 /**
  * Normaliza un producto proveniente de MongoDB a la estructura uniforme
  * consumida por todos los componentes del frontend de CIRQA.
@@ -199,6 +208,22 @@ export const normalizeProduct = (p) => {
   const isActive = p.isActive !== undefined ? p.isActive : true;
   const description = p.description || classicMatch?.description || 'Ingeniería óptica y diseño atemporal CIRQA.';
 
+  let hasVariants = p.hasVariants;
+  let variantAxisTitle = p.variantAxisTitle || 'Seleccionar Variante';
+  let variants = Array.isArray(p.variants) ? p.variants : [];
+
+  if (hasVariants === undefined) {
+    if (variants.length > 0) {
+      hasVariants = true;
+    } else if (classicKey) {
+      hasVariants = true;
+      variantAxisTitle = 'Seleccionar Cristal Circadiano';
+      variants = DEFAULT_CIRCADIAN_VARIANTS;
+    } else {
+      hasVariants = false;
+    }
+  }
+
   const sortedImages = getSortedProductImages(p);
   const primaryImage = getPrimaryProductImage(p);
   const hoverImage = getHoverProductImage(p, primaryImage);
@@ -218,6 +243,9 @@ export const normalizeProduct = (p) => {
     stock,
     isActive,
     description,
+    hasVariants,
+    variantAxisTitle,
+    variants,
     material: p.material || classicMatch?.material || 'Acetato de alta densidad y aleación aeroespacial',
     frameShape: p.frameShape || classicMatch?.frameShape || 'Diseño Ergonómico CIRQA',
     lensWidth: p.lensWidth || classicMatch?.lensWidth || 50,

@@ -31,6 +31,18 @@ const orderItemSchema = new mongoose.Schema(
       type: String,
       trim: true,
     },
+    variantKey: {
+      type: String,
+      trim: true,
+    },
+    variantName: {
+      type: String,
+      trim: true,
+    },
+    variantSubtitle: {
+      type: String,
+      trim: true,
+    },
     prescription: {
       type: String,
       trim: true,

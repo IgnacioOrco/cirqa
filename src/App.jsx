@@ -1,6 +1,7 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
+import Catalog from './pages/Catalog';
 import Login from './pages/Login';
 import AdminDashboard from './pages/AdminDashboard';
 import ComingSoon from './pages/ComingSoon';
@@ -16,7 +17,7 @@ import { CartProvider } from './context/CartContext';
  * - Cambiar a `false` cuando la tienda esté lista para publicarse oficialmente.
  * - Para previsualizar la tienda completa sin desactivar este modo, visita cualquier URL con: `?preview=cirqa`
  */
-const COMING_SOON_MODE = true;
+const COMING_SOON_MODE = false;
 
 export default function App() {
   const isPreview = typeof window !== 'undefined' && window.location.search.includes('preview=cirqa');
@@ -49,6 +50,8 @@ export default function App() {
             // Sitio web completo de CIRQA
             <>
               <Route path="/" element={<Home />} />
+              <Route path="/catalogo" element={<Catalog />} />
+              <Route path="/catalog" element={<Navigate to="/catalogo" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </>
           )}

@@ -31,12 +31,21 @@ export function CartProvider({ children }) {
   const addToCart = (product, options = {}) => {
     const {
       filter = null,
+      variant = null,
+      variantKey = null,
+      variantName = null,
+      variantSubtitle = null,
+      badgeColor = null,
       prescription = null,
       quantity = 1,
       image = null,
+      price = null,
     } = options;
 
-    const lineId = `${product._id || product.id || 'item'}_${filter?.id || 'default'}_${prescription ? 'rx' : 'std'}`;
+    const resolvedVariantKey = variantKey || variant?.key || filter?.id || 'standard';
+    const lineId = `${product._id || product.id || 'item'}_${resolvedVariantKey}_${prescription ? 'rx' : 'std'}`;
+
+    const resolvedPrice = Number(price ?? product.price ?? 0);
 
     setItems((prevItems) => {
       const existingIndex = prevItems.findIndex((it) => it.id === lineId);
@@ -51,9 +60,14 @@ export function CartProvider({ children }) {
         productId: product._id || product.id,
         name: product.name || 'Armazón CIRQA',
         modelCode: product.modelCode || product.code || 'Q-001',
-        price: Number(product.price) || 0,
-        formattedPrice: product.formattedPrice || `$ ${Number(product.price || 0).toLocaleString('es-AR')}`,
+        price: resolvedPrice,
+        formattedPrice: `$ ${resolvedPrice.toLocaleString('es-AR')}`,
         image: image || product.primaryImage || product.image_url || '/products/_DSC8649.webp',
+        variant: variant || null,
+        variantKey: resolvedVariantKey,
+        variantName: variantName || variant?.name || (typeof filter === 'object' ? filter?.name : filter) || null,
+        variantSubtitle: variantSubtitle || variant?.subtitle || (typeof filter === 'object' ? filter?.tag : '') || '',
+        badgeColor: badgeColor || variant?.badgeColor || filter?.hexCode || '#FFFFFF',
         filter: filter || { id: 'dia', name: 'Día', tag: '84%', hexCode: '#F3B93A' },
         prescription: prescription || null,
         quantity: Math.max(1, quantity),

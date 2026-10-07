@@ -265,10 +265,11 @@ export const productService = {
   /**
    * Subir y actualizar imagen individual de un producto: POST /api/products/:id/image
    */
-  async uploadProductImage(id, file, tag = 'front') {
+  async uploadProductImage(id, file, tag = 'front', variantKey = null) {
     const formData = new FormData();
     formData.append('image', file);
     formData.append('tag', tag);
+    if (variantKey) formData.append('variantKey', variantKey);
 
     return request(`/api/products/${id}/image`, {
       method: 'POST',
@@ -281,13 +282,15 @@ export const productService = {
    * @param {string} id - ID del producto
    * @param {FileList|File[]} files - Array o FileList de imágenes
    * @param {string} tag - Tag inicial asignado ('front', 'side', 'angle', 'model', 'detail', 'gallery')
+   * @param {string|null} variantKey - Clave de variante asociada (opcional)
    */
-  async uploadProductImages(id, files, tag = 'gallery') {
+  async uploadProductImages(id, files, tag = 'gallery', variantKey = null) {
     const formData = new FormData();
     Array.from(files).forEach((file) => {
       formData.append('images', file);
     });
     formData.append('tag', tag);
+    if (variantKey) formData.append('variantKey', variantKey);
 
     return request(`/api/products/${id}/images`, {
       method: 'POST',

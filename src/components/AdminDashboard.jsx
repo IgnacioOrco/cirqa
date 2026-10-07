@@ -32,6 +32,7 @@ import {
   ChevronDown,
   Layers,
   Tag,
+  Sparkles,
 } from 'lucide-react';
 import {
   productService,
@@ -127,6 +128,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 _id: `img-${idx}`,
                 url: img,
                 tag: idx === 0 ? 'front' : 'gallery',
+                variantKey: null,
                 isPrimary: idx === 0,
                 order: idx,
               };
@@ -135,6 +137,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               _id: img._id || `img-${idx}`,
               url: img.url,
               tag: img.tag || 'gallery',
+              variantKey: img.variantKey || null,
               isPrimary: Boolean(img.isPrimary),
               order: img.order !== undefined ? Number(img.order) : idx,
             };
@@ -161,6 +164,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
           previewImage: primaryImgUrl || '/products/_DSC8649.webp',
           image_url: primaryImgUrl || '',
           images: imagesList,
+          hasVariants: Boolean(item.hasVariants),
+          variantAxisTitle: item.variantAxisTitle || 'Seleccionar Variante',
+          variants: Array.isArray(item.variants) ? item.variants : [],
           isActive: item.isActive !== undefined ? Boolean(item.isActive) : true,
         };
       });
@@ -291,6 +297,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   const [editIsActive, setEditIsActive] = useState(true);
   const [editDescription, setEditDescription] = useState('');
   const [editModelCode, setEditModelCode] = useState('');
+  const [editHasVariants, setEditHasVariants] = useState(false);
+  const [editVariantAxisTitle, setEditVariantAxisTitle] = useState('Seleccionar Variante');
+  const [editVariants, setEditVariants] = useState([]);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [modalError, setModalError] = useState(null);
@@ -298,6 +307,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   // Estados de subida múltiple a la galería
   const [selectedGalleryFiles, setSelectedGalleryFiles] = useState([]);
   const [selectedGalleryTag, setSelectedGalleryTag] = useState('gallery');
+  const [selectedGalleryVariantKey, setSelectedGalleryVariantKey] = useState('');
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [galleryPreviews, setGalleryPreviews] = useState([]);
 
@@ -306,6 +316,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     galleryPreviews.forEach((p) => URL.revokeObjectURL(p.url));
     setGalleryPreviews([]);
     setSelectedGalleryFiles([]);
+    setSelectedGalleryVariantKey('');
     if (galleryFileInputRef.current) {
       galleryFileInputRef.current.value = '';
     }
@@ -319,9 +330,96 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setEditIsActive(product.isActive !== false);
     setEditDescription(product.description || '');
     setEditModelCode(product.modelCode || product.code || '');
+    setEditHasVariants(Boolean(product.hasVariants));
+    setEditVariantAxisTitle(product.variantAxisTitle || 'Seleccionar Variante');
+    setEditVariants(
+      Array.isArray(product.variants) && product.variants.length > 0
+        ? product.variants.map((v) => ({ ...v }))
+        : []
+    );
     setModalError(null);
     setSaveSuccess(false);
     clearGalleryUploadSelection();
+  };
+
+  // Handlers para la gestión interactiva de variantes en el repeater
+  const handleAddVariant = () => {
+    const idx = editVariants.length + 1;
+    const defaultKey = `var-${Date.now().toString().slice(-4)}`;
+    setEditVariants((prev) => [
+      ...prev,
+      {
+        key: defaultKey,
+        name: `Opción ${idx}`,
+        subtitle: '',
+        badgeColor: '#000000',
+        priceModifier: 0,
+        isDefault: prev.length === 0,
+      },
+    ]);
+  };
+
+  const handleRemoveVariant = (index) => {
+    setEditVariants((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleUpdateVariantField = (index, field, value) => {
+    setEditVariants((prev) =>
+      prev.map((v, idx) => {
+        if (idx !== index) return v;
+        const updated = { ...v, [field]: value };
+        if (field === 'name' && (!v.key || v.key.startsWith('var-'))) {
+          const autoKey = value
+            .toLowerCase()
+            .trim()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/^-+|-+$/g, '');
+          if (autoKey) updated.key = autoKey;
+        }
+        return updated;
+      })
+    );
+  };
+
+  const handleLoadCircadianPresets = () => {
+    setEditVariantAxisTitle('Seleccionar Cristal Circadiano');
+    setEditVariants([
+      { key: 'clear', name: 'Clear', subtitle: 'USO DIARIO', badgeColor: '#E2E8F0', priceModifier: 0, isDefault: false },
+      { key: 'dia', name: 'Día', subtitle: 'PANTALLAS · FOCO', badgeColor: '#F3B93A', priceModifier: 0, isDefault: true },
+      { key: 'transicion', name: 'Transición', subtitle: 'CAÍDA SOLAR', badgeColor: '#D97706', priceModifier: 0, isDefault: false },
+      { key: 'noche', name: 'Noche', subtitle: 'DESCANSO TOTAL', badgeColor: '#EF4444', priceModifier: 0, isDefault: false },
+    ]);
+  };
+
+  // Asignar o actualizar variantKey para una foto existente
+  const handleUpdateImageVariantKey = async (imageId, newVariantKey) => {
+    if (!selectedProduct) return;
+    const normalizedKey = newVariantKey && newVariantKey.trim() !== '' ? newVariantKey.trim() : null;
+
+    try {
+      await productService.updateProductImageMetadata(selectedProduct._id, imageId, {
+        variantKey: normalizedKey,
+      });
+
+      const updatedImages = selectedProduct.images.map((img) =>
+        img._id === imageId ? { ...img, variantKey: normalizedKey } : img
+      );
+
+      setSelectedProduct((prev) => ({ ...prev, images: updatedImages }));
+      setProducts((prev) =>
+        prev.map((p) => (p._id === selectedProduct._id ? { ...p, images: updatedImages } : p))
+      );
+
+      showToast('Variante asignada a la foto correctamente.');
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
+      }
+      showToast('Error al asignar variante a la foto.', 'error');
+    }
   };
 
   // Cerrar modal
@@ -379,7 +477,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
       const res = await productService.uploadProductImages(
         selectedProduct._id,
         selectedGalleryFiles,
-        selectedGalleryTag
+        selectedGalleryTag,
+        selectedGalleryVariantKey || null
       );
 
       const updatedProduct = res.data;
@@ -390,6 +489,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         _id: img._id,
         url: img.url,
         tag: img.tag || 'gallery',
+        variantKey: img.variantKey || null,
         isPrimary: Boolean(img.isPrimary),
         order: img.order !== undefined ? img.order : idx,
       }));
@@ -514,6 +614,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         _id: img._id,
         url: img.url,
         tag: img.tag || 'gallery',
+        variantKey: img.variantKey || null,
         isPrimary: Boolean(img.isPrimary),
         order: img.order !== undefined ? img.order : idx,
       }));
@@ -603,6 +704,26 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setSaving(true);
 
     try {
+      const formattedVariants = editHasVariants
+        ? editVariants.map((v, i) => {
+            const rawKey = v.key?.trim() || v.name?.trim() || `var-${i + 1}`;
+            const cleanKey = rawKey
+              .toLowerCase()
+              .normalize('NFD')
+              .replace(/[\u0300-\u036f]/g, '')
+              .replace(/[^a-z0-9_-]+/g, '-')
+              .replace(/^-+|-+$/g, '');
+            return {
+              key: cleanKey || `var-${i + 1}`,
+              name: v.name?.trim() || `Variante ${i + 1}`,
+              subtitle: v.subtitle?.trim() || '',
+              badgeColor: v.badgeColor || '#FFFFFF',
+              priceModifier: Number(v.priceModifier) || 0,
+              isDefault: Boolean(v.isDefault),
+            };
+          })
+        : [];
+
       const payload = {
         modelCode: editModelCode.trim().toUpperCase() || undefined,
         price: numericPrice,
@@ -610,6 +731,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         stock: numericStock,
         description: editDescription.trim(),
         isActive: editIsActive,
+        hasVariants: editHasVariants,
+        variantAxisTitle: editVariantAxisTitle.trim() || 'Seleccionar Variante',
+        variants: formattedVariants,
       };
 
       const res = await productService.updateProduct(selectedProduct._id, payload);
@@ -628,6 +752,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               description: updatedData.description ?? editDescription,
               title: updatedData.description ?? p.title,
               isActive: updatedData.isActive !== undefined ? Boolean(updatedData.isActive) : editIsActive,
+              hasVariants: updatedData.hasVariants !== undefined ? updatedData.hasVariants : editHasVariants,
+              variantAxisTitle: updatedData.variantAxisTitle || editVariantAxisTitle,
+              variants: Array.isArray(updatedData.variants) ? updatedData.variants : formattedVariants,
             };
           }
           return p;
@@ -1472,6 +1599,25 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                             ))}
                           </select>
                         </div>
+
+                        {/* Selector de Variante previa a subir si tiene variantes */}
+                        {editHasVariants && editVariants.length > 0 && (
+                          <div className="flex items-center gap-1.5 text-xs text-cirqa-negro/60">
+                            <Layers className="w-3.5 h-3.5 text-cirqa-primario" />
+                            <select
+                              value={selectedGalleryVariantKey}
+                              onChange={(e) => setSelectedGalleryVariantKey(e.target.value)}
+                              className="text-xs bg-[#FBFBFA] border border-cirqa-negro/15 rounded-lg px-2 py-1 font-medium text-cirqa-negro focus:outline-none max-w-[150px] truncate"
+                            >
+                              <option value="">General / Armazón base</option>
+                              {editVariants.map((v) => (
+                                <option key={v.key} value={v.key}>
+                                  {v.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -1590,6 +1736,27 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                                 <Star className={`w-3 h-3 ${img.isPrimary ? 'fill-current text-amber-500' : ''}`} />
                                 <span className="hidden sm:inline">{img.isPrimary ? 'Portada' : 'Hacer Portada'}</span>
                               </button>
+                            </div>
+
+                            {/* Selector de Variante asignada a la foto */}
+                            <div className="flex items-center gap-1.5 pt-0.5">
+                              <span className="text-[10px] text-cirqa-negro/50 font-medium">Variante:</span>
+                              <select
+                                value={img.variantKey || ''}
+                                onChange={(e) => handleUpdateImageVariantKey(img._id, e.target.value)}
+                                className={`text-[10px] rounded-md px-1.5 py-0.5 font-medium border focus:outline-none transition-all flex-1 truncate ${
+                                  img.variantKey
+                                    ? 'bg-amber-500/10 border-amber-500/30 text-amber-900 font-semibold'
+                                    : 'bg-[#FBFBFA] border-cirqa-negro/15 text-cirqa-negro/70'
+                                }`}
+                              >
+                                <option value="">General / Armazón base</option>
+                                {editVariants.map((v) => (
+                                  <option key={v.key} value={v.key}>
+                                    {v.name} {v.subtitle ? `(${v.subtitle})` : ''}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
 
                             {/* Controles de orden y eliminación */}
@@ -1741,6 +1908,174 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     placeholder="Descripción óptica y características de ingeniería..."
                     className="w-full px-4 py-2 rounded-xl border border-cirqa-negro/15 bg-white text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario transition-all resize-none"
                   />
+                </div>
+
+                {/* ======================================================= */}
+                {/* GESTIÓN DE VARIANTES DINÁMICAS (CRISTALES, COLORES, ETC)*/}
+                {/* ======================================================= */}
+                <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro block">
+                        ¿Este producto tiene variantes?
+                      </span>
+                      <span className="text-[10px] text-cirqa-negro/50 font-light">
+                        Permite configurar cristales circadianos, colores de marco o talles en el configurador.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEditHasVariants(!editHasVariants)}
+                      className="p-1 focus:outline-none"
+                    >
+                      {editHasVariants ? (
+                        <ToggleRight className="w-7 h-7 text-emerald-600" />
+                      ) : (
+                        <ToggleLeft className="w-7 h-7 text-cirqa-negro/30" />
+                      )}
+                    </button>
+                  </div>
+
+                  {editHasVariants && (
+                    <div className="space-y-4 pt-2 border-t border-cirqa-negro/10">
+                      {/* Título del Selector en el Front */}
+                      <div>
+                        <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                          Título del Selector (Paso 2)
+                        </label>
+                        <input
+                          type="text"
+                          value={editVariantAxisTitle}
+                          onChange={(e) => setEditVariantAxisTitle(e.target.value)}
+                          placeholder="ej. Seleccionar Cristal Circadiano o Seleccionar Color"
+                          className="w-full px-3.5 py-2 rounded-xl border border-cirqa-negro/15 bg-white text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario"
+                        />
+                      </div>
+
+                      {/* Repeater de Variantes */}
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/70">
+                            Opciones de Variantes ({editVariants.length})
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handleLoadCircadianPresets}
+                              className="text-[10px] font-medium text-cirqa-primario hover:underline flex items-center gap-1"
+                              title="Cargar Clear, Día, Transición y Noche"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              <span>Cargar 4 Cristales CIRQA</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleAddVariant}
+                              className="px-3 py-1 bg-cirqa-negro text-white rounded-lg text-xs font-medium hover:bg-black/80 flex items-center gap-1 shadow-xs cursor-pointer"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Añadir Variante</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {editVariants.length === 0 ? (
+                          <div className="p-4 border border-dashed border-cirqa-negro/15 rounded-xl text-center text-xs text-cirqa-negro/50">
+                            No hay variantes creadas. Presiona "Añadir Variante" o "Cargar 4 Cristales CIRQA".
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                            {editVariants.map((v, idx) => (
+                              <div
+                                key={idx}
+                                className="p-3 bg-white rounded-xl border border-cirqa-negro/10 shadow-xs space-y-2"
+                              >
+                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                                  {/* Color Picker / Badge */}
+                                  <div className="sm:col-span-1 flex items-center justify-center">
+                                    <input
+                                      type="color"
+                                      value={v.badgeColor || '#FFFFFF'}
+                                      onChange={(e) => handleUpdateVariantField(idx, 'badgeColor', e.target.value)}
+                                      className="w-7 h-7 rounded-full border border-cirqa-negro/20 cursor-pointer p-0 overflow-hidden"
+                                      title="Color de muestra"
+                                    />
+                                  </div>
+
+                                  {/* Nombre */}
+                                  <div className="sm:col-span-4">
+                                    <input
+                                      type="text"
+                                      placeholder="Nombre (ej. Día)"
+                                      value={v.name}
+                                      onChange={(e) => handleUpdateVariantField(idx, 'name', e.target.value)}
+                                      className="w-full px-2.5 py-1.5 rounded-lg border border-cirqa-negro/15 text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario font-medium"
+                                    />
+                                  </div>
+
+                                  {/* Subtítulo */}
+                                  <div className="sm:col-span-3">
+                                    <input
+                                      type="text"
+                                      placeholder="Subtítulo (ej. PANTALLAS)"
+                                      value={v.subtitle || ''}
+                                      onChange={(e) => handleUpdateVariantField(idx, 'subtitle', e.target.value)}
+                                      className="w-full px-2.5 py-1.5 rounded-lg border border-cirqa-negro/15 text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario text-[11px]"
+                                    />
+                                  </div>
+
+                                  {/* Precio Adicional */}
+                                  <div className="sm:col-span-3">
+                                    <div className="relative flex items-center">
+                                      <span className="absolute left-2 text-[10px] text-cirqa-negro/40">+$</span>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="100"
+                                        placeholder="Precio extra"
+                                        value={v.priceModifier || 0}
+                                        onChange={(e) => handleUpdateVariantField(idx, 'priceModifier', Number(e.target.value) || 0)}
+                                        className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-cirqa-negro/15 text-xs font-mono text-cirqa-negro focus:outline-none focus:border-cirqa-primario"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Eliminar */}
+                                  <div className="sm:col-span-1 flex justify-end">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveVariant(idx)}
+                                      className="p-1.5 text-cirqa-negro/30 hover:text-cirqa-carmin hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
+                                      title="Eliminar variante"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                </div>
+                                <div className="flex items-center justify-between text-[10px] text-cirqa-negro/40 pt-1 border-t border-cirqa-negro/5">
+                                  <span>Clave: <code className="font-mono text-cirqa-negro/60">{v.key || 'auto'}</code></span>
+                                  <label className="flex items-center gap-1 cursor-pointer">
+                                    <input
+                                      type="radio"
+                                      name="defaultVariantRadio"
+                                      checked={Boolean(v.isDefault)}
+                                      onChange={() => {
+                                        setEditVariants(editVariants.map((item, i) => ({
+                                          ...item,
+                                          isDefault: i === idx,
+                                        })));
+                                      }}
+                                    />
+                                    <span>Seleccionada por defecto</span>
+                                  </label>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="pt-2 flex items-center justify-end gap-3 border-t border-cirqa-negro/10">

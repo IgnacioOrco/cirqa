@@ -378,29 +378,23 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                       <span>Patilla: {product.templeLength}mm</span>
                     </div>
 
-                    {/* Pie de Tarjeta: Precio y Acción */}
-                    <div className="flex items-center justify-between pt-2 border-t border-cirqa-negro/5">
+                    {/* Pie de Tarjeta: Privacidad de Precio & CTA de Personalización */}
+                    <div className="flex items-center justify-between pt-2.5 border-t border-cirqa-negro/5">
                       <div>
-                        {product.price > 0 ? (
-                          <p className="text-sm font-semibold text-cirqa-negro">
-                            {product.formattedPrice}
-                          </p>
-                        ) : (
-                          <span className="text-[10px] font-semibold tracking-wider text-cirqa-primario uppercase block">
-                            Pre-lanzamiento
-                          </span>
-                        )}
+                        <span className="text-[10px] uppercase tracking-wider font-semibold text-cirqa-primario block">
+                          Ingeniería Óptica
+                        </span>
                         <span className="text-[10px] text-cirqa-negro/50 block font-light">
-                          {product.stock > 0 ? `Stock: ${product.stock} u.` : 'Colección 2026'}
+                          {product.frameShape || 'Diseño Ergonómico'}
                         </span>
                       </div>
 
                       <button
                         type="button"
                         onClick={() => onSelectModel && onSelectModel(product)}
-                        className="inline-flex items-center gap-1.5 text-[11px] font-bold tracking-wider uppercase bg-cirqa-negro text-white hover:bg-cirqa-negro/80 transition-all px-4 py-2.5 rounded-full shadow-xs"
+                        className="inline-flex items-center justify-center gap-1.5 text-[11px] font-bold tracking-wider uppercase bg-cirqa-negro text-white hover:bg-cirqa-primario transition-all px-4 py-2.5 rounded-full shadow-xs cursor-pointer active:scale-95"
                       >
-                        <span>CONFIGURAR</span>
+                        <span>Configurar</span>
                       </button>
                     </div>
                   </div>

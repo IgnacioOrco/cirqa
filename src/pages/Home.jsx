@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
 import ProductShowcaseCarousel from '../components/ProductShowcaseCarousel';
+import CatalogCTA from '../components/CatalogCTA';
 import CircadianInfographic from '../components/CircadianInfographic';
 import StillLifeCarousel from '../components/StillLifeCarousel';
 import ComparisonTable from '../components/ComparisonTable';
@@ -89,6 +90,9 @@ export default function Home() {
         <ProductShowcaseCarousel
           onSelectModel={handleOpenConfiguratorWithModel}
         />
+
+        {/* CTA a Catálogo Oficial Completo */}
+        <CatalogCTA />
 
         {/* BLOQUE 3: Infografía Ritmo Circadiano (24h & 8 Pilares) */}
         <CircadianInfographic />
