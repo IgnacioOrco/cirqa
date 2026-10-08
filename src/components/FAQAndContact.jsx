@@ -172,7 +172,7 @@ export default function FAQAndContact() {
               {/* Direct channels */}
               <div className="space-y-3 pt-4 text-xs font-light text-cirqa-negro/80">
                 <a
-                  href="https://wa.me/5491155891782"
+                  href="https://wa.me/5491125073598"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-cirqa-negro/5 hover:border-cirqa-negro/20 transition-all shadow-sm group"
@@ -184,7 +184,7 @@ export default function FAQAndContact() {
                     <span className="font-semibold text-cirqa-negro block group-hover:text-cirqa-primario transition-colors">
                       WhatsApp Oficial
                     </span>
-                    <span className="text-[11px] text-cirqa-negro/50">+54 9 11 5589-1782</span>
+                    <span className="text-[11px] text-cirqa-negro/50">+54 9 11 2507-3598</span>
                   </div>
                 </a>
 

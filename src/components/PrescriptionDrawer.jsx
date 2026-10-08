@@ -38,7 +38,7 @@ export default function PrescriptionDrawer({ isOpen, onClose, selectedModel, sel
       `Hola CIRQA. Quiero encargar mi ${modelName} con cristal ${filterName} con mi receta oftalmológica.\n${prescriptionFile ? `Archivo adjunto: ${prescriptionFile.name}\n` : ''}${notes ? `Aclaraciones: ${notes}` : ''}`
     );
 
-    const whatsappNumber = '5491155891782'; // Brand Book official contact phone
+    const whatsappNumber = '5491125073598'; // Brand Book official contact phone
     window.open(`https://wa.me/${whatsappNumber}?text=${message}`, '_blank');
   };
 

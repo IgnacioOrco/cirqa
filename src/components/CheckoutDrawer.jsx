@@ -61,7 +61,7 @@ const BANK_DETAILS = {
   alias: 'CIRQA.OPTICA.ARS',
 };
 
-const OFFICIAL_WHATSAPP = '5491155891782';
+const OFFICIAL_WHATSAPP = '5491125073598';
 
 // Mapeo inteligente de Código Postal (CP) argentino a Provincia y Localidad
 function detectProvinceFromZip(zipCode) {

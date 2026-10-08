@@ -62,7 +62,7 @@ export default function PhilosophyAndFooter({ onOpenTrials, onOpenPrescription }
           </div>
           <div>
             <a
-              href="https://wa.me/5491155891782"
+              href="https://wa.me/5491125073598"
               target="_blank"
               rel="noopener noreferrer"
               className="text-xs text-cirqa-negro/50 hover:text-cirqa-primario transition-colors text-left font-light block"
