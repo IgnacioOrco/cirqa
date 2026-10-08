@@ -4,7 +4,7 @@ import { X, AlertTriangle, ShieldCheck, Check, Sparkles } from 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { getProductImage as getStudioProductImage } from '../data/productImages';
-import { normalizeImageUrl } from '../utils/productImages';
+import { normalizeImageUrl, resolveProductCardImage } from '../utils/productImages';
 import { useCart } from '../context/CartContext';
 
 export default function ConfiguratorModal({
@@ -22,17 +22,13 @@ export default function ConfiguratorModal({
   const [selectedModel, setSelectedModel] = useState(initialModel || null);
   const [selectedFilter, setSelectedFilter] = useState(initialFilter || FILTERS[1]); // Default Día (84%)
   const [selectedVariant, setSelectedVariant] = useState(null);
-  const [activeAngle, setActiveAngle] = useState('perspectiva'); // 'frente' | 'perspectiva' | 'cenital'
-  const [selectedCustomImageIndex, setSelectedCustomImageIndex] = useState(0);
 
   // Sincronizar modelo inicial recibido como prop
   useEffect(() => {
     if (initialModel) {
       setSelectedModel(initialModel);
-      setSelectedCustomImageIndex(0);
     } else if (!selectedModel && products.length > 0) {
       setSelectedModel(products[0]);
-      setSelectedCustomImageIndex(0);
     }
   }, [initialModel, products]);
 
@@ -81,35 +77,10 @@ export default function ConfiguratorModal({
     }
   }, [currentModel?._id, currentModel?.id, hasVariants, initialVariantKey, initialVariant]);
 
-  const customImages = Array.isArray(currentModel.images) ? currentModel.images : [];
-  const hasCustomImages = customImages.length > 0 && customImages[0]?.url && !customImages[0]?.url.includes('_DSC');
-
-  // Determinar la foto actual a mostrar con reactividad por variante
+  // Determinar la foto actual a mostrar con reactividad por variante o cristal circadiano
   const getCurrentPhoto = () => {
-    // 1. Si hay una variante seleccionada, buscar foto vinculada a esa variante en product.images
-    if (selectedVariant && Array.isArray(currentModel.images)) {
-      const variantImg = currentModel.images.find(
-        (img) => img && img.variantKey === selectedVariant.key && (img.url || img.imageUrl)
-      );
-      if (variantImg) {
-        return normalizeImageUrl(variantImg.url || variantImg.imageUrl);
-      }
-    }
-
-    // 2. Si es un modelo clásico de CIRQA con fotos de estudio circadianas:
-    if (currentModel.classicKey) {
-      const filterKey = selectedVariant ? selectedVariant.key : selectedFilter.id;
-      return getStudioProductImage(currentModel.classicKey, filterKey, activeAngle);
-    }
-
-    // 3. Si tiene imágenes personalizadas cargadas:
-    if (hasCustomImages) {
-      const targetImg = customImages[selectedCustomImageIndex] || customImages[0];
-      return normalizeImageUrl(targetImg?.url || currentModel.primaryImage);
-    }
-
-    // 4. Foto primaria del armazón o fallback
-    return currentModel.primaryImage || '/products/_DSC8649.webp';
+    const targetKey = selectedVariant ? selectedVariant.key : selectedFilter?.id;
+    return resolveProductCardImage(currentModel, targetKey, 'frente');
   };
 
   const currentPhoto = getCurrentPhoto();
@@ -203,57 +174,6 @@ export default function ConfiguratorModal({
               {/* Columna Izquierda: Escenario Visual del Producto */}
               <div className="lg:col-span-6 flex flex-col items-center justify-center bg-gradient-to-b from-[#FBFBFA] to-[#F3F1ED] rounded-3xl p-6 sm:p-8 border border-cirqa-negro/10 relative shadow-inner">
                 
-                {/* Selector de Ángulos / Galería clasificada */}
-                {hasCustomImages ? (
-                  <div className="flex flex-wrap items-center justify-center gap-1.5 p-1 bg-white/90 backdrop-blur-md rounded-full border border-cirqa-negro/10 shadow-sm z-20 mb-4 max-w-full">
-                    {customImages.map((img, idx) => {
-                      const tagLabel =
-                        img.tag === 'front'
-                          ? 'Frente'
-                          : img.tag === 'angle'
-                          ? '3/4'
-                          : img.tag === 'side'
-                          ? 'Perfil'
-                          : img.tag === 'detail'
-                          ? 'Detalle'
-                          : `Foto ${idx + 1}`;
-                      return (
-                        <button
-                          key={img._id || idx}
-                          onClick={() => setSelectedCustomImageIndex(idx)}
-                          className={`px-3 py-1 text-[11px] font-medium rounded-full transition-all cursor-pointer ${
-                            selectedCustomImageIndex === idx
-                              ? 'bg-cirqa-negro text-white shadow-xs font-semibold'
-                              : 'text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5'
-                          }`}
-                        >
-                          {tagLabel}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-1.5 p-1 bg-white/90 backdrop-blur-md rounded-full border border-cirqa-negro/10 shadow-sm z-20 mb-4">
-                    {[
-                      { id: 'frente', label: 'Frente' },
-                      { id: 'perspectiva', label: '3/4 Lateral' },
-                      { id: 'cenital', label: 'Detalle' },
-                    ].map((ang) => (
-                      <button
-                        key={ang.id}
-                        onClick={() => setActiveAngle(ang.id)}
-                        className={`px-3 py-1 text-[11px] font-medium rounded-full transition-all cursor-pointer ${
-                          activeAngle === ang.id
-                            ? 'bg-cirqa-negro text-white shadow-xs font-semibold'
-                            : 'text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5'
-                        }`}
-                      >
-                        {ang.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-
                 {/* Resplandor ambiental adaptativo */}
                 <div
                   className="absolute w-56 h-56 rounded-full blur-3xl opacity-20 transition-colors duration-500 pointer-events-none"

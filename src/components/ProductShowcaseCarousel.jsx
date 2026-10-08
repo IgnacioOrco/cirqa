@@ -66,54 +66,20 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
     setCardStates((prev) => ({
       ...prev,
       [productId]: {
-        ...prev[productId],
         filterId,
         variantKey: filterId,
-        selectedImageUrl: null, // Limpiar miniatura manual para que el cristal tome efecto de inmediato
-      },
-    }));
-  };
-
-  const setCardAngle = (productId, angle) => {
-    setCardStates((prev) => ({
-      ...prev,
-      [productId]: {
-        ...prev[productId],
-        angle,
-        selectedImageUrl: null,
-      },
-    }));
-  };
-
-  const setCardSelectedImage = (productId, imageUrl) => {
-    setCardStates((prev) => ({
-      ...prev,
-      [productId]: {
-        ...prev[productId],
-        selectedImageUrl: imageUrl,
       },
     }));
   };
 
   /**
-   * Resuelve la imagen a renderizar aplicando las Reglas de Mapeo Dinámico:
-   * 1. Si el usuario seleccionó una miniatura de la galería flotante
-   * 2. Cristal circadiano / variante activa (MongoDB variantKey o estudio CIRQA)
-   * 3. Hover y perspectiva
+   * Resuelve la imagen a renderizar según el cristal o variante seleccionada.
    */
   const resolveDisplayImage = (product) => {
     const state = cardStates[product.id] || {};
     const isHovered = hoveredCardId === product.id;
-
-    // Si el usuario seleccionó una imagen específica de las miniaturas flotantes
-    if (state.selectedImageUrl) {
-      return state.selectedImageUrl;
-    }
-
     const currentKey = state.filterId || state.variantKey || product.lensDefault || 'dia';
-    const angle = state.angle || (isHovered ? 'frente' : 'perspectiva');
-
-    return resolveProductCardImage(product, currentKey, angle, isHovered);
+    return resolveProductCardImage(product, currentKey, isHovered ? 'frente' : 'perspectiva', isHovered);
   };
 
   return (
@@ -212,10 +178,7 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
             {/* Mapeo de Productos Dinámicos */}
             {products.map((product) => {
               const state = cardStates[product.id] || {};
-              const currentAngle = state.angle || 'perspectiva';
               const displayImg = resolveDisplayImage(product);
-              const customImages = Array.isArray(product.images) ? product.images : [];
-              const hasMultipleCustomImages = customImages.length > 1;
 
               // Determinar opciones de variantes o filtros circadianos
               const variantOptions = (product.hasVariants && product.variants?.length > 0)
@@ -298,57 +261,6 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                         }}
                       />
                     </AnimatePresence>
-
-                    {/* Controles flotantes en la imagen: Galería clasificada o Ángulos de estudio */}
-                    {hasMultipleCustomImages ? (
-                      // Mini selector de tags para fotos subidas
-                      <div
-                        className="absolute bottom-2 right-2 flex items-center gap-1 bg-white/95 backdrop-blur-md px-1.5 py-1 rounded-full border border-cirqa-negro/10 shadow-xs opacity-90 group-hover:opacity-100 transition-opacity z-20"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {customImages.slice(0, 3).map((img, idx) => (
-                          <button
-                            key={img._id || idx}
-                            onClick={() => setCardSelectedImage(product.id, img.url)}
-                            className={`text-[9px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full transition-all ${
-                              displayImg === img.url
-                                ? 'bg-cirqa-negro text-white'
-                                : 'text-cirqa-negro/60 hover:text-cirqa-negro'
-                            }`}
-                            title={`Foto: ${img.tag || `Vista ${idx + 1}`}`}
-                          >
-                            {img.tag === 'front' ? 'Frente' : img.tag === 'angle' ? '3/4' : img.tag === 'side' ? 'Perfil' : `V${idx + 1}`}
-                          </button>
-                        ))}
-                      </div>
-                    ) : product.classicKey ? (
-                      // Selector de perspectiva clásico
-                      <div
-                        className="absolute bottom-2 right-2 flex items-center gap-1 bg-white/95 backdrop-blur-md px-1.5 py-1 rounded-full border border-cirqa-negro/10 shadow-xs opacity-90 group-hover:opacity-100 transition-opacity z-20"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          onClick={() => setCardAngle(product.id, 'frente')}
-                          className={`text-[9px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full transition-all ${
-                            currentAngle === 'frente' && !state.selectedImageUrl
-                              ? 'bg-cirqa-negro text-white'
-                              : 'text-cirqa-negro/60 hover:text-cirqa-negro'
-                          }`}
-                        >
-                          Frente
-                        </button>
-                        <button
-                          onClick={() => setCardAngle(product.id, 'perspectiva')}
-                          className={`text-[9px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded-full transition-all ${
-                            currentAngle === 'perspectiva' && !state.selectedImageUrl
-                              ? 'bg-cirqa-negro text-white'
-                              : 'text-cirqa-negro/60 hover:text-cirqa-negro'
-                          }`}
-                        >
-                          3/4
-                        </button>
-                      </div>
-                    ) : null}
                   </div>
 
                   {/* Selector interactivo de Filtros Circadianos o Variantes */}
