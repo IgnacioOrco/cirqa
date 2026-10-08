@@ -306,6 +306,14 @@ export const productService = {
   },
 
   /**
+   * Eliminar un producto permanentemente: DELETE /api/products/:id
+   * @param {string} id - ID del producto
+   */
+  async deleteProduct(id) {
+    return api.delete(`/api/products/${id}`);
+  },
+
+  /**
    * Actualizar rol (tag), foto primaria o posición (order): PATCH /api/products/:id/images/:imageId
    * @param {string} id - ID del producto
    * @param {string} imageId - ID de la imagen en el subdocumento

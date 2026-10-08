@@ -833,6 +833,42 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }
   };
 
+  // Eliminar producto permanentemente de MongoDB y almacenamiento
+  const handleDeleteProduct = async (productOrId, productName = '') => {
+    const id = typeof productOrId === 'string' ? productOrId : productOrId?._id;
+    const name =
+      productName ||
+      (typeof productOrId === 'object'
+        ? (productOrId.shortName || productOrId.name || productOrId.modelCode)
+        : 'este producto');
+
+    if (!id) return;
+
+    const confirmMsg = `¿Estás seguro de que deseas eliminar permanentemente el producto "${name}"?\n\nEsta acción borrará el documento de MongoDB y todos los archivos físicos de sus fotos en el servidor.\n\nEsta acción NO se puede deshacer.`;
+    if (!window.confirm(confirmMsg)) return;
+
+    try {
+      await productService.deleteProduct(id);
+
+      // Quitar inmediatamente del estado local de productos
+      setProducts((prev) => prev.filter((p) => p._id !== id));
+
+      // Si el modal de edición de este producto estaba abierto, cerrarlo
+      if (selectedProduct && selectedProduct._id === id) {
+        handleCloseModal();
+      }
+
+      showToast(`Producto "${name}" eliminado exitosamente.`);
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
+      }
+      console.error('[handleDeleteProduct Error]:', err);
+      showToast(err.message || 'Error al eliminar el producto del servidor.', 'error');
+    }
+  };
+
   // Reordenar imágenes (Mover arriba / abajo)
   const handleReorderImage = async (currentIndex, direction) => {
     if (!selectedProduct) return;
@@ -1504,7 +1540,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                           </div>
 
                           {/* Columna 5: Estado / Visibilidad Directa & Acciones */}
-                          <div className="col-span-2 flex items-center justify-end gap-3">
+                          <div className="col-span-2 flex items-center justify-end gap-2">
                             <button
                               type="button"
                               onClick={(e) => handleToggleActiveQuick(e, product)}
@@ -1519,9 +1555,29 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                               <span>{product.isActive ? 'Activo' : 'Oculto'}</span>
                             </button>
 
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 rounded-full hover:bg-black/5 text-cirqa-primario" title="Abrir editor completo">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenEdit(product);
+                              }}
+                              className="p-1.5 rounded-full hover:bg-black/5 text-cirqa-primario transition-colors cursor-pointer"
+                              title="Editar producto y fotos"
+                            >
                               <Edit3 className="w-3.5 h-3.5" />
-                            </div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteProduct(product);
+                              }}
+                              className="p-1.5 rounded-full text-red-500 hover:text-white hover:bg-red-600 transition-all cursor-pointer opacity-70 hover:opacity-100"
+                              title={`Eliminar producto ${product.shortName} permanentemente`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </motion.div>
                       );
@@ -1756,43 +1812,55 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 stiffness: 350,
                 damping: 28,
               }}
-              className="relative w-full max-w-2xl bg-white/95 backdrop-blur-2xl border border-white/60 shadow-2xl rounded-3xl p-6 sm:p-8 text-cirqa-negro overflow-hidden z-10 my-8 max-h-[92vh] overflow-y-auto"
+              className="relative w-full max-w-4xl lg:max-w-5xl bg-white/95 backdrop-blur-2xl border border-white/60 shadow-2xl rounded-3xl p-6 sm:p-8 text-cirqa-negro overflow-hidden z-10 my-8 max-h-[92vh] overflow-y-auto"
             >
               
               <button
                 onClick={handleCloseModal}
                 disabled={saving || uploadingGallery}
-                className="absolute top-6 right-6 p-2 rounded-full text-cirqa-negro/40 hover:text-cirqa-negro hover:bg-black/5 transition-all"
+                className="absolute top-6 right-6 p-2 rounded-full text-cirqa-negro/40 hover:text-cirqa-negro hover:bg-black/5 transition-all cursor-pointer"
                 aria-label="Cerrar modal"
               >
                 <X className="w-5 h-5" />
               </button>
 
               {/* Encabezado del Producto */}
-              <div className="flex items-center gap-4 pb-5 border-b border-cirqa-negro/10">
-                <div className="w-16 h-16 rounded-2xl bg-[#F4EFEA] border border-cirqa-negro/5 p-1 flex-shrink-0 flex items-center justify-center overflow-hidden">
-                  <img
-                    src={formatMediaUrl(selectedProduct.previewImage)}
-                    alt={selectedProduct.shortName}
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-[10px] uppercase font-mono tracking-wider text-cirqa-primario font-semibold">
-                      {selectedProduct.modelCode || selectedProduct.code}
-                    </span>
-                    <span className="text-[10px] text-cirqa-negro/30 font-mono">
-                      (ID: {selectedProduct._id})
-                    </span>
+              <div className="flex items-center justify-between pb-5 border-b border-cirqa-negro/10 pr-10">
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-[#F4EFEA] border border-cirqa-negro/5 p-1 flex-shrink-0 flex items-center justify-center overflow-hidden shadow-2xs">
+                    <img
+                      src={formatMediaUrl(selectedProduct.previewImage)}
+                      alt={selectedProduct.shortName}
+                      className="w-full h-full object-contain"
+                    />
                   </div>
-                  <h3 className="text-xl font-light tracking-tight text-cirqa-negro">
-                    {selectedProduct.shortName}
-                  </h3>
-                  <p className="text-xs text-cirqa-negro/50 font-light truncate max-w-md">
-                    {selectedProduct.description || selectedProduct.title}
-                  </p>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] uppercase font-mono tracking-wider text-cirqa-primario font-semibold">
+                        {selectedProduct.modelCode || selectedProduct.code}
+                      </span>
+                      <span className="text-[10px] text-cirqa-negro/30 font-mono">
+                        (ID: {selectedProduct._id})
+                      </span>
+                    </div>
+                    <h3 className="text-xl font-light tracking-tight text-cirqa-negro">
+                      {selectedProduct.shortName}
+                    </h3>
+                    <p className="text-xs text-cirqa-negro/50 font-light truncate max-w-md">
+                      {selectedProduct.description || selectedProduct.title}
+                    </p>
+                  </div>
                 </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleDeleteProduct(selectedProduct)}
+                  className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-red-200 text-red-600 hover:bg-red-600 hover:text-white transition-all text-xs font-semibold cursor-pointer shadow-2xs active:scale-95"
+                  title="Eliminar este producto de MongoDB y servidor"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Eliminar Producto</span>
+                </button>
               </div>
 
               {/* SECCIÓN INTERACTIVA: TABLERO VISUAL DE GALERÍA Y AUTOCLASIFICACIÓN */}
@@ -2044,37 +2112,67 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                                       key={img._id || idx}
                                       draggable={true}
                                       onDragStart={() => setDraggedImageId(img._id)}
-                                      className={`p-2 rounded-xl border transition-all cursor-grab active:cursor-grabbing flex items-center gap-2.5 ${
+                                      className={`p-2.5 rounded-xl border transition-all cursor-grab active:cursor-grabbing flex flex-col gap-2 ${
                                         img.isPrimary
-                                          ? 'bg-amber-500/5 border-amber-500/30'
+                                          ? 'bg-amber-500/5 border-amber-500/30 shadow-2xs'
                                           : 'bg-[#FBFBFA] border-cirqa-negro/10 hover:border-cirqa-negro/25 hover:shadow-2xs'
                                       }`}
                                     >
-                                      {/* Miniatura */}
-                                      <div className="relative w-12 h-12 rounded-lg bg-white border border-cirqa-negro/10 overflow-hidden flex-shrink-0">
-                                        <img
-                                          src={formatMediaUrl(img.url)}
-                                          alt={`Foto ${idx + 1}`}
-                                          className="w-full h-full object-contain"
-                                        />
-                                        {img.isPrimary && (
-                                          <span
-                                            className="absolute top-0.5 left-0.5 bg-amber-500 text-white p-0.5 rounded-full shadow-2xs"
-                                            title="Foto de Portada"
+                                      {/* Fila 1: Miniatura + Botón Portada + Botón Eliminar Foto */}
+                                      <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                          <div className="relative w-12 h-12 rounded-lg bg-white border border-cirqa-negro/10 overflow-hidden flex-shrink-0">
+                                            <img
+                                              src={formatMediaUrl(img.url)}
+                                              alt={`Foto ${idx + 1}`}
+                                              className="w-full h-full object-contain"
+                                            />
+                                            {img.isPrimary && (
+                                              <span
+                                                className="absolute top-0.5 left-0.5 bg-amber-500 text-white p-0.5 rounded-full shadow-2xs"
+                                                title="Foto de Portada"
+                                              >
+                                                <Star className="w-2.5 h-2.5 fill-current" />
+                                              </span>
+                                            )}
+                                          </div>
+
+                                          {/* Portada Toggle */}
+                                          <button
+                                            type="button"
+                                            onClick={() => handleSetPrimaryImage(img._id)}
+                                            title={img.isPrimary ? 'Esta es la foto de portada' : 'Convertir en foto de portada principal'}
+                                            className={`px-2 py-1 text-[10px] font-medium rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
+                                              img.isPrimary
+                                                ? 'text-amber-700 bg-amber-100/80 border border-amber-300 font-semibold'
+                                                : 'text-cirqa-negro/60 hover:text-amber-700 hover:bg-amber-50 bg-white border border-cirqa-negro/10'
+                                            }`}
                                           >
-                                            <Star className="w-2.5 h-2.5 fill-current" />
-                                          </span>
-                                        )}
+                                            <Star className={`w-3 h-3 ${img.isPrimary ? 'fill-current text-amber-500' : ''}`} />
+                                            <span>{img.isPrimary ? 'Portada' : 'Principal'}</span>
+                                          </button>
+                                        </div>
+
+                                        {/* Botón Eliminar Foto */}
+                                        <button
+                                          type="button"
+                                          onClick={() => handleDeleteImage(img._id)}
+                                          className="px-2 py-1 text-[10px] font-medium text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 hover:border-red-600 rounded-lg transition-all flex items-center gap-1 flex-shrink-0 cursor-pointer shadow-2xs active:scale-95"
+                                          title="Eliminar esta foto permanentemente"
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                          <span>Borrar</span>
+                                        </button>
                                       </div>
 
-                                      {/* Controles de la Foto */}
-                                      <div className="flex-1 min-w-0 space-y-1">
-                                        <div className="flex items-center justify-between">
-                                          {/* Tag Selector */}
+                                      {/* Fila 2: Selectores de Clasificación y Ubicación */}
+                                      <div className="space-y-1.5 pt-1.5 border-t border-cirqa-negro/5 text-[10px]">
+                                        <div className="flex items-center justify-between gap-1.5">
+                                          <span className="text-[9px] uppercase tracking-wider text-cirqa-negro/40 flex-shrink-0">Vista:</span>
                                           <select
                                             value={img.tag || 'gallery'}
                                             onChange={(e) => handleUpdateImageTag(img._id, e.target.value)}
-                                            className="text-[10px] bg-white border border-cirqa-negro/15 rounded px-1 py-0.5 text-cirqa-negro focus:outline-none"
+                                            className="flex-1 min-w-0 text-[10px] bg-white border border-cirqa-negro/15 rounded-md px-1.5 py-0.5 text-cirqa-negro focus:outline-none focus:border-cirqa-negro truncate cursor-pointer"
                                           >
                                             {IMAGE_TAG_OPTIONS.map((opt) => (
                                               <option key={opt.value} value={opt.value}>
@@ -2082,41 +2180,14 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                                               </option>
                                             ))}
                                           </select>
-
-                                          <div className="flex items-center gap-1">
-                                            {/* Portada */}
-                                            <button
-                                              type="button"
-                                              onClick={() => handleSetPrimaryImage(img._id)}
-                                              title={img.isPrimary ? 'Foto de Portada' : 'Hacer Portada'}
-                                              className={`p-1 rounded transition-colors ${
-                                                img.isPrimary
-                                                  ? 'text-amber-500 bg-amber-50'
-                                                  : 'text-cirqa-negro/30 hover:text-amber-600 hover:bg-black/5'
-                                              }`}
-                                            >
-                                              <Star className={`w-3 h-3 ${img.isPrimary ? 'fill-current' : ''}`} />
-                                            </button>
-
-                                            {/* Eliminar */}
-                                            <button
-                                              type="button"
-                                              onClick={() => handleDeleteImage(img._id)}
-                                              className="p-1 text-cirqa-carmin hover:bg-cirqa-carmin/10 rounded transition-colors"
-                                              title="Eliminar foto"
-                                            >
-                                              <Trash2 className="w-3 h-3" />
-                                            </button>
-                                          </div>
                                         </div>
 
-                                        {/* Mover a otra variante directamente */}
-                                        <div className="flex items-center gap-1">
-                                          <span className="text-[9px] text-cirqa-negro/40">Mover:</span>
+                                        <div className="flex items-center justify-between gap-1.5">
+                                          <span className="text-[9px] uppercase tracking-wider text-cirqa-negro/40 flex-shrink-0">Mover:</span>
                                           <select
                                             value={img.variantKey || ''}
                                             onChange={(e) => handleUpdateImageVariantKey(img._id, e.target.value)}
-                                            className="text-[9px] bg-white border border-cirqa-negro/15 rounded px-1 py-0.5 text-cirqa-negro focus:outline-none flex-1 truncate"
+                                            className="flex-1 min-w-0 text-[10px] bg-white border border-cirqa-negro/15 rounded-md px-1.5 py-0.5 text-cirqa-negro focus:outline-none focus:border-cirqa-negro truncate cursor-pointer"
                                           >
                                             <option value="">Base / General</option>
                                             {activeGalleryVariants.map((v) => (
@@ -2443,38 +2514,51 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   )}
                 </div>
 
-                <div className="pt-2 flex items-center justify-end gap-3 border-t border-cirqa-negro/10">
+                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-cirqa-negro/10">
                   <button
                     type="button"
-                    onClick={handleCloseModal}
+                    onClick={() => handleDeleteProduct(selectedProduct)}
                     disabled={saving || uploadingGallery}
-                    className="px-5 py-2.5 rounded-full text-xs font-medium text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5 transition-all"
+                    className="px-4 py-2.5 rounded-full border border-red-200 text-red-600 hover:bg-red-600 hover:text-white transition-all text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50 shadow-2xs active:scale-95"
+                    title="Eliminar este producto permanentemente"
                   >
-                    Cerrar
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Eliminar Producto</span>
                   </button>
 
-                  <button
-                    type="submit"
-                    disabled={saving || uploadingGallery}
-                    className="px-7 py-2.5 rounded-full bg-cirqa-negro hover:bg-cirqa-primario active:scale-[0.98] text-white text-xs font-semibold tracking-wider uppercase transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
-                  >
-                    {saving ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Guardando...</span>
-                      </>
-                    ) : saveSuccess ? (
-                      <>
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
-                        <span>¡Guardado!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Guardar Cambios</span>
-                      </>
-                    )}
-                  </button>
+                  <div className="flex items-center justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={handleCloseModal}
+                      disabled={saving || uploadingGallery}
+                      className="px-5 py-2.5 rounded-full text-xs font-medium text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5 transition-all"
+                    >
+                      Cerrar
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={saving || uploadingGallery}
+                      className="px-7 py-2.5 rounded-full bg-cirqa-negro hover:bg-cirqa-primario active:scale-[0.98] text-white text-xs font-semibold tracking-wider uppercase transition-all shadow-md flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {saving ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                          <span>Guardando...</span>
+                        </>
+                      ) : saveSuccess ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>¡Guardado!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Guardar Cambios</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
 
               </form>
