@@ -13,6 +13,7 @@ import ClinicalTrialsModal from '../components/ClinicalTrialsModal';
 import ConfiguratorModal from '../components/ConfiguratorModal';
 import PhilosophyAndFooter from '../components/PhilosophyAndFooter';
 import CircadianQuizModal from '../components/CircadianQuizModal';
+import { FILTERS } from '../data/filters';
 import { Sparkles, ArrowRight, Sun, Moon } from 'lucide-react';
 
 export default function Home() {
