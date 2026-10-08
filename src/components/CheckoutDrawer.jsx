@@ -320,19 +320,28 @@ export default function CheckoutDrawer() {
           zipCode: formData.zipCode.trim(),
         },
       },
-      items: activeItems.map((item) => ({
-        product: item.productId || item.id,
-        name: item.name || 'Armazón CIRQA',
-        modelCode: item.modelCode || 'Q-001',
-        price: Number(item.price) || 0,
-        quantity: item.quantity || 1,
-        variantKey: item.variantKey || undefined,
-        variantName: item.variantName || undefined,
-        variantSubtitle: item.variantSubtitle || undefined,
-        filter: item.variantName || (typeof item.filter === 'object' ? item.filter.name : item.filter),
-        prescription: item.prescription?.notes || (item.prescription ? 'Con receta médica adjunta' : null),
-        image: item.image || '/products/_DSC8649.webp',
-      })),
+      items: activeItems.map((item) => {
+        const rawId = item.productId || item._id || item.product || item.id;
+        const cleanId = rawId && String(rawId).includes('_') ? String(rawId).split('_')[0] : rawId;
+        const cleanCode = item.modelCode || (cleanId ? String(cleanId).split('_')[0] : 'Q-001');
+
+        return {
+          product: cleanId,
+          productId: cleanId,
+          id: cleanId,
+          name: item.name || 'Armazón CIRQA',
+          modelCode: cleanCode,
+          slug: item.slug || String(cleanCode).toLowerCase(),
+          price: Number(item.price) || 0,
+          quantity: item.quantity || 1,
+          variantKey: item.variantKey || undefined,
+          variantName: item.variantName || undefined,
+          variantSubtitle: item.variantSubtitle || undefined,
+          filter: item.variantName || (typeof item.filter === 'object' ? item.filter.name : item.filter),
+          prescription: item.prescription?.notes || (item.prescription ? 'Con receta médica adjunta' : null),
+          image: item.image || '/products/_DSC8649.webp',
+        };
+      }),
       shippingCost,
       shippingMethod: shippingMethodTitle,
       shipping: {

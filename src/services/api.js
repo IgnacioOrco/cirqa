@@ -386,18 +386,111 @@ export const orderService = {
 };
 
 /**
+ * Motor de contingencia de tarifas Zipnova por zona para cliente
+ * Garantiza que la experiencia de checkout nunca se bloquee si el endpoint remoto responde 404 o experimenta caída.
+ */
+export const getFallbackQuotesByZoneClient = (postalCode) => {
+  const cleanZip = String(postalCode || '').trim().replace(/\D/g, '');
+  const num = parseInt(cleanZip.slice(0, 4), 10) || 1425;
+
+  let zoneName = 'Interior del País';
+  let homeCost = 5900;
+  let pickupCost = 4500;
+  let homeDays = '3 a 5 días hábiles';
+  let pickupDays = '2 a 4 días hábiles';
+
+  if (num >= 1000 && num <= 1499) {
+    zoneName = 'Ciudad Autónoma de Buenos Aires';
+    homeCost = 3800;
+    pickupCost = 2900;
+    homeDays = '1 a 2 días hábiles';
+    pickupDays = '24 a 48 hs hábiles';
+  } else if (
+    (num >= 1600 && num <= 1999) ||
+    (num >= 2700 && num <= 2999) ||
+    (num >= 6000 && num <= 7999)
+  ) {
+    zoneName = 'Buenos Aires / GBA';
+    homeCost = 4600;
+    pickupCost = 3600;
+    homeDays = '2 a 3 días hábiles';
+    pickupDays = '2 a 3 días hábiles';
+  } else if ((num >= 5000 && num <= 5999) || (num >= 2000 && num <= 3099)) {
+    zoneName = 'Región Centro (Córdoba / Santa Fe)';
+    homeCost = 5400;
+    pickupCost = 4200;
+    homeDays = '2 a 4 días hábiles';
+    pickupDays = '2 a 3 días hábiles';
+  } else if (num >= 8000) {
+    zoneName = 'Patagonia y Sur';
+    homeCost = 6900;
+    pickupCost = 5400;
+    homeDays = '4 a 7 días hábiles';
+    pickupDays = '3 a 5 días hábiles';
+  } else if (num >= 4000 && num <= 4999) {
+    zoneName = 'Norte Argentino';
+    homeCost = 6200;
+    pickupCost = 4900;
+    homeDays = '3 a 6 días hábiles';
+    pickupDays = '3 a 5 días hábiles';
+  }
+
+  return [
+    {
+      id: 'zipnova_home',
+      name: 'Envío a Domicilio - Zipnova',
+      description: `Entrega puerta a puerta en ${zoneName}`,
+      carrier: 'Zipnova Logistics',
+      serviceType: 'standard_home',
+      cost: homeCost,
+      estimatedDays: homeDays,
+      type: 'home',
+      isFallback: true,
+    },
+    {
+      id: 'zipnova_pickup',
+      name: 'Retiro en Punto / Sucursal - Zipnova',
+      description: `Punto cercano a CP ${cleanZip || postalCode}`,
+      carrier: 'Zipnova Puntos',
+      serviceType: 'pickup_point',
+      cost: pickupCost,
+      estimatedDays: pickupDays,
+      type: 'pickup',
+      isFallback: true,
+    },
+  ];
+};
+
+/**
  * Servicio de Cotización y Gestión de Envíos (Zipnova Logistics)
  */
 export const shippingService = {
   /**
    * Cotizar opciones de envío según código postal e ítems
-   * POST /api/shipping/quote
+   * POST /api/shipping/quote (con motor de contingencia automático si el endpoint responde 404 o falla)
    * @param {Object} params - { postalCode, items }
    * @returns {Promise<{ success: boolean, postalCode: string, package: Object, options: Array }>}
    */
   async quote({ postalCode, items = [] }) {
-    const res = await api.post('/api/shipping/quote', { postalCode, items });
-    return res.data || res;
+    try {
+      const res = await api.post('/api/shipping/quote', { postalCode, items });
+      const options = res?.options || res?.data?.options;
+      if (Array.isArray(options) && options.length > 0) {
+        return res.data || res;
+      }
+      return {
+        success: true,
+        postalCode,
+        options: getFallbackQuotesByZoneClient(postalCode),
+      };
+    } catch (err) {
+      console.warn('[shippingService] Endpoint no disponible (404/red), aplicando motor por zona:', err.message);
+      return {
+        success: true,
+        postalCode,
+        options: getFallbackQuotesByZoneClient(postalCode),
+      };
+    }
   },
 };
 

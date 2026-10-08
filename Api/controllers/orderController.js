@@ -216,29 +216,91 @@ export const createPreference = async (req, res, next) => {
     const isTransfer = requestedMethod.includes('transfer');
     const paymentMethod = isTransfer ? 'transfer' : 'mercadopago';
 
-    // 2. Validación de Stock en MongoDB
+    // 2. Validación Robusta de Productos en MongoDB
+    let calculatedSubtotal = 0;
+    const validatedItems = [];
+
     for (const item of items) {
-      const prodId = item.product || item.productId || item.id;
-      if (prodId && mongoose.Types.ObjectId.isValid(prodId)) {
-        const productInDb = await Product.findById(prodId);
-        if (productInDb) {
-          const reqQty = Number(item.quantity) || 1;
-          if (productInDb.stock < reqQty) {
-            return res.status(400).json({
-              success: false,
-              message: `Stock insuficiente para "${productInDb.name}". Stock disponible: ${productInDb.stock}, solicitado: ${reqQty}.`,
-            });
-          }
+      const rawId = item.productId || item._id || item.product || item.id;
+      let product = null;
+
+      // 1. Búsqueda por ObjectId si es válido
+      if (rawId && mongoose.Types.ObjectId.isValid(rawId)) {
+        product = await Product.findById(rawId);
+      }
+
+      // 2. Fallback por modelCode, slug o nombre si no se encontró por ID
+      if (!product && (item.modelCode || item.slug || item.id || rawId || item.name)) {
+        const lookupCode = (item.modelCode || item.slug || item.id || rawId || '')
+          .toString()
+          .split('_')[0]
+          .trim();
+
+        const cleanLookup = lookupCode.replace(/\s+/g, '-');
+        const regexPattern = lookupCode ? lookupCode.replace(/[- ]/g, '[- ]?') : '';
+
+        const orConditions = [];
+        if (regexPattern) {
+          orConditions.push({ modelCode: new RegExp(`^${regexPattern}$`, 'i') });
+          orConditions.push({ name: new RegExp(`^${regexPattern}$`, 'i') });
+        }
+        if (lookupCode) {
+          orConditions.push({ slug: lookupCode.toLowerCase() });
+        }
+        if (cleanLookup) {
+          orConditions.push({ slug: cleanLookup.toLowerCase() });
+        }
+        if (item.name) {
+          orConditions.push({ name: new RegExp(`^${item.name.trim()}$`, 'i') });
+        }
+
+        if (orConditions.length > 0) {
+          product = await Product.findOne({ $or: orConditions });
         }
       }
+
+      if (!product) {
+        return res.status(400).json({
+          success: false,
+          message: `El producto ${item.name || item.modelCode || 'solicitado'} no existe en la base de datos.`,
+        });
+      }
+
+      if (product.isActive === false) {
+        return res.status(400).json({
+          success: false,
+          message: `El producto ${product.name} se encuentra momentáneamente pausado.`,
+        });
+      }
+
+      const reqQty = Number(item.quantity) || 1;
+      if (product.stock < reqQty) {
+        return res.status(400).json({
+          success: false,
+          message: `Stock insuficiente para ${product.name}. Disponibles: ${product.stock}`,
+        });
+      }
+
+      const unitPrice = Number(product.price ?? product.basePrice ?? item.price ?? 0);
+      calculatedSubtotal += unitPrice * reqQty;
+
+      validatedItems.push({
+        product: product._id,
+        name: product.name,
+        modelCode: product.modelCode,
+        price: unitPrice,
+        quantity: reqQty,
+        filter: item.filter || 'Día (84%)',
+        variantKey: item.variantKey || undefined,
+        variantName: item.variantName || undefined,
+        variantSubtitle: item.variantSubtitle || undefined,
+        prescription: item.prescription || undefined,
+        image: item.image || product.images?.[0]?.url || undefined,
+      });
     }
 
-    // 3. Cálculo estricto del subtotal de productos
-    const subtotal = items.reduce(
-      (acc, it) => acc + (Number(it.price) || 0) * (Number(it.quantity) || 1),
-      0
-    );
-
+    // 3. Subtotal estricto calculado desde los precios oficiales de la base de datos
+    const subtotal = calculatedSubtotal;
     const numericShippingCost = Number(shippingCost) || 0;
     const shippingMethodTitle = String(
       req.body.shippingMethod || req.body.shipping?.name || 'standard'
@@ -253,29 +315,11 @@ export const createPreference = async (req, res, next) => {
     const randomCode = Math.floor(100000 + Math.random() * 900000);
     const orderNumber = `CQ-${year}-${randomCode}`;
 
-    // 5. Crear el documento de la Orden en MongoDB
+    // 5. Crear el documento de la Orden en MongoDB con los ítems validados
     const order = new Order({
       orderNumber,
       customer,
-      items: items.map((it) => {
-        const prodId = it.product || it.productId || it.id;
-        return {
-          product:
-            prodId && mongoose.Types.ObjectId.isValid(prodId)
-              ? prodId
-              : undefined,
-          name: it.name || 'Armazón CIRQA',
-          modelCode: it.modelCode || 'Q-001',
-          price: Number(it.price) || 0,
-          quantity: Number(it.quantity) || 1,
-          filter: it.filter || 'Día (84%)',
-          variantKey: it.variantKey || undefined,
-          variantName: it.variantName || undefined,
-          variantSubtitle: it.variantSubtitle || undefined,
-          prescription: it.prescription || undefined,
-          image: it.image || undefined,
-        };
-      }),
+      items: validatedItems,
       subtotal,
       discountAmount,
       shippingCost: numericShippingCost,
@@ -303,13 +347,11 @@ export const createPreference = async (req, res, next) => {
     // FLUJO A: TRANSFERENCIA BANCARIA (Con 15% OFF, reserva de stock y retorno)
     // =========================================================================
     if (isTransfer) {
-      // Descontar o reservar stock en MongoDB para evitar sobreventa
-      for (const item of items) {
-        const prodId = item.product || item.productId || item.id;
-        if (prodId && mongoose.Types.ObjectId.isValid(prodId)) {
-          const reqQty = Number(item.quantity) || 1;
-          await Product.findByIdAndUpdate(prodId, {
-            $inc: { stock: -reqQty },
+      // Descontar o reservar stock en MongoDB para evitar sobreventa usando ObjectId garantizado
+      for (const vItem of validatedItems) {
+        if (vItem.product && mongoose.Types.ObjectId.isValid(vItem.product)) {
+          await Product.findByIdAndUpdate(vItem.product, {
+            $inc: { stock: -vItem.quantity },
           });
         }
       }
@@ -348,18 +390,15 @@ export const createPreference = async (req, res, next) => {
       const client = getMercadoPagoClient();
       const preference = new Preference(client);
 
-      const mpItems = items.map((it) => {
-        const prodId = it.product || it.productId || it.id;
-        return {
-          id: String(prodId || it.modelCode || 'cirqa-item'),
-          title: `${it.name || 'Armazón CIRQA'}${it.filter ? ` · Cristal ${it.filter}` : ''}`,
-          description: `Armazón óptico CIRQA ${it.name || ''}`,
-          picture_url: it.image || undefined,
-          quantity: Number(it.quantity) || 1,
-          unit_price: Number(it.price) || 0,
-          currency_id: 'ARS',
-        };
-      });
+      const mpItems = validatedItems.map((vItem) => ({
+        id: String(vItem.product || vItem.modelCode || 'cirqa-item'),
+        title: `${vItem.name}${vItem.filter ? ` · Cristal ${vItem.filter}` : ''}`,
+        description: `Armazón óptico CIRQA ${vItem.name}`,
+        picture_url: vItem.image || undefined,
+        quantity: vItem.quantity,
+        unit_price: vItem.price,
+        currency_id: 'ARS',
+      }));
 
       if (numericShippingCost > 0) {
         mpItems.push({
