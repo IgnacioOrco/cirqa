@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
+import { createShipment } from '../services/zipnovaService.js';
 
 /**
  * Inicializar cliente de Mercado Pago con el Access Token
@@ -353,15 +354,22 @@ export const createPreference = async (req, res, next) => {
       totalAmount,
       shipping: {
         carrier: req.body.shipping?.carrier || 'Zipnova',
+        service: req.body.shipping?.service || 'standard',
         trackingNumber: '',
         zipnovaShipmentId: '',
+        labelUrl: '',
+        shippedAt: null,
         deliveryStatus: 'pending',
         cost: numericShippingCost,
         status: 'PENDIENTE',
       },
       payment: {
         method: paymentMethod,
-        provider: isTransfer ? 'manual' : 'mercadopago',
+        provider: isTransfer ? 'transfer' : 'mercadopago',
+        status: 'pending',
+        preferenceId: '',
+        paymentId: '',
+        dateApproved: null,
       },
       paymentMethod: isTransfer ? 'TRANSFERENCIA' : 'MERCADO_PAGO',
       status: 'pending',
@@ -472,6 +480,8 @@ export const createPreference = async (req, res, next) => {
 
       const response = await preference.create(preferenceData);
       order.gateway_id = response.id;
+      if (!order.payment) order.payment = {};
+      order.payment.preferenceId = response.id;
       await order.save();
 
       initPoint = response.init_point;
@@ -555,6 +565,29 @@ export const updateOrderStatus = async (req, res, next) => {
             });
           }
         }
+      }
+
+      if (!order.payment) order.payment = {};
+      order.payment.status = 'paid';
+      if (!order.payment.dateApproved) order.payment.dateApproved = new Date();
+    }
+
+    // Si pasa a preparación, emitir envío en Shipnova/Zipnova si aún no fue emitido
+    if (
+      (newStatusNormalized === 'preparacion' || newStatusNormalized === 'preparación') &&
+      (!order.shipping?.trackingNumber || !order.shipping?.labelUrl)
+    ) {
+      try {
+        const shipmentData = await createShipment(order);
+        if (!order.shipping) order.shipping = {};
+        if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
+        if (shipmentData.service) order.shipping.service = shipmentData.service;
+        if (shipmentData.trackingNumber) order.shipping.trackingNumber = shipmentData.trackingNumber;
+        if (shipmentData.zipnovaShipmentId) order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+        if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
+        order.shipping.status = 'PREPARACION';
+      } catch (shipErr) {
+        console.warn('[Auto-Shipment Notice in updateOrderStatus]:', shipErr.message);
       }
     }
 
@@ -687,6 +720,20 @@ export const updateOrderShipping = async (req, res, next) => {
         order.shipping.shippedAt = new Date();
       } else if (norm === 'ENTREGADO' || norm === 'DELIVERED') {
         order.status = 'delivered';
+      } else if (norm === 'PREPARACION' || norm === 'PROCESSING') {
+        // Si no tiene guía ni etiqueta emitida, emitir envío en Shipnova/Zipnova
+        if (!order.shipping.trackingNumber || !order.shipping.labelUrl) {
+          try {
+            const shipmentData = await createShipment(order);
+            if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
+            if (shipmentData.service) order.shipping.service = shipmentData.service;
+            if (shipmentData.trackingNumber) order.shipping.trackingNumber = shipmentData.trackingNumber;
+            if (shipmentData.zipnovaShipmentId) order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+            if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
+          } catch (shipErr) {
+            console.warn('[Auto-Shipment Notice in updateOrderShipping]:', shipErr.message);
+          }
+        }
       }
     } else if (status) {
       const norm = String(status).toLowerCase();
@@ -703,6 +750,51 @@ export const updateOrderShipping = async (req, res, next) => {
       data: order,
     });
   } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Emitir envío real en Shipnova/Zipnova y generar guía/etiqueta
+ * @route   POST /api/orders/:orderId/generate-shipping
+ * @access  Privado (Admin)
+ */
+export const generateOrderShipping = async (req, res, next) => {
+  try {
+    const { orderId } = req.params;
+
+    const order = await Order.findById(orderId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: `No se encontró la orden con ID: ${orderId}`,
+      });
+    }
+
+    // Emitir despacho mediante la API de Shipnova/Zipnova
+    const shipmentData = await createShipment(order);
+
+    if (!order.shipping) {
+      order.shipping = {};
+    }
+
+    order.shipping.carrier = shipmentData.carrier || order.shipping.carrier || 'Zipnova';
+    order.shipping.service = shipmentData.service || order.shipping.service || 'standard';
+    order.shipping.trackingNumber = shipmentData.trackingNumber;
+    order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+    order.shipping.labelUrl = shipmentData.labelUrl;
+    order.shipping.status = 'PREPARACION';
+
+    await order.save();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Envío emitido correctamente mediante Shipnova / Zipnova.',
+      data: order,
+      shipping: order.shipping,
+    });
+  } catch (error) {
+    console.error('[generateOrderShipping Error]:', error);
     next(error);
   }
 };

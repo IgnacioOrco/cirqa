@@ -405,6 +405,16 @@ export const orderService = {
     const res = await api.patch(`/api/orders/${orderId}/status`, { status, note });
     return res.data || res;
   },
+
+  /**
+   * Emitir despacho logístico oficial mediante Shipnova/Zipnova y generar guía y etiqueta
+   * POST /api/orders/:orderId/generate-shipping
+   * @param {string} orderId
+   */
+  async generateOrderShipping(orderId) {
+    const res = await api.post(`/api/orders/${orderId}/generate-shipping`);
+    return res.data || res;
+  },
 };
 
 /**

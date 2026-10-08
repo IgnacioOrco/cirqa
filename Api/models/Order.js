@@ -152,11 +152,14 @@ const orderSchema = new mongoose.Schema(
       },
     },
 
-    // Logística y Envío (Integración Zipnova)
+    // Logística y Envío (Integración Zipnova / Shipnova)
     shipping: {
       carrier: { type: String, trim: true, default: 'Zipnova' },
+      service: { type: String, trim: true, default: 'standard' },
       trackingNumber: { type: String, trim: true, default: '' },
       zipnovaShipmentId: { type: String, trim: true, default: '' },
+      labelUrl: { type: String, trim: true, default: '' }, // URL del PDF para imprimir etiqueta
+      shippedAt: { type: Date, default: null },
       deliveryStatus: {
         type: String,
         enum: ['pending', 'in_transit', 'delivered', 'failed', 'cancelled'],
@@ -185,6 +188,14 @@ const orderSchema = new mongoose.Schema(
         type: String,
         default: 'mercadopago',
       },
+      status: {
+        type: String,
+        enum: ['pending', 'paid', 'failed', 'cancelled'],
+        default: 'pending',
+      },
+      preferenceId: { type: String, trim: true, default: '' },
+      paymentId: { type: String, trim: true, default: '' },
+      dateApproved: { type: Date, default: null },
       details: {
         type: mongoose.Schema.Types.Mixed,
         default: {},
@@ -317,7 +328,7 @@ orderSchema.pre('validate', function (next) {
     const pmLower = String(this.paymentMethod).toLowerCase();
     if (pmLower.includes('transfer')) {
       this.payment.method = 'transfer';
-      this.payment.provider = this.payment.provider || 'manual';
+      this.payment.provider = 'transfer';
     } else {
       this.payment.method = 'mercadopago';
       this.payment.provider = this.payment.provider || 'mercadopago';
@@ -328,7 +339,7 @@ orderSchema.pre('validate', function (next) {
   }
 
   if (!this.payment.provider) {
-    this.payment.provider = this.payment.method === 'transfer' ? 'manual' : 'mercadopago';
+    this.payment.provider = this.payment.method === 'transfer' ? 'transfer' : 'mercadopago';
   }
 
   // Sincronizar paymentMethod en formato compatible

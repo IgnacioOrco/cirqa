@@ -1,7 +1,17 @@
 import express from 'express';
-import { quoteShippingController } from '../controllers/shippingController.js';
+import {
+  quoteShippingController,
+  getShippingLabelController,
+} from '../controllers/shippingController.js';
 
 const router = express.Router();
+
+/**
+ * @route   GET /api/shipping/label/:orderId
+ * @desc    Obtener e imprimir etiqueta de envío oficial Shipnova / Zipnova
+ * @access  Público / Admin
+ */
+router.get('/label/:orderId', getShippingLabelController);
 
 /**
  * @route   POST /api/shipping/quote & POST /api/shipping

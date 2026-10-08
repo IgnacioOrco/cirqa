@@ -358,7 +358,7 @@ export default function CheckoutDrawer() {
       paymentMethod: selectedMethod,
       payment: {
         method: selectedMethod,
-        provider: selectedMethod === 'transfer' ? 'manual' : 'mercadopago',
+        provider: selectedMethod === 'transfer' ? 'transfer' : 'mercadopago',
       },
     };
   };

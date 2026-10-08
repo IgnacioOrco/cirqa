@@ -26,8 +26,20 @@ import {
   ShieldCheck,
   CreditCard,
   Building2,
+  Printer,
+  Send,
 } from 'lucide-react';
 import { orderService, formatMediaUrl } from '../../services/api';
+
+export const isTransferOrder = (order) => {
+  if (!order) return false;
+  const m = String(order.payment?.method || '').toLowerCase();
+  const p = String(order.payment?.provider || '').toLowerCase();
+  const pm = String(order.paymentMethod || '').toLowerCase();
+  if (m === 'transfer' || p === 'transfer' || pm.includes('transfer')) return true;
+  if (Number(order.discountAmount) > 0 && !m.includes('mercado') && !pm.includes('mercado')) return true;
+  return false;
+};
 
 const SHIPPING_STATUSES = [
   { value: 'PENDIENTE', label: 'Pendiente' },
@@ -55,6 +67,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
     status: 'PENDIENTE',
   });
   const [savingShipping, setSavingShipping] = useState(false);
+  const [generatingShippingId, setGeneratingShippingId] = useState(null);
   const [confirmingPaymentId, setConfirmingPaymentId] = useState(null);
 
   // Carga de órdenes desde API
@@ -106,11 +119,11 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
         (paymentFilter === 'cancelled' && (pStatus === 'cancelled' || pStatus === 'rejected' || pStatus === 'fallido'));
 
       // Método de Pago
-      const method = (order.payment?.method || (order.paymentMethod === 'TRANSFERENCIA' ? 'transfer' : 'mercadopago')).toLowerCase();
+      const isTransfer = isTransferOrder(order);
       const matchesMethod =
         methodFilter === 'ALL' ||
-        (methodFilter === 'mercadopago' && (method.includes('mercado') || order.paymentMethod === 'MERCADO_PAGO')) ||
-        (methodFilter === 'transfer' && (method.includes('transfer') || order.paymentMethod === 'TRANSFERENCIA'));
+        (methodFilter === 'transfer' && isTransfer) ||
+        (methodFilter === 'mercadopago' && !isTransfer);
 
       // Envío
       const currentShippingStatus = (
@@ -150,10 +163,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
       return s === 'PENDIENTE' || s === 'PREPARACION';
     }).length;
 
-    const transferOrdersCount = orders.filter((o) => {
-      const m = (o.payment?.method || (o.paymentMethod === 'TRANSFERENCIA' ? 'transfer' : '')).toLowerCase();
-      return m.includes('transfer') || o.paymentMethod === 'TRANSFERENCIA';
-    }).length;
+    const transferOrdersCount = orders.filter(isTransferOrder).length;
 
     return { totalCount, paidCount, totalRevenue, pendingShippingCount, transferOrdersCount };
   }, [orders]);
@@ -259,6 +269,59 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
     }
   };
 
+  // Acción directa: Emitir envío y generar guía/etiqueta en Shipnova / Zipnova
+  const handleGenerateShipnovaShipping = async (order) => {
+    if (!order) return;
+    setGeneratingShippingId(order._id);
+    try {
+      const res = await orderService.generateOrderShipping(order._id);
+      const updatedOrder = res.data || res;
+      const updatedShipping = updatedOrder.shipping || res.shipping || {};
+
+      if (showToast) {
+        showToast('Despacho y guía generados exitosamente en Shipnova / Zipnova', 'success');
+      }
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o._id === order._id
+            ? {
+                ...o,
+                shipping: {
+                  ...(o.shipping || {}),
+                  ...updatedShipping,
+                },
+                shippingStatus: updatedShipping.status || 'PREPARACION',
+              }
+            : o
+        )
+      );
+
+      setSelectedOrder((prev) => ({
+        ...prev,
+        shipping: {
+          ...(prev?.shipping || {}),
+          ...updatedShipping,
+        },
+        shippingStatus: updatedShipping.status || 'PREPARACION',
+      }));
+
+      setShippingForm((prev) => ({
+        ...prev,
+        carrier: updatedShipping.carrier || prev.carrier,
+        trackingNumber: updatedShipping.trackingNumber || prev.trackingNumber,
+        status: updatedShipping.status || 'PREPARACION',
+      }));
+    } catch (err) {
+      console.error('[OrdersTab] Error generando envío Shipnova:', err);
+      if (showToast) {
+        showToast(err.message || 'Error al emitir envío en Shipnova / Zipnova', 'error');
+      }
+    } finally {
+      setGeneratingShippingId(null);
+    }
+  };
+
   // Acción directa: Confirmar Pago de Transferencia (pasa el estado a 'paid' y descuenta stock)
   const handleConfirmPayment = async (order, e) => {
     if (e) e.stopPropagation();
@@ -326,21 +389,20 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
   };
 
   const renderMethodBadge = (order) => {
-    const method = (order.payment?.method || (order.paymentMethod === 'TRANSFERENCIA' ? 'transfer' : 'mercadopago')).toLowerCase();
-    const isTransfer = method.includes('transfer') || order.paymentMethod === 'TRANSFERENCIA' || (order.discountAmount > 0);
+    const isTransfer = isTransferOrder(order);
 
     if (isTransfer) {
       return (
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
-          <Building2 className="w-3 h-3 text-emerald-600 flex-shrink-0" />
-          Transferencia 15% OFF
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs">
+          <Building2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
+          Transferencia Bancaria (15% OFF)
         </span>
       );
     }
 
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#009EE3]/10 text-[#009EE3] border border-[#009EE3]/20">
-        <CreditCard className="w-3 h-3 flex-shrink-0" />
+      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-[#009EE3]/10 text-[#009EE3] border border-[#009EE3]/20 shadow-xs">
+        <CreditCard className="w-3.5 h-3.5 flex-shrink-0" />
         Mercado Pago
       </span>
     );
@@ -896,13 +958,13 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                 <div className="lg:col-span-5 p-6 sm:p-8 bg-cirqa-surface/50 flex flex-col justify-between space-y-6">
                   <div className="space-y-5">
                     {/* ACCIÓN DESTACADA: CONFIRMAR PAGO POR TRANSFERENCIA */}
-                    {(selectedOrder.payment?.method === 'transfer' || selectedOrder.paymentMethod === 'TRANSFERENCIA') &&
+                    {isTransferOrder(selectedOrder) &&
                       (selectedOrder.status || '').toLowerCase() === 'pending' && (
                         <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
                           <div className="flex items-center gap-2">
                             <Building2 className="w-4 h-4 text-emerald-700" />
                             <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
-                              Transferencia Pendiente
+                              Transferencia Bancaria Pendiente (15% OFF)
                             </span>
                           </div>
                           <p className="text-[11px] text-emerald-800 leading-relaxed font-light">
@@ -943,10 +1005,91 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                       </div>
                     )}
 
+                    {/* MÓDULO LOGÍSTICO SHIPNOVA / ZIPNOVA INTEGRADO */}
+                    <div className="p-4 rounded-2xl bg-white border border-cirqa-negro/10 space-y-3 shadow-xs">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600">
+                            <Truck className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <span className="text-xs font-bold text-cirqa-negro uppercase tracking-wider block">
+                              Logística Shipnova / Zipnova
+                            </span>
+                            <span className="text-[10px] text-cirqa-negro/50">
+                              Despacho oficial de paquetería
+                            </span>
+                          </div>
+                        </div>
+                        {selectedOrder.shipping?.zipnovaShipmentId && (
+                          <span className="text-[10px] font-mono bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-bold">
+                            {selectedOrder.shipping.zipnovaShipmentId}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Información de envío emitido */}
+                      {selectedOrder.shipping?.trackingNumber ? (
+                        <div className="space-y-2 pt-2 border-t border-cirqa-negro/10">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-cirqa-negro/60">Número de Guía:</span>
+                            <strong className="font-mono text-cirqa-negro bg-gray-100 px-2 py-0.5 rounded font-bold">
+                              {selectedOrder.shipping.trackingNumber}
+                            </strong>
+                          </div>
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="text-cirqa-negro/60">Operador / Carrier:</span>
+                            <span className="font-medium text-cirqa-negro">
+                              {selectedOrder.shipping.carrier || 'Zipnova Logistics'}
+                            </span>
+                          </div>
+
+                          {/* Botón Funcional: Imprimir Etiqueta */}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const labelUrl =
+                                selectedOrder.shipping?.labelUrl ||
+                                `/api/shipping/label/${selectedOrder._id}`;
+                              window.open(labelUrl, '_blank', 'noopener,noreferrer');
+                            }}
+                            className="w-full mt-2 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                          >
+                            <Printer className="w-4 h-4" />
+                            <span>Imprimir Etiqueta (PDF / Térmica)</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="pt-2 border-t border-cirqa-negro/10 space-y-2">
+                          <p className="text-[11px] text-cirqa-negro/60 leading-relaxed font-light">
+                            No se ha emitido la guía de envío para esta orden. Podés generarla directamente mediante la API de Shipnova:
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => handleGenerateShipnovaShipping(selectedOrder)}
+                            disabled={generatingShippingId === selectedOrder._id}
+                            className="w-full py-2.5 px-3 rounded-xl bg-cirqa-negro hover:bg-cirqa-negro/85 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            {generatingShippingId === selectedOrder._id ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Emitiendo Guía en Shipnova...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Send className="w-3.5 h-3.5 text-indigo-400" />
+                                <span>Generar Envío Shipnova</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
                     <div className="flex items-center gap-2 border-b border-cirqa-negro/10 pb-3">
                       <Truck className="w-4 h-4 text-cirqa-primario" />
                       <h4 className="text-xs font-bold uppercase tracking-wider text-cirqa-negro">
-                        Gestión de Envío y Logística
+                        Actualizar Estado de Entrega
                       </h4>
                     </div>
 
@@ -982,7 +1125,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                           onChange={(e) =>
                             setShippingForm((prev) => ({ ...prev, carrier: e.target.value }))
                           }
-                          placeholder="Ej: Correo Argentino, Andreani, OCA"
+                          placeholder="Ej: Correo Argentino, Andreani, OCA, Zipnova"
                           className="w-full px-3.5 py-2.5 rounded-xl border border-cirqa-negro/20 text-xs bg-white text-cirqa-negro focus:outline-none focus:border-cirqa-negro"
                         />
                       </div>
@@ -1001,7 +1144,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                               trackingNumber: e.target.value,
                             }))
                           }
-                          placeholder="Ej: AR0987654321"
+                          placeholder="Ej: ZN-AR-123456"
                           className="w-full px-3.5 py-2.5 rounded-xl border border-cirqa-negro/20 text-xs bg-white text-cirqa-negro focus:outline-none focus:border-cirqa-negro font-mono"
                         />
                       </div>
@@ -1032,12 +1175,23 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                       </span>
                       <p>
                         Método de Pago:{' '}
-                        <strong>
-                          {selectedOrder.payment?.method === 'transfer' || selectedOrder.paymentMethod === 'TRANSFERENCIA'
-                            ? 'Transferencia Bancaria'
-                            : 'Mercado Pago'}
+                        <strong className={isTransferOrder(selectedOrder) ? 'text-emerald-700' : 'text-[#009EE3]'}>
+                          {isTransferOrder(selectedOrder)
+                            ? 'Transferencia Bancaria (15% OFF)'
+                            : 'Mercado Pago Checkout Pro'}
                         </strong>
                       </p>
+                      <p>
+                        Proveedor:{' '}
+                        <span className="font-mono font-medium text-cirqa-negro">
+                          {selectedOrder.payment?.provider || (isTransferOrder(selectedOrder) ? 'transfer' : 'mercadopago')}
+                        </span>
+                      </p>
+                      {selectedOrder.payment?.preferenceId && (
+                        <p className="font-mono text-[10px] truncate text-cirqa-negro/60">
+                          Preferencia MP: {selectedOrder.payment.preferenceId}
+                        </p>
+                      )}
                       {selectedOrder.gateway_id && (
                         <p className="font-mono text-[10px] truncate text-cirqa-negro/60">
                           Gateway ID: {selectedOrder.gateway_id}
