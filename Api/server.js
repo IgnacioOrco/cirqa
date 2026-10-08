@@ -11,6 +11,7 @@ import productRoutes from './routes/productRoutes.js';
 import filterRoutes from './routes/filterRoutes.js';
 import webhookRoutes from './routes/webhookRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
+import shippingRoutes from './routes/shippingRoutes.js';
 
 // Cron Jobs
 import { initCancelExpiredOrdersCron } from './jobs/cancelExpiredOrders.js';
@@ -66,6 +67,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/filters', filterRoutes);
 app.use('/api/orders', orderRoutes);
+app.use('/api/shipping', shippingRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/payments', webhookRoutes);
 

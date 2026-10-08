@@ -233,17 +233,27 @@ export const createPreference = async (req, res, next) => {
       }
     }
 
-    const totalAmount =
-      items.reduce(
-        (acc, it) => acc + (Number(it.price) || 0) * (Number(it.quantity) || 1),
-        0
-      ) + (Number(shippingCost) || 0);
+    // 3. Cálculo estricto del subtotal de productos
+    const subtotal = items.reduce(
+      (acc, it) => acc + (Number(it.price) || 0) * (Number(it.quantity) || 1),
+      0
+    );
+
+    const numericShippingCost = Number(shippingCost) || 0;
+    const shippingMethodTitle = String(
+      req.body.shippingMethod || req.body.shipping?.name || 'standard'
+    ).trim();
+
+    // 4. Lógica de Descuento: 15% OFF EXCLUSIVO sobre el valor de productos para Transferencia Bancaria
+    // El cálculo del 15% se efectúa estrictamente sobre el subtotal de productos, NUNCA sobre el costo de envío.
+    const discountAmount = isTransfer ? Math.round(subtotal * 0.15) : 0;
+    const totalAmount = (subtotal - discountAmount) + numericShippingCost;
 
     const year = new Date().getFullYear();
     const randomCode = Math.floor(100000 + Math.random() * 900000);
     const orderNumber = `CQ-${year}-${randomCode}`;
 
-    // 3. Crear el documento de la Orden
+    // 5. Crear el documento de la Orden en MongoDB
     const order = new Order({
       orderNumber,
       customer,
@@ -266,9 +276,17 @@ export const createPreference = async (req, res, next) => {
           image: it.image || undefined,
         };
       }),
+      subtotal,
+      discountAmount,
+      shippingCost: numericShippingCost,
+      shippingMethod: shippingMethodTitle,
       totalAmount,
       shipping: {
-        cost: Number(shippingCost) || 0,
+        carrier: req.body.shipping?.carrier || 'Zipnova',
+        trackingNumber: '',
+        zipnovaShipmentId: '',
+        deliveryStatus: 'pending',
+        cost: numericShippingCost,
         status: 'PENDIENTE',
       },
       payment: {
@@ -282,7 +300,7 @@ export const createPreference = async (req, res, next) => {
     await order.save();
 
     // =========================================================================
-    // FLUJO A: TRANSFERENCIA BANCARIA (Reserva/Descuenta stock y retorna directo)
+    // FLUJO A: TRANSFERENCIA BANCARIA (Con 15% OFF, reserva de stock y retorno)
     // =========================================================================
     if (isTransfer) {
       // Descontar o reservar stock en MongoDB para evitar sobreventa
@@ -301,12 +319,19 @@ export const createPreference = async (req, res, next) => {
         orderId: order._id,
         orderNumber: order.orderNumber,
         isTransfer: true,
+        subtotal,
+        discountAmount,
+        shippingCost: numericShippingCost,
+        totalAmount,
         data: {
           orderId: order._id,
           orderNumber: order.orderNumber,
           isTransfer: true,
           status: order.status,
-          totalAmount: order.totalAmount,
+          subtotal,
+          discountAmount,
+          shippingCost: numericShippingCost,
+          totalAmount,
         },
       });
     }
@@ -336,12 +361,12 @@ export const createPreference = async (req, res, next) => {
         };
       });
 
-      if (Number(shippingCost) > 0) {
+      if (numericShippingCost > 0) {
         mpItems.push({
           id: 'shipping-cost',
-          title: 'Costo de Envío Asegurado',
+          title: `Costo de Envío (${shippingMethodTitle || 'Zipnova'})`,
           quantity: 1,
-          unit_price: Number(shippingCost),
+          unit_price: numericShippingCost,
           currency_id: 'ARS',
         });
       }
@@ -401,11 +426,19 @@ export const createPreference = async (req, res, next) => {
       orderNumber: order.orderNumber,
       initPoint,
       sandboxInitPoint,
+      subtotal,
+      discountAmount: 0,
+      shippingCost: numericShippingCost,
+      totalAmount,
       data: {
         orderId: order._id,
         orderNumber: order.orderNumber,
         initPoint,
         sandboxInitPoint,
+        subtotal,
+        discountAmount: 0,
+        shippingCost: numericShippingCost,
+        totalAmount,
       },
     });
   } catch (error) {

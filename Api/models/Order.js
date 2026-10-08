@@ -75,7 +75,35 @@ const orderSchema = new mongoose.Schema(
       },
     },
 
-    // Total de la orden
+    // Subtotal: Suma de productos a precio regular (sin descuentos ni costos de envío)
+    subtotal: {
+      type: Number,
+      required: [true, 'El subtotal de la orden es obligatorio'],
+      min: [0, 'El subtotal no puede ser negativo'],
+    },
+
+    // Descuento: 15% OFF para transferencia bancaria (0 para Mercado Pago)
+    discountAmount: {
+      type: Number,
+      default: 0,
+      min: [0, 'El monto de descuento no puede ser negativo'],
+    },
+
+    // Costo de envío tarifado por Zipnova
+    shippingCost: {
+      type: Number,
+      default: 0,
+      min: [0, 'El costo de envío no puede ser negativo'],
+    },
+
+    // Método de envío elegido ('Envío a Domicilio - Zipnova', 'Retiro en Punto / Sucursal', etc.)
+    shippingMethod: {
+      type: String,
+      default: 'standard',
+      trim: true,
+    },
+
+    // Total final de la orden: (subtotal - discountAmount + shippingCost)
     totalAmount: {
       type: Number,
       required: [true, 'El monto total de la orden es obligatorio'],
@@ -121,10 +149,16 @@ const orderSchema = new mongoose.Schema(
       },
     },
 
-    // Logística y Envío
+    // Logística y Envío (Integración Zipnova)
     shipping: {
-      carrier: { type: String, trim: true, default: '' },
+      carrier: { type: String, trim: true, default: 'Zipnova' },
       trackingNumber: { type: String, trim: true, default: '' },
+      zipnovaShipmentId: { type: String, trim: true, default: '' },
+      deliveryStatus: {
+        type: String,
+        enum: ['pending', 'in_transit', 'delivered', 'failed', 'cancelled'],
+        default: 'pending',
+      },
       status: {
         type: String,
         enum: ['PENDIENTE', 'PREPARACION', 'ENVIADO', 'ENTREGADO', 'pending', 'preparacion', 'enviado', 'entregado'],
@@ -211,7 +245,7 @@ const orderSchema = new mongoose.Schema(
   }
 );
 
-// Middleware pre-validate para auto-generación de orderNumber y sincronización payment / paymentMethod
+// Middleware pre-validate para auto-generación de orderNumber, cálculo consistente y sincronización
 orderSchema.pre('validate', function (next) {
   // 1. Auto-generación de orderNumber con formato CQ-AÑO-RANDOM (ej: CQ-2026-784912)
   if (!this.orderNumber) {
@@ -220,7 +254,28 @@ orderSchema.pre('validate', function (next) {
     this.orderNumber = `CQ-${year}-${randomCode}`;
   }
 
-  // 2. Normalización de payment y retrocompatibilidad con paymentMethod
+  // 2. Si subtotal no fue establecido explícitamente, calcularlo desde items
+  if (this.subtotal === undefined && Array.isArray(this.items)) {
+    this.subtotal = this.items.reduce(
+      (acc, it) => acc + (Number(it.price) || 0) * (Number(it.quantity) || 1),
+      0
+    );
+  }
+
+  // 3. Sincronizar shippingCost y shipping.cost
+  if (this.shippingCost === undefined) {
+    this.shippingCost = Number(this.shipping?.cost) || 0;
+  }
+  if (this.shipping) {
+    this.shipping.cost = this.shippingCost;
+  }
+
+  // 4. Si totalAmount no fue establecido, calcularlo como subtotal - discountAmount + shippingCost
+  if (this.totalAmount === undefined && this.subtotal !== undefined) {
+    this.totalAmount = Math.max(0, (this.subtotal - (this.discountAmount || 0)) + (this.shippingCost || 0));
+  }
+
+  // 5. Normalización de payment y retrocompatibilidad con paymentMethod
   if (!this.payment) {
     this.payment = {
       method: 'mercadopago',
@@ -246,10 +301,10 @@ orderSchema.pre('validate', function (next) {
     this.payment.provider = this.payment.method === 'transfer' ? 'manual' : 'mercadopago';
   }
 
-  // 3. Sincronizar paymentMethod en formato compatible
+  // Sincronizar paymentMethod en formato compatible
   this.paymentMethod = this.payment.method === 'transfer' ? 'TRANSFERENCIA' : 'MERCADO_PAGO';
 
-  // 4. Normalizar status si viene en mayúsculas
+  // 6. Normalizar status si viene en mayúsculas
   if (this.status) {
     this.status = this.status.toLowerCase();
   } else {

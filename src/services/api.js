@@ -386,6 +386,22 @@ export const orderService = {
 };
 
 /**
+ * Servicio de Cotización y Gestión de Envíos (Zipnova Logistics)
+ */
+export const shippingService = {
+  /**
+   * Cotizar opciones de envío según código postal e ítems
+   * POST /api/shipping/quote
+   * @param {Object} params - { postalCode, items }
+   * @returns {Promise<{ success: boolean, postalCode: string, package: Object, options: Array }>}
+   */
+  async quote({ postalCode, items = [] }) {
+    const res = await api.post('/api/shipping/quote', { postalCode, items });
+    return res.data || res;
+  },
+};
+
+/**
  * Normaliza la URL de una imagen para que siempre se renderice correctamente en Vercel
  * o entorno local, resolviendo rutas relativas como /uploads/... hacia la API en producción.
  */

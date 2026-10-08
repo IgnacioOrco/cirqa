@@ -179,7 +179,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
   const handleOpenDetail = (order) => {
     setSelectedOrder(order);
     setShippingForm({
-      carrier: order.shipping?.carrier || order.carrier || '',
+      carrier: order.shipping?.carrier || order.carrier || 'Zipnova',
       trackingNumber: order.shipping?.trackingNumber || order.trackingNumber || '',
       status: order.shipping?.status || order.shippingStatus || 'PENDIENTE',
     });
@@ -299,20 +299,20 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
 
   const renderMethodBadge = (order) => {
     const method = (order.payment?.method || (order.paymentMethod === 'TRANSFERENCIA' ? 'transfer' : 'mercadopago')).toLowerCase();
-    const isTransfer = method.includes('transfer') || order.paymentMethod === 'TRANSFERENCIA';
+    const isTransfer = method.includes('transfer') || order.paymentMethod === 'TRANSFERENCIA' || (order.discountAmount > 0);
 
     if (isTransfer) {
       return (
-        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
-          <Building2 className="w-3 h-3 text-emerald-600" />
-          Transferencia
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+          <Building2 className="w-3 h-3 text-emerald-600 flex-shrink-0" />
+          Transferencia 15% OFF
         </span>
       );
     }
 
     return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#009EE3]/10 text-[#009EE3] border border-[#009EE3]/20">
-        <CreditCard className="w-3 h-3" />
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#009EE3]/10 text-[#009EE3] border border-[#009EE3]/20">
+        <CreditCard className="w-3 h-3 flex-shrink-0" />
         Mercado Pago
       </span>
     );
@@ -585,9 +585,16 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                         {renderMethodBadge(order)}
                       </td>
 
-                      {/* Monto Total */}
-                      <td className="py-4 px-6 font-semibold text-cirqa-negro font-mono">
-                        ${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}
+                      {/* Monto Total y Desglose */}
+                      <td className="py-4 px-6">
+                        <div className="font-semibold text-cirqa-negro font-mono">
+                          ${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}
+                        </div>
+                        {order.discountAmount > 0 && (
+                          <div className="text-[10px] text-emerald-700 font-mono font-medium">
+                            -15% (${Number(order.discountAmount).toLocaleString('es-AR')})
+                          </div>
+                        )}
                       </td>
 
                       {/* Estado de Pago */}
@@ -595,9 +602,24 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                         {renderPaymentBadge(order.status)}
                       </td>
 
-                      {/* Estado de Entrega */}
+                      {/* Logística Zipnova y Estado */}
                       <td className="py-4 px-6">
-                        {renderShippingBadge(shippingStatus)}
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            {renderShippingBadge(shippingStatus)}
+                            <span className="text-[10px] font-mono text-cirqa-negro/80 font-bold">
+                              ${(Number(order.shippingCost ?? order.shipping?.cost ?? 0)).toLocaleString('es-AR')}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-cirqa-negro/60 font-light truncate max-w-[140px]" title={order.shippingMethod || order.shipping?.carrier || 'Zipnova'}>
+                            {order.shippingMethod || order.shipping?.carrier || 'Zipnova'}
+                          </div>
+                          {order.shipping?.trackingNumber && (
+                            <div className="text-[9px] font-mono text-cirqa-primario bg-cirqa-primario/10 px-1.5 py-0.5 rounded inline-block font-semibold">
+                              Trk: {order.shipping.trackingNumber}
+                            </div>
+                          )}
+                        </div>
                       </td>
 
                       {/* Acciones */}
@@ -810,12 +832,34 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                       ))}
                     </div>
 
-                    {/* Total */}
-                    <div className="pt-3 border-t border-cirqa-negro/10 flex items-center justify-between text-xs">
-                      <span className="text-cirqa-negro/60">Total de la Orden</span>
-                      <span className="text-base font-extrabold text-cirqa-negro font-mono">
-                        ${(Number(selectedOrder.totalAmount) || 0).toLocaleString('es-AR')} ARS
-                      </span>
+                    {/* Desglose Financiero Completo */}
+                    <div className="pt-3 border-t border-cirqa-negro/10 space-y-1.5 text-xs">
+                      <div className="flex items-center justify-between text-cirqa-negro/70">
+                        <span>Subtotal Productos:</span>
+                        <span className="font-mono">
+                          ${(Number(selectedOrder.subtotal || selectedOrder.items?.reduce((acc, it) => acc + (Number(it.price || 0) * (it.quantity || 1)), 0) || 0)).toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                      {Number(selectedOrder.discountAmount) > 0 && (
+                        <div className="flex items-center justify-between text-emerald-700 font-medium">
+                          <span>Descuento Transferencia (15% OFF):</span>
+                          <span className="font-mono">
+                            -${Number(selectedOrder.discountAmount).toLocaleString('es-AR')}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between text-cirqa-negro/70">
+                        <span>Envío ({selectedOrder.shippingMethod || selectedOrder.shipping?.carrier || 'Zipnova'}):</span>
+                        <span className="font-mono">
+                          +${Number(selectedOrder.shippingCost ?? selectedOrder.shipping?.cost ?? 0).toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm font-bold text-cirqa-negro pt-2 border-t border-cirqa-negro/10">
+                        <span>Total de la Orden:</span>
+                        <span className="font-mono text-base font-extrabold text-cirqa-negro">
+                          ${(Number(selectedOrder.totalAmount) || 0).toLocaleString('es-AR')} ARS
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </div>

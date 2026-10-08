@@ -195,11 +195,39 @@ export default function CheckoutSuccess() {
                     </div>
                   ))}
 
-                  <div className="pt-4 border-t border-cirqa-negro/10 flex items-center justify-between text-xs">
-                    <span className="font-semibold text-cirqa-negro">Total abonado</span>
-                    <span className="font-bold text-base text-cirqa-negro">
-                      ${(Number(order?.totalAmount) || 0).toLocaleString('es-AR')} ARS
-                    </span>
+                  <div className="pt-4 border-t border-cirqa-negro/10 space-y-2 text-xs">
+                    {(Number(order?.discountAmount) > 0 || Number(order?.shippingCost) > 0) && (
+                      <>
+                        <div className="flex justify-between text-cirqa-negro/70">
+                          <span>Subtotal productos:</span>
+                          <span className="font-mono">
+                            ${(Number(order?.subtotal || items.reduce((a, b) => a + (Number(b.price || 0) * (b.quantity || 1)), 0))).toLocaleString('es-AR')}
+                          </span>
+                        </div>
+                        {Number(order?.discountAmount) > 0 && (
+                          <div className="flex justify-between text-emerald-700 font-semibold">
+                            <span>Descuento Transferencia (15%):</span>
+                            <span className="font-mono">
+                              -${Number(order.discountAmount).toLocaleString('es-AR')}
+                            </span>
+                          </div>
+                        )}
+                        {Number(order?.shippingCost) > 0 && (
+                          <div className="flex justify-between text-cirqa-negro/70">
+                            <span>Envío ({order?.shippingMethod || 'Zipnova'}):</span>
+                            <span className="font-mono">
+                              +${Number(order.shippingCost).toLocaleString('es-AR')}
+                            </span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                    <div className="flex items-center justify-between pt-1 border-t border-cirqa-negro/5">
+                      <span className="font-semibold text-cirqa-negro">Total abonado</span>
+                      <span className="font-bold text-base text-cirqa-negro font-mono">
+                        ${(Number(order?.totalAmount) || 0).toLocaleString('es-AR')} ARS
+                      </span>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -248,7 +276,11 @@ export default function CheckoutSuccess() {
 
                 <div className="pt-4 border-t border-cirqa-negro/10 flex items-center gap-2 text-[11px] text-emerald-700 bg-emerald-50 p-3 rounded-2xl border border-emerald-100">
                   <Truck className="w-4 h-4 flex-shrink-0" />
-                  <span>Envío asegurado bonificado. Te enviaremos el número de tracking por email.</span>
+                  <span>
+                    {order?.shippingMethod
+                      ? `Envío oficial con ${order.shippingMethod}. Te enviaremos el número de tracking de Zipnova por email.`
+                      : 'Envío asegurado oficial con Zipnova Logistics. Te enviaremos el número de tracking por email.'}
+                  </span>
                 </div>
               </div>
 

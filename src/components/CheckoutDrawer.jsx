@@ -20,9 +20,11 @@ import {
   Check,
   MessageCircle,
   ExternalLink,
+  Truck,
+  Percent,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { orderService, formatMediaUrl } from '../services/api';
+import { orderService, shippingService, formatMediaUrl } from '../services/api';
 
 const PROVINCIAS_ARG = [
   'Ciudad Autónoma de Buenos Aires',
@@ -141,6 +143,12 @@ export default function CheckoutDrawer() {
   // Selector de Medio de Pago: 'mercadopago' | 'transfer'
   const [paymentMethod, setPaymentMethod] = useState('mercadopago');
 
+  // Estado de cotización de envío con Zipnova Logistics
+  const [shippingOptions, setShippingOptions] = useState([]);
+  const [selectedShippingOption, setSelectedShippingOption] = useState(null);
+  const [isQuotingShipping, setIsQuotingShipping] = useState(false);
+  const [shippingError, setShippingError] = useState(null);
+
   // Formulario ágil de envío
   const [formData, setFormData] = useState({
     name: '',
@@ -164,14 +172,67 @@ export default function CheckoutDrawer() {
   const [transferSuccessOrder, setTransferSuccessOrder] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
 
+  // 1. Subtotal de productos a precio regular
   const subtotal = activeItems.reduce(
     (acc, it) => acc + (Number(it.price) || 0) * (it.quantity || 1),
     0
   );
-  const shippingCost = 0; // Envío asegurado oficial bonificado 100%
-  const total = subtotal + shippingCost;
 
-  // Autocompletado reactivo de CP
+  // 2. Costo de Envío según opción elegida de Zipnova (0 si aún no cotizó)
+  const shippingCost = selectedShippingOption ? Number(selectedShippingOption.cost) || 0 : 0;
+
+  // 3. Descuento del 15% OFF EXCLUSIVO sobre el valor de los productos para Transferencia
+  // El 15% se calcula estrictamente sobre el subtotal de productos, NUNCA sobre el costo de envío
+  const discountAmount = paymentMethod === 'transfer' ? Math.round(subtotal * 0.15) : 0;
+
+  // 4. Total a pagar: (subtotal - descuento) + envío
+  const total = (subtotal - discountAmount) + shippingCost;
+
+  // Cotización automática y reactiva con Zipnova al detectar Código Postal
+  useEffect(() => {
+    const cleanZip = String(formData.zipCode || '').trim().replace(/\D/g, '');
+    if (cleanZip.length >= 4 && activeItems.length > 0) {
+      let isCancelled = false;
+      const timer = setTimeout(async () => {
+        setIsQuotingShipping(true);
+        setShippingError(null);
+        try {
+          const res = await shippingService.quote({
+            postalCode: cleanZip,
+            items: activeItems,
+          });
+          if (isCancelled) return;
+          const options = Array.isArray(res?.options) ? res.options : [];
+          setShippingOptions(options);
+          if (options.length > 0) {
+            setSelectedShippingOption((prev) => {
+              if (prev) {
+                const match = options.find((o) => o.id === prev.id || o.type === prev.type);
+                if (match) return match;
+              }
+              return options[0];
+            });
+          }
+        } catch (err) {
+          if (isCancelled) return;
+          console.warn('[Zipnova Quote Error]:', err);
+          setShippingError('Tarifas calculadas con el motor de contingencia por zona de Zipnova.');
+        } finally {
+          if (!isCancelled) setIsQuotingShipping(false);
+        }
+      }, 500);
+
+      return () => {
+        isCancelled = true;
+        clearTimeout(timer);
+      };
+    } else {
+      setShippingOptions([]);
+      setSelectedShippingOption(null);
+    }
+  }, [formData.zipCode, activeItems.length]);
+
+  // Autocompletado reactivo de CP y provincia
   const handleZipCodeChange = (e) => {
     const rawVal = e.target.value;
     setFormData((prev) => {
@@ -240,6 +301,10 @@ export default function CheckoutDrawer() {
   };
 
   const buildOrderPayload = (selectedMethod) => {
+    const shippingMethodTitle = selectedShippingOption
+      ? selectedShippingOption.name
+      : 'Envío a Domicilio - Zipnova';
+
     return {
       customer: {
         name: formData.name.trim(),
@@ -268,7 +333,16 @@ export default function CheckoutDrawer() {
         prescription: item.prescription?.notes || (item.prescription ? 'Con receta médica adjunta' : null),
         image: item.image || '/products/_DSC8649.webp',
       })),
-      shippingCost: 0,
+      shippingCost,
+      shippingMethod: shippingMethodTitle,
+      shipping: {
+        carrier: selectedShippingOption?.carrier || 'Zipnova',
+        cost: shippingCost,
+        status: 'PENDIENTE',
+        deliveryStatus: 'pending',
+        trackingNumber: '',
+        zipnovaShipmentId: '',
+      },
       paymentMethod: selectedMethod,
       payment: {
         method: selectedMethod,
@@ -297,7 +371,7 @@ export default function CheckoutDrawer() {
       const payload = buildOrderPayload(paymentMethod);
       const response = await orderService.createPreference(payload);
 
-      // CASO A: TRANSFERENCIA BANCARIA
+      // CASO A: TRANSFERENCIA BANCARIA (15% OFF)
       if (paymentMethod === 'transfer') {
         const orderNum =
           response?.orderNumber ||
@@ -305,21 +379,26 @@ export default function CheckoutDrawer() {
           `CQ-${Math.floor(100000 + Math.random() * 900000)}`;
 
         const createdOrderId = response?.orderId || response?.data?.orderId;
+        const finalCalculatedTotal = response?.totalAmount || response?.data?.totalAmount || total;
 
         // Construir mensaje preformateado para WhatsApp oficial de CIRQA
-        const waMessage = `Hola CIRQA! Acabo de realizar el pedido *#${orderNum}* a nombre de *${formData.name.trim()}* por un total de *$${total.toLocaleString('es-AR')}*. Adjunto el comprobante de transferencia bancaria.`;
+        const waMessage = `Hola CIRQA! Acabo de realizar el pedido *#${orderNum}* por un total de *$${finalCalculatedTotal.toLocaleString('es-AR')}*. Adjunto el comprobante de transferencia.`;
 
         const waUrl = `https://wa.me/${OFFICIAL_WHATSAPP}?text=${encodeURIComponent(waMessage)}`;
 
         // Abrir WhatsApp en nueva pestaña
         window.open(waUrl, '_blank', 'noopener,noreferrer');
 
-        // Mostrar pantalla de confirmación
+        // Mostrar pantalla de confirmación con desglose transparente
         setTransferSuccessOrder({
           orderNumber: orderNum,
           orderId: createdOrderId,
           customerName: formData.name.trim(),
-          totalAmount: total,
+          subtotal,
+          discountAmount,
+          shippingCost,
+          shippingMethod: selectedShippingOption ? selectedShippingOption.name : 'Envío a Domicilio - Zipnova',
+          totalAmount: finalCalculatedTotal,
           waUrl,
         });
 
@@ -431,8 +510,9 @@ export default function CheckoutDrawer() {
                 <span className="text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/60">
                   Resumen de tu Configuración ({activeItems.length})
                 </span>
-                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">
-                  Envío Bonificado 100%
+                <span className="text-[10px] text-cirqa-primario bg-cirqa-primario/10 px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1 font-mono">
+                  <Truck className="w-3 h-3" />
+                  Zipnova Logistics
                 </span>
               </div>
 
@@ -618,12 +698,20 @@ export default function CheckoutDrawer() {
                 </div>
               </div>
 
-              {/* Código Postal (Con autocompletado inteligente) */}
+              {/* Código Postal (Con autocompletado inteligente y cotizador) */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
-                    Código Postal *
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-[11px] font-medium text-cirqa-negro/70">
+                      Código Postal *
+                    </label>
+                    {isQuotingShipping && (
+                      <span className="text-[9px] text-cirqa-primario flex items-center gap-1 font-mono">
+                        <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                        Cotizando...
+                      </span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     name="zipCode"
@@ -739,6 +827,102 @@ export default function CheckoutDrawer() {
                   />
                 </div>
               </div>
+
+              {/* ========================================================= */}
+              {/* SELECTOR DINÁMICO DE ENVÍO ZIPNOVA                        */}
+              {/* ========================================================= */}
+              <div className="space-y-2.5 pt-3 border-t border-cirqa-negro/10">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-cirqa-primario" />
+                    <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro">
+                      Opciones de Envío · Zipnova Logistics
+                    </span>
+                  </div>
+                  {selectedShippingOption && (
+                    <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                      Zipnova Oficial
+                    </span>
+                  )}
+                </div>
+
+                {!formData.zipCode.trim() ? (
+                  <div className="p-3.5 rounded-2xl bg-[#FBFBFA] border border-dashed border-cirqa-negro/15 text-xs text-cirqa-negro/60 flex items-center gap-2.5">
+                    <MapPin className="w-4 h-4 text-cirqa-negro/40 flex-shrink-0" />
+                    <p className="text-[11px] font-light">
+                      Ingresá tu <strong>Código Postal</strong> para cotizar las tarifas y tiempos de entrega oficiales de Zipnova.
+                    </p>
+                  </div>
+                ) : isQuotingShipping && shippingOptions.length === 0 ? (
+                  <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 text-center space-y-1.5">
+                    <Loader2 className="w-5 h-5 animate-spin mx-auto text-cirqa-primario" />
+                    <p className="text-xs text-cirqa-negro/70 font-medium">
+                      Consultando tarifas de Zipnova para CP {formData.zipCode}...
+                    </p>
+                  </div>
+                ) : shippingOptions.length > 0 ? (
+                  <div className="space-y-2">
+                    {shippingOptions.map((opt) => {
+                      const isSelected = selectedShippingOption?.id === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setSelectedShippingOption(opt)}
+                          className={`w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
+                            isSelected
+                              ? 'border-cirqa-primario bg-cirqa-primario/5 ring-1 ring-cirqa-primario shadow-2xs'
+                              : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3 min-w-0">
+                            <div
+                              className={`w-4 h-4 mt-0.5 rounded-full border flex items-center justify-center flex-shrink-0 ${
+                                isSelected
+                                  ? 'border-cirqa-primario bg-cirqa-primario'
+                                  : 'border-cirqa-negro/30'
+                              }`}
+                            >
+                              {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-xs font-bold text-cirqa-negro">
+                                  {opt.name}
+                                </span>
+                                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cirqa-negro/5 text-cirqa-negro/70 font-medium">
+                                  {opt.estimatedDays || '3 a 5 días hábiles'}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-cirqa-negro/60 font-light truncate mt-0.5">
+                                {opt.description || `Operado por ${opt.carrier}`}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <span className="text-xs font-mono font-bold text-cirqa-negro block">
+                              $ {Number(opt.cost || 0).toLocaleString('es-AR')}
+                            </span>
+                            <span className="text-[9px] text-cirqa-negro/50 font-mono">
+                              Zipnova
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-2xl bg-amber-50 border border-amber-200 text-xs text-amber-800">
+                    No se encontraron opciones para el CP ingresado. Verifica los 4 dígitos.
+                  </div>
+                )}
+
+                {shippingError && (
+                  <p className="text-[10px] text-amber-700 bg-amber-50 p-2 rounded-xl border border-amber-200">
+                    {shippingError}
+                  </p>
+                )}
+              </div>
             </form>
 
             {/* ========================================================= */}
@@ -754,7 +938,7 @@ export default function CheckoutDrawer() {
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('mercadopago')}
-                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2 ${
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2.5 ${
                     paymentMethod === 'mercadopago'
                       ? 'border-[#009EE3] bg-[#009EE3]/5 ring-1 ring-[#009EE3]'
                       : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
@@ -779,18 +963,23 @@ export default function CheckoutDrawer() {
                       {paymentMethod === 'mercadopago' && <Check className="w-2.5 h-2.5 text-white" />}
                     </div>
                   </div>
-                  <p className="text-[11px] text-cirqa-negro/60 font-light">
-                    Tarjetas de crédito, débito, hasta 6 cuotas o dinero en cuenta.
-                  </p>
+                  <div className="space-y-1">
+                    <p className="text-[11px] text-cirqa-negro/60 font-light leading-snug">
+                      Tarjetas de crédito/débito, cuotas y dinero en cuenta.
+                    </p>
+                    <span className="text-[10px] font-mono text-cirqa-negro/50 block">
+                      Precio regular: ${subtotal.toLocaleString('es-AR')}
+                    </span>
+                  </div>
                 </button>
 
-                {/* Opción B: Transferencia Bancaria */}
+                {/* Opción B: Transferencia Bancaria (Con Badge 15% OFF) */}
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('transfer')}
-                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2 ${
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2.5 ${
                     paymentMethod === 'transfer'
-                      ? 'border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600'
+                      ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-600'
                       : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
                   }`}
                 >
@@ -813,9 +1002,15 @@ export default function CheckoutDrawer() {
                       {paymentMethod === 'transfer' && <Check className="w-2.5 h-2.5 text-white" />}
                     </div>
                   </div>
-                  <p className="text-[11px] text-emerald-800 font-medium">
-                    Pago directo con comprobante vía WhatsApp.
-                  </p>
+                  <div className="space-y-1.5">
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-emerald-600 text-white shadow-2xs">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      15% DE DESCUENTO
+                    </span>
+                    <p className="text-[11px] text-emerald-800 font-medium leading-snug">
+                      Ahorrá ${Math.round(subtotal * 0.15).toLocaleString('es-AR')} abonando directo por transferencia.
+                    </p>
+                  </div>
                 </button>
               </div>
 
@@ -920,19 +1115,59 @@ export default function CheckoutDrawer() {
           </div>
 
           {/* ========================================================= */}
-          {/* 4. FOOTER: BOTÓN DE ACCIÓN SEGÚN MEDIO DE PAGO             */}
+          {/* 4. FOOTER: RESUMEN Y BOTÓN DE ACCIÓN                      */}
           {/* ========================================================= */}
           <div className="p-6 border-t border-cirqa-negro/10 bg-[#FBFBFA] flex-shrink-0 space-y-3">
+            {/* Subtotal Regular */}
             <div className="flex items-center justify-between text-xs text-cirqa-negro/70">
-              <span>Subtotal</span>
+              <span>Subtotal Productos</span>
               <span className="font-mono font-medium">$ {subtotal.toLocaleString('es-AR')}</span>
             </div>
-            <div className="flex items-center justify-between text-xs text-emerald-700">
-              <span>Envío Asegurado Oficial</span>
-              <span className="font-semibold uppercase text-[10px] tracking-wider">Gratis</span>
+
+            {/* Descuento 15% Transferencia */}
+            {paymentMethod === 'transfer' && (
+              <div className="flex items-center justify-between text-xs text-emerald-700 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  Descuento Transferencia (15% OFF)
+                </span>
+                <span className="font-mono font-bold">
+                  -$ {discountAmount.toLocaleString('es-AR')}
+                </span>
+              </div>
+            )}
+
+            {/* Envío Zipnova */}
+            <div className="flex items-center justify-between text-xs text-cirqa-negro/70">
+              <span className="flex items-center gap-1.5">
+                <Truck className="w-3.5 h-3.5 text-cirqa-primario" />
+                <span>
+                  {selectedShippingOption
+                    ? selectedShippingOption.name
+                    : 'Envío Zipnova'}
+                </span>
+              </span>
+              {selectedShippingOption ? (
+                <span className="font-mono font-medium text-cirqa-negro">
+                  +$ {shippingCost.toLocaleString('es-AR')}
+                </span>
+              ) : (
+                <span className="text-[11px] text-cirqa-negro/50 italic font-mono">
+                  A calcular con CP
+                </span>
+              )}
             </div>
-            <div className="flex items-center justify-between text-base font-medium text-cirqa-negro pt-1 border-t border-cirqa-negro/5">
-              <span>Total a Pagar</span>
+
+            {/* Total a Pagar */}
+            <div className="flex items-center justify-between text-base font-medium text-cirqa-negro pt-2 border-t border-cirqa-negro/10">
+              <div>
+                <span className="block font-semibold">Total a Pagar</span>
+                {paymentMethod === 'transfer' && (
+                  <span className="text-[10px] text-emerald-700 font-medium block">
+                    Ahorro del 15% aplicado (-${discountAmount.toLocaleString('es-AR')})
+                  </span>
+                )}
+              </div>
               <span className="font-mono text-xl font-bold text-cirqa-negro">
                 $ {total.toLocaleString('es-AR')}
               </span>
@@ -980,7 +1215,7 @@ export default function CheckoutDrawer() {
                 ) : (
                   <>
                     <MessageCircle className="w-5 h-5 text-white/90" />
-                    <span>Confirmar y Enviar Comprobante por WhatsApp</span>
+                    <span>Confirmar con 15% OFF y Enviar por WhatsApp</span>
                     <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                   </>
                 )}
@@ -1028,7 +1263,7 @@ export default function CheckoutDrawer() {
 
                 <div className="space-y-1.5">
                   <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-700 font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                    Pedido Registrado con Éxito
+                    Pedido Registrado con Éxito · 15% OFF Aplicado
                   </span>
                   <h3 className="text-xl sm:text-2xl font-light text-cirqa-negro pt-1">
                     ¡Gracias, {transferSuccessOrder.customerName}!
@@ -1038,37 +1273,56 @@ export default function CheckoutDrawer() {
                   </p>
                 </div>
 
-                {/* Tarjeta del Número de Orden con Botón de Copia */}
-                <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-2">
-                  <span className="text-[10px] uppercase font-bold tracking-wider text-cirqa-negro/50 block">
-                    Tu Número de Orden
-                  </span>
-                  <div className="flex items-center justify-center gap-3">
-                    <span className="text-xl sm:text-2xl font-mono font-bold text-cirqa-negro tracking-wider">
-                      #{transferSuccessOrder.orderNumber}
+                {/* Tarjeta del Número de Orden y Desglose Completo */}
+                <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-3">
+                  <div className="flex items-center justify-between border-b border-cirqa-negro/10 pb-2">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-cirqa-negro/50 block">
+                      Número de Orden
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => copyToClipboard(transferSuccessOrder.orderNumber, 'orderNumber')}
-                      className="p-2 rounded-xl bg-white border border-cirqa-negro/10 hover:border-cirqa-negro/30 text-cirqa-negro/70 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
-                      title="Copiar número de orden"
-                    >
-                      {copiedField === 'orderNumber' ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          <span className="text-emerald-600">Copiado</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copiar</span>
-                        </>
-                      )}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-mono font-bold text-cirqa-negro tracking-wider">
+                        #{transferSuccessOrder.orderNumber}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => copyToClipboard(transferSuccessOrder.orderNumber, 'orderNumber')}
+                        className="p-1 px-2 rounded-lg bg-white border border-cirqa-negro/10 hover:border-cirqa-negro/30 text-cirqa-negro/70 text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
+                        title="Copiar número de orden"
+                      >
+                        {copiedField === 'orderNumber' ? (
+                          <>
+                            <Check className="w-3 h-3 text-emerald-600" />
+                            <span className="text-emerald-600">Copiado</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3 h-3" />
+                            <span>Copiar</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
                   </div>
-                  <span className="text-xs font-mono text-cirqa-negro/70 block">
-                    Total a transferir: <strong>$ {transferSuccessOrder.totalAmount.toLocaleString('es-AR')} ARS</strong>
-                  </span>
+
+                  {/* Desglose transparente */}
+                  <div className="space-y-1.5 text-xs text-left pt-1">
+                    <div className="flex justify-between text-cirqa-negro/70">
+                      <span>Subtotal productos:</span>
+                      <span className="font-mono">$ {transferSuccessOrder.subtotal?.toLocaleString('es-AR')}</span>
+                    </div>
+                    <div className="flex justify-between text-emerald-700 font-semibold">
+                      <span>Descuento Transferencia (15%):</span>
+                      <span className="font-mono">-$ {transferSuccessOrder.discountAmount?.toLocaleString('es-AR')}</span>
+                    </div>
+                    <div className="flex justify-between text-cirqa-negro/70">
+                      <span>Envío Zipnova ({transferSuccessOrder.shippingMethod}):</span>
+                      <span className="font-mono">+$ {transferSuccessOrder.shippingCost?.toLocaleString('es-AR')}</span>
+                    </div>
+                    <div className="flex justify-between text-base font-bold text-cirqa-negro pt-2 border-t border-cirqa-negro/10">
+                      <span>Total a Transferir:</span>
+                      <span className="font-mono text-emerald-700">$ {transferSuccessOrder.totalAmount?.toLocaleString('es-AR')} ARS</span>
+                    </div>
+                  </div>
                 </div>
 
                 {/* Acciones */}
