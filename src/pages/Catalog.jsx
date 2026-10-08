@@ -11,6 +11,7 @@ import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { getProductImage as getStudioProductImage } from '../data/productImages';
 import { formatMediaUrl } from '../services/api';
+import { resolveProductCardImage } from '../utils/productImages';
 
 export default function Catalog() {
   const { products, loading, error, refetch } = useProducts({ all: false });
@@ -34,9 +35,9 @@ export default function Catalog() {
   const [cardHoveredId, setCardHoveredId] = useState(null);
   const [cardSelectedVariant, setCardSelectedVariant] = useState({});
 
-  const handleOpenConfigurator = (model) => {
+  const handleOpenConfigurator = (model, variantKey = null) => {
     setActiveModel(model);
-    setActiveVariantKey(null);
+    setActiveVariantKey(variantKey || cardSelectedVariant[model.id] || null);
     setConfiguratorOpen(true);
   };
 
@@ -187,18 +188,35 @@ export default function Catalog() {
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 sm:gap-8">
                 {filteredProducts.map((product) => {
                   const isHovered = cardHoveredId === product.id;
-                  const activeVarKey = cardSelectedVariant[product.id];
 
-                  // Resolver imagen con soporte para variante
-                  let displayImage = product.primaryImage;
-                  if (activeVarKey && Array.isArray(product.images)) {
-                    const varImg = product.images.find((img) => img.variantKey === activeVarKey);
-                    if (varImg) displayImage = varImg.url;
-                  } else if (isHovered && product.hoverImage && product.hoverImage !== product.primaryImage) {
-                    displayImage = product.hoverImage;
-                  }
+                  // Opciones de variantes o cristales circadianos
+                  const variantOptions = (product.hasVariants && product.variants?.length > 0)
+                    ? product.variants.map((v) => ({
+                        key: v.key,
+                        name: v.name,
+                        tag: v.subtitle || '',
+                        color: v.badgeColor || '#FFFFFF',
+                      }))
+                    : FILTERS.map((f) => ({
+                        key: f.id,
+                        name: f.name,
+                        tag: f.tag,
+                        color: f.hexCode,
+                      }));
 
-                  const hasVariants = Boolean(product.hasVariants && product.variants?.length > 0);
+                  const activeVarKey =
+                    cardSelectedVariant[product.id] ||
+                    product.lensDefault ||
+                    (variantOptions[0]?.key || 'dia');
+
+                  const activeOptionObj =
+                    variantOptions.find((o) => o.key === activeVarKey) ||
+                    FILTERS.find((f) => f.id === activeVarKey) ||
+                    variantOptions[0] ||
+                    FILTERS[0];
+
+                  // Resolver imagen reactivamente para el cristal o variante seleccionada
+                  const displayImage = resolveProductCardImage(product, activeVarKey, 'frente', isHovered);
 
                   return (
                     <motion.div
@@ -210,14 +228,23 @@ export default function Catalog() {
                       transition={{ duration: 0.25 }}
                       onMouseEnter={() => setCardHoveredId(product.id)}
                       onMouseLeave={() => setCardHoveredId(null)}
-                      className="bg-white rounded-3xl border border-cirqa-negro/10 overflow-hidden shadow-xs hover:shadow-xl hover:border-cirqa-negro/20 transition-all flex flex-col group"
+                      onClick={() => handleOpenConfigurator(product, activeVarKey)}
+                      className="bg-white rounded-3xl border border-cirqa-negro/10 overflow-hidden shadow-xs hover:shadow-xl hover:border-cirqa-negro/20 transition-all flex flex-col group cursor-pointer"
                     >
                       {/* Contenedor Visual de la Foto */}
                       <div className="aspect-[4/3] bg-gradient-to-b from-[#FBFBFA] to-[#F4EFEA] p-6 relative flex items-center justify-center overflow-hidden border-b border-cirqa-negro/5">
+                        {/* Resplandor ambiental adaptativo según cristal */}
+                        <div
+                          className="absolute inset-0 m-auto w-36 h-36 rounded-full blur-2xl opacity-25 pointer-events-none transition-colors duration-500"
+                          style={{ backgroundColor: activeOptionObj?.color || '#F3B93A' }}
+                        />
+
                         <img
+                          key={displayImage}
                           src={formatMediaUrl(displayImage)}
                           alt={product.name}
-                          className="w-full h-full object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-transform duration-500 select-none"
+                          className="w-full h-full object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none relative z-10"
+                          style={{ mixBlendMode: 'multiply' }}
                           onError={(e) => {
                             e.target.onerror = null;
                             e.target.src = '/products/_DSC8649.webp';
@@ -225,13 +252,13 @@ export default function Catalog() {
                         />
 
                         {/* Código de Modelo Flotante */}
-                        <div className="absolute top-3.5 left-3.5 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-cirqa-negro/10 text-[10px] font-mono text-cirqa-negro font-semibold">
+                        <div className="absolute top-3.5 left-3.5 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-cirqa-negro/10 text-[10px] font-mono text-cirqa-negro font-semibold z-20">
                           {product.modelCode || product.code}
                         </div>
 
                         {/* Tag de Silueta */}
                         {product.frameShape && (
-                          <div className="absolute top-3.5 right-3.5 bg-white/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-cirqa-negro/10 text-[9px] text-cirqa-negro/60">
+                          <div className="absolute top-3.5 right-3.5 bg-white/80 backdrop-blur-md px-2 py-0.5 rounded-full border border-cirqa-negro/10 text-[9px] text-cirqa-negro/60 z-20">
                             {product.frameShape}
                           </div>
                         )}
@@ -250,43 +277,55 @@ export default function Catalog() {
                           </p>
                         </div>
 
-                        {/* Muestras de Variantes Disponibles */}
-                        {hasVariants && (
-                          <div className="space-y-1.5 pt-1">
-                            <span className="text-[10px] uppercase font-bold tracking-wider text-cirqa-negro/50 block">
-                              {product.variantAxisTitle || 'Opciones Disponibles'}:
+                        {/* Selector interactivo de Cristales o Variantes */}
+                        <div className="space-y-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="uppercase font-bold tracking-wider text-cirqa-negro/60">
+                              {product.variantAxisTitle || 'Cristal'}:{' '}
+                              <strong className="text-cirqa-negro font-semibold">{activeOptionObj?.name}</strong>
                             </span>
-                            <div className="flex items-center gap-1.5">
-                              {product.variants.slice(0, 5).map((v) => (
+                            {activeOptionObj?.tag && (
+                              <span className="font-mono text-cirqa-primario font-semibold text-[9px]">
+                                {activeOptionObj.tag}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="grid grid-cols-4 gap-1.5">
+                            {variantOptions.map((opt) => {
+                              const isSelected = activeVarKey === opt.key;
+                              return (
                                 <button
-                                  key={v.key}
+                                  key={opt.key}
                                   type="button"
                                   onClick={() =>
                                     setCardSelectedVariant((prev) => ({
                                       ...prev,
-                                      [product.id]: prev[product.id] === v.key ? null : v.key,
+                                      [product.id]: opt.key,
                                     }))
                                   }
-                                  title={`${v.name} ${v.subtitle ? `· ${v.subtitle}` : ''}`}
-                                  className={`w-4 h-4 rounded-full border transition-all cursor-pointer ${
-                                    activeVarKey === v.key
-                                      ? 'ring-2 ring-cirqa-negro scale-110'
-                                      : 'hover:scale-110'
+                                  title={`${opt.name} ${opt.tag ? `· ${opt.tag}` : ''}`}
+                                  className={`py-1.5 px-1 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                                    isSelected
+                                      ? 'border-cirqa-negro bg-cirqa-negro/5 shadow-xs font-semibold ring-1 ring-cirqa-negro/20'
+                                      : 'border-cirqa-negro/10 hover:border-cirqa-negro/30 bg-white'
                                   }`}
-                                  style={{
-                                    backgroundColor: v.badgeColor || '#FFFFFF',
-                                    borderColor: `${v.badgeColor || '#000000'}88`,
-                                  }}
-                                />
-                              ))}
-                              {product.variants.length > 5 && (
-                                <span className="text-[9px] text-cirqa-negro/40 font-mono">
-                                  +{product.variants.length - 5}
-                                </span>
-                              )}
-                            </div>
+                                >
+                                  <span
+                                    className="w-2.5 h-2.5 rounded-full border shadow-xs"
+                                    style={{
+                                      backgroundColor: opt.color,
+                                      borderColor: `${opt.color}99`,
+                                    }}
+                                  />
+                                  <span className="text-[9px] tracking-tight text-cirqa-negro/80 truncate w-full block">
+                                    {opt.name}
+                                  </span>
+                                </button>
+                              );
+                            })}
                           </div>
-                        )}
+                        </div>
 
                         {/* Dimensiones */}
                         <div className="pt-2 border-t border-cirqa-negro/5 flex items-center justify-between text-[10px] text-cirqa-negro/50 font-mono">
@@ -304,7 +343,7 @@ export default function Catalog() {
                         <div className="pt-2 border-t border-cirqa-negro/5">
                           <button
                             type="button"
-                            onClick={() => handleOpenConfigurator(product)}
+                            onClick={() => handleOpenConfigurator(product, activeVarKey)}
                             className="w-full bg-cirqa-negro hover:bg-cirqa-primario text-white text-xs font-bold uppercase tracking-wider py-3 rounded-full transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer active:scale-[0.98]"
                           >
                             <Sparkles className="w-3.5 h-3.5" />

@@ -51,10 +51,14 @@ export default function Home() {
     };
   }, []);
 
-  // Handler for opening configurator modal with a specific model
-  const handleOpenConfiguratorWithModel = (model) => {
+  // Handler for opening configurator modal with a specific model and selected crystal/variant
+  const handleOpenConfiguratorWithModel = (model, variantKey = null) => {
     setActiveConfigModel(model);
-    setActiveConfigVariantKey(null);
+    setActiveConfigVariantKey(variantKey || null);
+    if (variantKey) {
+      const matchedFilter = FILTERS.find((f) => f.id === variantKey);
+      if (matchedFilter) setActiveConfigFilter(matchedFilter);
+    }
     setConfiguratorOpen(true);
   };
 

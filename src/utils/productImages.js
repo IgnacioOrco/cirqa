@@ -181,6 +181,72 @@ export const getHoverProductImage = (product, primaryUrl = null) => {
   return resolvedPrimary;
 };
 
+/**
+ * Resuelve de forma reactiva la imagen de producto correspondiente a un cristal
+ * o variante seleccionada (tanto en Catálogo como en Pasarela/Carrusel).
+ *
+ * Prioridad de resolución:
+ * 1. Imagen subida en MongoDB con `variantKey` coincidente
+ * 2. Si es modelo clásico (q001..q005, qkids), fotografía real de estudio para ese cristal
+ * 3. Si está en hover y existe hoverImage, retornar hoverImage
+ * 4. Imagen primaria del producto o fallback general
+ */
+export const resolveProductCardImage = (
+  product,
+  selectedKey = null,
+  angle = 'perspectiva',
+  isHovered = false
+) => {
+  if (!product) return FALLBACK_IMAGE;
+
+  const rawKey = (selectedKey || product.lensDefault || 'dia').toString().toLowerCase().trim();
+
+  // Mapeo canónico de cristales circadianos
+  let circadianKey = rawKey;
+  if (['amarillo', 'foco', 'pantallas', 'dia'].includes(rawKey)) circadianKey = 'dia';
+  else if (['ambar', 'ámbar', 'atardecer', 'naranja', 'transicion', 'transición'].includes(rawKey)) circadianKey = 'transicion';
+  else if (['rojo', 'descanso', 'carmin', 'carmín', 'noche'].includes(rawKey)) circadianKey = 'noche';
+  else if (['transparente', 'neutro', 'blanco', 'clear'].includes(rawKey)) circadianKey = 'clear';
+
+  // 1. Buscar en imágenes personalizadas por variantKey
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const matchedCustom = product.images.find((img) => {
+      if (!img || (!img.url && !img.imageUrl) || !img.variantKey) return false;
+      const vk = img.variantKey.toString().toLowerCase().trim();
+      return (
+        vk === rawKey ||
+        vk === circadianKey ||
+        vk.includes(rawKey) ||
+        rawKey.includes(vk) ||
+        vk.includes(circadianKey) ||
+        circadianKey.includes(vk)
+      );
+    });
+
+    if (matchedCustom) {
+      return normalizeImageUrl(matchedCustom.url || matchedCustom.imageUrl);
+    }
+  }
+
+  // 2. Modelo clásico con fotografía de estudio circadiana
+  const classicKey = product.classicKey || getClassicModelKey(product);
+  if (classicKey) {
+    const validCircadian = ['clear', 'dia', 'transicion', 'noche'].includes(circadianKey)
+      ? circadianKey
+      : (product.lensDefault || 'dia');
+    const resolvedAngle = angle || (isHovered ? 'frente' : 'perspectiva');
+    return getStudioProductImage(classicKey, validCircadian, resolvedAngle);
+  }
+
+  // 3. Hover alternativo si aplica
+  if (isHovered && product.hoverImage && product.hoverImage !== product.primaryImage) {
+    return product.hoverImage;
+  }
+
+  // 4. Fallback primario
+  return product.primaryImage || FALLBACK_IMAGE;
+};
+
 export const DEFAULT_CIRCADIAN_VARIANTS = [
   { key: 'clear', name: 'Clear', subtitle: 'USO DIARIO', badgeColor: '#E2E8F0', priceModifier: 0, isDefault: false },
   { key: 'dia', name: 'Día', subtitle: 'PANTALLAS · FOCO', badgeColor: '#F3B93A', priceModifier: 0, isDefault: true },
@@ -212,16 +278,12 @@ export const normalizeProduct = (p) => {
   let variantAxisTitle = p.variantAxisTitle || 'Seleccionar Variante';
   let variants = Array.isArray(p.variants) ? p.variants : [];
 
-  if (hasVariants === undefined) {
-    if (variants.length > 0) {
-      hasVariants = true;
-    } else if (classicKey) {
-      hasVariants = true;
-      variantAxisTitle = 'Seleccionar Cristal Circadiano';
-      variants = DEFAULT_CIRCADIAN_VARIANTS;
-    } else {
-      hasVariants = false;
-    }
+  if (!variants || variants.length === 0) {
+    hasVariants = true;
+    variantAxisTitle = 'Seleccionar Cristal Circadiano';
+    variants = DEFAULT_CIRCADIAN_VARIANTS;
+  } else if (hasVariants === undefined) {
+    hasVariants = true;
   }
 
   const sortedImages = getSortedProductImages(p);

@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle, ArrowRight } from 'l
 import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { getProductImage as getStudioProductImage } from '../data/productImages';
+import { resolveProductCardImage } from '../utils/productImages';
 
 export default function ProductShowcaseCarousel({ onSelectModel }) {
   const containerRef = useRef(null);
@@ -67,6 +68,8 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
       [productId]: {
         ...prev[productId],
         filterId,
+        variantKey: filterId,
+        selectedImageUrl: null, // Limpiar miniatura manual para que el cristal tome efecto de inmediato
       },
     }));
   };
@@ -94,41 +97,23 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
 
   /**
    * Resuelve la imagen a renderizar aplicando las Reglas de Mapeo Dinámico:
-   * 1. Portada: isPrimary || primer elemento || image_url
-   * 2. Hover: tag === 'front' o 2da imagen si el usuario pasa el mouse por la card
-   * 3. Galería de miniaturas y ángulos de estudio
+   * 1. Si el usuario seleccionó una miniatura de la galería flotante
+   * 2. Cristal circadiano / variante activa (MongoDB variantKey o estudio CIRQA)
+   * 3. Hover y perspectiva
    */
   const resolveDisplayImage = (product) => {
     const state = cardStates[product.id] || {};
     const isHovered = hoveredCardId === product.id;
 
-    // Si el usuario seleccionó una imagen específica de las miniaturas
+    // Si el usuario seleccionó una imagen específica de las miniaturas flotantes
     if (state.selectedImageUrl) {
       return state.selectedImageUrl;
     }
 
-    const hasCustomImages = Array.isArray(product.images) && product.images.length > 0 && product.images[0]?.url && !product.images[0]?.url.includes('_DSC');
+    const currentKey = state.filterId || state.variantKey || product.lensDefault || 'dia';
+    const angle = state.angle || (isHovered ? 'frente' : 'perspectiva');
 
-    // Caso A: El producto tiene imágenes dinámicas subidas en MongoDB
-    if (hasCustomImages) {
-      if (isHovered && product.hoverImage && product.hoverImage !== product.primaryImage) {
-        return product.hoverImage;
-      }
-      return product.primaryImage;
-    }
-
-    // Caso B: Modelo clásico con simulación de filtros circadianos de estudio
-    if (product.classicKey) {
-      const filterId = state.filterId || product.lensDefault || 'dia';
-      const angle = state.angle || (isHovered ? 'frente' : 'perspectiva');
-      return getStudioProductImage(product.classicKey, filterId, angle);
-    }
-
-    // Caso C: Fallback a imagen primaria
-    if (isHovered && product.hoverImage && product.hoverImage !== product.primaryImage) {
-      return product.hoverImage;
-    }
-    return product.primaryImage || '/products/_DSC8649.webp';
+    return resolveProductCardImage(product, currentKey, angle, isHovered);
   };
 
   return (
@@ -227,12 +212,33 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
             {/* Mapeo de Productos Dinámicos */}
             {products.map((product) => {
               const state = cardStates[product.id] || {};
-              const currentFilterId = state.filterId || product.lensDefault || 'dia';
               const currentAngle = state.angle || 'perspectiva';
-              const currentFilterObj = FILTERS.find((f) => f.id === currentFilterId) || FILTERS[0];
               const displayImg = resolveDisplayImage(product);
               const customImages = Array.isArray(product.images) ? product.images : [];
               const hasMultipleCustomImages = customImages.length > 1;
+
+              // Determinar opciones de variantes o filtros circadianos
+              const variantOptions = (product.hasVariants && product.variants?.length > 0)
+                ? product.variants.map((v) => ({
+                    key: v.key,
+                    name: v.name,
+                    tag: v.subtitle || '',
+                    color: v.badgeColor || '#FFFFFF',
+                  }))
+                : FILTERS.map((f) => ({
+                    key: f.id,
+                    name: f.name,
+                    tag: f.tag,
+                    color: f.hexCode,
+                  }));
+
+              const currentSelectedKey = state.filterId || state.variantKey || product.lensDefault || (variantOptions[0]?.key || 'dia');
+              const currentOptionObj =
+                variantOptions.find((o) => o.key === currentSelectedKey) ||
+                FILTERS.find((f) => f.id === currentSelectedKey) ||
+                variantOptions[0] ||
+                FILTERS[0];
+              const glowColor = currentOptionObj?.color || '#F3B93A';
 
               return (
                 <motion.div
@@ -242,7 +248,7 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                   onMouseEnter={() => setHoveredCardId(product.id)}
                   onMouseLeave={() => setHoveredCardId(null)}
                   className="w-[300px] sm:w-[360px] md:w-[380px] flex-shrink-0 snap-start bg-white rounded-3xl p-6 sm:p-7 border border-cirqa-negro/10 hover:border-cirqa-negro/30 flex flex-col justify-between transition-all duration-300 shadow-sm hover:shadow-2xl relative group z-10 hover:z-20 cursor-pointer"
-                  onClick={() => onSelectModel && onSelectModel(product)}
+                  onClick={() => onSelectModel && onSelectModel(product, currentSelectedKey)}
                 >
                   {/* Etiqueta Superior & Código de Modelo */}
                   <div>
@@ -269,7 +275,7 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                     {/* Resplandor ambiental adaptativo */}
                     <div
                       className="absolute inset-0 m-auto w-40 h-40 rounded-full blur-3xl opacity-25 pointer-events-none transition-colors duration-500"
-                      style={{ backgroundColor: currentFilterObj.hexCode }}
+                      style={{ backgroundColor: glowColor }}
                     />
 
                     {/* Renderizado de la Imagen con AnimatePresence para Crossfade suave */}
@@ -345,37 +351,41 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                     ) : null}
                   </div>
 
-                  {/* Selector interactivo de Filtros Circadianos */}
+                  {/* Selector interactivo de Filtros Circadianos o Variantes */}
                   <div className="space-y-3" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] uppercase font-bold tracking-wider text-cirqa-negro/60">
-                        Cristal: <strong className="text-cirqa-negro font-semibold">{currentFilterObj.name}</strong>
+                        {product.variantAxisTitle || 'Cristal'}:{' '}
+                        <strong className="text-cirqa-negro font-semibold">{currentOptionObj?.name}</strong>
                       </span>
-                      <span className="text-[10px] font-mono text-cirqa-primario font-semibold">
-                        {currentFilterObj.tag}
-                      </span>
+                      {currentOptionObj?.tag && (
+                        <span className="text-[10px] font-mono text-cirqa-primario font-semibold">
+                          {currentOptionObj.tag}
+                        </span>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-4 gap-1.5">
-                      {FILTERS.map((filter) => {
-                        const isSelected = currentFilterId === filter.id;
+                      {variantOptions.map((opt) => {
+                        const isSelected = currentSelectedKey === opt.key;
                         return (
                           <button
-                            key={filter.id}
-                            onClick={() => setCardFilter(product.id, filter.id)}
-                            className={`py-1.5 px-1 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
+                            key={opt.key}
+                            type="button"
+                            onClick={() => setCardFilter(product.id, opt.key)}
+                            className={`py-1.5 px-1 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
                               isSelected
-                                ? 'border-cirqa-negro bg-cirqa-negro/5 shadow-xs font-semibold'
+                                ? 'border-cirqa-negro bg-cirqa-negro/5 shadow-xs font-semibold ring-1 ring-cirqa-negro/20'
                                 : 'border-cirqa-negro/10 hover:border-cirqa-negro/30 bg-white'
                             }`}
-                            title={`Ver ${product.name} con cristal ${filter.name}`}
+                            title={`Ver ${product.name} con ${opt.name}`}
                           >
                             <span
                               className="w-2.5 h-2.5 rounded-full border shadow-xs"
-                              style={{ backgroundColor: filter.hexCode, borderColor: `${filter.hexCode}99` }}
+                              style={{ backgroundColor: opt.color, borderColor: `${opt.color}99` }}
                             />
                             <span className="text-[9px] tracking-tight text-cirqa-negro/80 truncate w-full block">
-                              {filter.name}
+                              {opt.name}
                             </span>
                           </button>
                         );
@@ -402,7 +412,7 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
 
                       <button
                         type="button"
-                        onClick={() => onSelectModel && onSelectModel(product)}
+                        onClick={() => onSelectModel && onSelectModel(product, currentSelectedKey)}
                         className="inline-flex items-center justify-center gap-1.5 text-[11px] font-bold tracking-wider uppercase bg-cirqa-negro text-white hover:bg-cirqa-primario transition-all px-4 py-2.5 rounded-full shadow-xs cursor-pointer active:scale-95"
                       >
                         <span>Configurar</span>
