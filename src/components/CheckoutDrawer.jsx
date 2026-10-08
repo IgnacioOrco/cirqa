@@ -4,6 +4,7 @@ import {
   X,
   ShieldCheck,
   CreditCard,
+  Building2,
   Lock,
   Loader2,
   AlertCircle,
@@ -15,6 +16,10 @@ import {
   Minus,
   Sparkles,
   MapPin,
+  Copy,
+  Check,
+  MessageCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { orderService, formatMediaUrl } from '../services/api';
@@ -46,7 +51,17 @@ const PROVINCIAS_ARG = [
   'Tucumán',
 ];
 
-// Mapeo inteligente de Código Postal (CP) argentino a Provincia y Localidad por defecto
+const BANK_DETAILS = {
+  bank: 'Banco Santander',
+  holder: 'CIRQA S.A.S.',
+  cuit: '30-71829482-4',
+  cbu: '0720194820000003928174',
+  alias: 'CIRQA.OPTICA.ARS',
+};
+
+const OFFICIAL_WHATSAPP = '5491155891782';
+
+// Mapeo inteligente de Código Postal (CP) argentino a Provincia y Localidad
 function detectProvinceFromZip(zipCode) {
   const cleanZip = String(zipCode).trim().replace(/\D/g, '');
   if (!cleanZip) return null;
@@ -61,7 +76,7 @@ function detectProvinceFromZip(zipCode) {
   if (num >= 5000 && num <= 5999) {
     return { province: 'Córdoba', city: num === 5000 ? 'Córdoba Capital' : '' };
   }
-  if (num >= 2000 && num <= 2699 || (num >= 3000 && num <= 3099)) {
+  if ((num >= 2000 && num <= 2699) || (num >= 3000 && num <= 3099)) {
     return { province: 'Santa Fe', city: num === 2000 ? 'Rosario' : (num === 3000 ? 'Santa Fe' : '') };
   }
   if (num >= 5500 && num <= 5699) {
@@ -117,10 +132,14 @@ export default function CheckoutDrawer() {
     checkoutTargetItem,
     removeFromCart,
     updateQuantity,
+    clearCart,
   } = useCart();
 
   // Si hay compra directa desde configurador, se usa ese item; si no, todos los items del carrito
   const activeItems = checkoutTargetItem ? [checkoutTargetItem] : items;
+
+  // Selector de Medio de Pago: 'mercadopago' | 'transfer'
+  const [paymentMethod, setPaymentMethod] = useState('mercadopago');
 
   // Formulario ágil de envío
   const [formData, setFormData] = useState({
@@ -141,11 +160,15 @@ export default function CheckoutDrawer() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState(null);
 
+  // Estado de confirmación de transferencia
+  const [transferSuccessOrder, setTransferSuccessOrder] = useState(null);
+  const [copiedField, setCopiedField] = useState(null);
+
   const subtotal = activeItems.reduce(
     (acc, it) => acc + (Number(it.price) || 0) * (it.quantity || 1),
     0
   );
-  const shippingCost = 0; // Envío asegurado oficial de lanzamiento sin cargo
+  const shippingCost = 0; // Envío asegurado oficial bonificado 100%
   const total = subtotal + shippingCost;
 
   // Autocompletado reactivo de CP
@@ -172,6 +195,14 @@ export default function CheckoutDrawer() {
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
     }
+  };
+
+  const copyToClipboard = (text, fieldName) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldName);
+    setTimeout(() => {
+      setCopiedField(null);
+    }, 2000);
   };
 
   const validateForm = () => {
@@ -208,7 +239,46 @@ export default function CheckoutDrawer() {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handlePayMercadoPago = async (e) => {
+  const buildOrderPayload = (selectedMethod) => {
+    return {
+      customer: {
+        name: formData.name.trim(),
+        email: formData.email.trim().toLowerCase(),
+        phone: formData.phone.trim(),
+        dni: formData.dni.trim(),
+        shippingAddress: {
+          street: `${formData.street.trim()} ${formData.number.trim()}`,
+          floor: formData.floor.trim() || undefined,
+          apartment: formData.apartment.trim() || undefined,
+          city: formData.city.trim(),
+          state: formData.province,
+          zipCode: formData.zipCode.trim(),
+        },
+      },
+      items: activeItems.map((item) => ({
+        product: item.productId || item.id,
+        name: item.name || 'Armazón CIRQA',
+        modelCode: item.modelCode || 'Q-001',
+        price: Number(item.price) || 0,
+        quantity: item.quantity || 1,
+        variantKey: item.variantKey || undefined,
+        variantName: item.variantName || undefined,
+        variantSubtitle: item.variantSubtitle || undefined,
+        filter: item.variantName || (typeof item.filter === 'object' ? item.filter.name : item.filter),
+        prescription: item.prescription?.notes || (item.prescription ? 'Con receta médica adjunta' : null),
+        image: item.image || '/products/_DSC8649.webp',
+      })),
+      shippingCost: 0,
+      paymentMethod: selectedMethod,
+      payment: {
+        method: selectedMethod,
+        provider: selectedMethod === 'transfer' ? 'manual' : 'mercadopago',
+      },
+    };
+  };
+
+  // Submit unificado según método de pago seleccionado
+  const handleSubmitCheckout = async (e) => {
     e.preventDefault();
     setSubmissionError(null);
 
@@ -224,39 +294,45 @@ export default function CheckoutDrawer() {
     setIsSubmitting(true);
 
     try {
-      const payload = {
-        customer: {
-          name: formData.name.trim(),
-          email: formData.email.trim().toLowerCase(),
-          phone: formData.phone.trim(),
-          dni: formData.dni.trim(),
-          shippingAddress: {
-            street: `${formData.street.trim()} ${formData.number.trim()}`,
-            floor: formData.floor.trim() || undefined,
-            apartment: formData.apartment.trim() || undefined,
-            city: formData.city.trim(),
-            state: formData.province,
-            zipCode: formData.zipCode.trim(),
-          },
-        },
-        items: activeItems.map((item) => ({
-          product: item.productId || item.id,
-          name: item.name || 'Armazón CIRQA',
-          modelCode: item.modelCode || 'Q-001',
-          price: Number(item.price) || 0,
-          quantity: item.quantity || 1,
-          variantKey: item.variantKey || undefined,
-          variantName: item.variantName || undefined,
-          variantSubtitle: item.variantSubtitle || undefined,
-          filter: item.variantName || (typeof item.filter === 'object' ? item.filter.name : item.filter),
-          prescription: item.prescription?.notes || (item.prescription ? 'Con receta médica adjunta' : null),
-          image: item.image || '/products/_DSC8649.webp',
-        })),
-        shippingCost: 0,
-      };
-
+      const payload = buildOrderPayload(paymentMethod);
       const response = await orderService.createPreference(payload);
 
+      // CASO A: TRANSFERENCIA BANCARIA
+      if (paymentMethod === 'transfer') {
+        const orderNum =
+          response?.orderNumber ||
+          response?.data?.orderNumber ||
+          `CQ-${Math.floor(100000 + Math.random() * 900000)}`;
+
+        const createdOrderId = response?.orderId || response?.data?.orderId;
+
+        // Construir mensaje preformateado para WhatsApp oficial de CIRQA
+        const waMessage = `Hola CIRQA! Acabo de realizar el pedido *#${orderNum}* a nombre de *${formData.name.trim()}* por un total de *$${total.toLocaleString('es-AR')}*. Adjunto el comprobante de transferencia bancaria.`;
+
+        const waUrl = `https://wa.me/${OFFICIAL_WHATSAPP}?text=${encodeURIComponent(waMessage)}`;
+
+        // Abrir WhatsApp en nueva pestaña
+        window.open(waUrl, '_blank', 'noopener,noreferrer');
+
+        // Mostrar pantalla de confirmación
+        setTransferSuccessOrder({
+          orderNumber: orderNum,
+          orderId: createdOrderId,
+          customerName: formData.name.trim(),
+          totalAmount: total,
+          waUrl,
+        });
+
+        // Limpiar carrito si no fue compra directa
+        if (!checkoutTargetItem) {
+          clearCart();
+        }
+
+        setIsSubmitting(false);
+        return;
+      }
+
+      // CASO B: MERCADO PAGO CHECKOUT PRO
       const initPoint =
         response?.initPoint ||
         response?.data?.initPoint ||
@@ -273,14 +349,20 @@ export default function CheckoutDrawer() {
         );
       }
 
+      // Redirigir a la pasarela de Checkout Pro
       window.location.href = initPoint;
     } catch (err) {
       console.error('[Checkout Error]:', err);
       setSubmissionError(
-        err.message || 'Ocurrió un error al conectar con Mercado Pago. Verificá tu conexión e intentá de nuevo.'
+        err.message || 'Ocurrió un error al procesar tu pedido. Verificá tu conexión e intentá de nuevo.'
       );
       setIsSubmitting(false);
     }
+  };
+
+  const handleCloseSuccessModal = () => {
+    setTransferSuccessOrder(null);
+    closeCheckout();
   };
 
   if (!isCheckoutOpen) return null;
@@ -452,13 +534,13 @@ export default function CheckoutDrawer() {
             </div>
 
             {/* ========================================================= */}
-            {/* 2. FORMULARIO ÁGIL DE DATOS DE ENVÍO                      */}
+            {/* 2. FORMULARIO COMPACTO DE ENTREGA                         */}
             {/* ========================================================= */}
-            <form id="checkout-form" onSubmit={handlePayMercadoPago} className="space-y-4 pt-2 border-t border-cirqa-negro/10">
+            <form id="checkout-form" onSubmit={handleSubmitCheckout} className="space-y-4 pt-2 border-t border-cirqa-negro/10">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-cirqa-primario" />
                 <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro">
-                  Datos de Envío y Facturación
+                  Datos de Entrega y Facturación
                 </span>
               </div>
 
@@ -658,10 +740,187 @@ export default function CheckoutDrawer() {
                 </div>
               </div>
             </form>
+
+            {/* ========================================================= */}
+            {/* 3. SELECTOR DUAL DE MEDIOS DE PAGO (Tabs / Radio Cards)   */}
+            {/* ========================================================= */}
+            <div className="space-y-3 pt-3 border-t border-cirqa-negro/10">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/60 block">
+                Seleccioná el Método de Pago
+              </span>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Opción A: Mercado Pago */}
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('mercadopago')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2 ${
+                    paymentMethod === 'mercadopago'
+                      ? 'border-[#009EE3] bg-[#009EE3]/5 ring-1 ring-[#009EE3]'
+                      : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-[#009EE3] flex items-center justify-center text-white">
+                        <CreditCard className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-bold text-cirqa-negro">
+                        Mercado Pago
+                      </span>
+                    </div>
+                    <div
+                      className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                        paymentMethod === 'mercadopago'
+                          ? 'border-[#009EE3] bg-[#009EE3]'
+                          : 'border-cirqa-negro/30'
+                      }`}
+                    >
+                      {paymentMethod === 'mercadopago' && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-cirqa-negro/60 font-light">
+                    Tarjetas de crédito, débito, hasta 6 cuotas o dinero en cuenta.
+                  </p>
+                </button>
+
+                {/* Opción B: Transferencia Bancaria */}
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('transfer')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2 ${
+                    paymentMethod === 'transfer'
+                      ? 'border-emerald-600 bg-emerald-50/50 ring-1 ring-emerald-600'
+                      : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between w-full">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-emerald-700 flex items-center justify-center text-white">
+                        <Building2 className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-bold text-cirqa-negro">
+                        Transferencia
+                      </span>
+                    </div>
+                    <div
+                      className={`w-4 h-4 rounded-full border flex items-center justify-center ${
+                        paymentMethod === 'transfer'
+                          ? 'border-emerald-600 bg-emerald-600'
+                          : 'border-cirqa-negro/30'
+                      }`}
+                    >
+                      {paymentMethod === 'transfer' && <Check className="w-2.5 h-2.5 text-white" />}
+                    </div>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 font-medium">
+                    Pago directo con comprobante vía WhatsApp.
+                  </p>
+                </button>
+              </div>
+
+              {/* TARJETA ELEGANTE DE DATOS BANCARIOS (Si se seleccionó Transferencia) */}
+              <AnimatePresence>
+                {paymentMethod === 'transfer' && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, height: 0 }}
+                    animate={{ opacity: 1, y: 0, height: 'auto' }}
+                    exit={{ opacity: 0, y: 10, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="p-4 rounded-2xl bg-gradient-to-br from-[#1C1917] to-[#2D2A26] text-white space-y-3.5 shadow-md">
+                      <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+                        <div className="flex items-center gap-2">
+                          <Building2 className="w-4 h-4 text-emerald-400" />
+                          <span className="text-xs font-semibold tracking-wider uppercase text-emerald-400">
+                            Datos Bancarios CIRQA
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-mono text-white/50">{BANK_DETAILS.bank}</span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="text-[10px] text-white/50 block font-light">Titular de Cuenta:</span>
+                          <span className="font-semibold text-white/95">{BANK_DETAILS.holder}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-white/50 block font-light">CUIT:</span>
+                          <span className="font-mono text-white/95">{BANK_DETAILS.cuit}</span>
+                        </div>
+                      </div>
+
+                      {/* Alias y CBU con botones para copiar */}
+                      <div className="space-y-2 pt-1 border-t border-white/10">
+                        {/* ALIAS */}
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/10">
+                          <div>
+                            <span className="text-[9px] text-white/50 uppercase block font-mono">Alias CBU</span>
+                            <span className="font-mono font-bold text-xs text-emerald-300">
+                              {BANK_DETAILS.alias}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(BANK_DETAILS.alias, 'alias')}
+                            className="p-1.5 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer"
+                          >
+                            {copiedField === 'alias' ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-400">Copiado</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copiar</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* CBU */}
+                        <div className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/10">
+                          <div className="min-w-0 pr-2">
+                            <span className="text-[9px] text-white/50 uppercase block font-mono">CBU Bancario</span>
+                            <span className="font-mono text-xs text-white/90 truncate block">
+                              {BANK_DETAILS.cbu}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => copyToClipboard(BANK_DETAILS.cbu, 'cbu')}
+                            className="p-1.5 px-2.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-[10px] font-medium flex items-center gap-1.5 transition-colors cursor-pointer flex-shrink-0"
+                          >
+                            {copiedField === 'cbu' ? (
+                              <>
+                                <Check className="w-3 h-3 text-emerald-400" />
+                                <span className="text-emerald-400">Copiado</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-3 h-3" />
+                                <span>Copiar</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Instrucción clara */}
+                      <p className="text-[11px] text-white/70 font-light leading-relaxed pt-1 italic">
+                        * Transferí el total y enviá el comprobante junto con tu número de orden para confirmar el pedido.
+                      </p>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
 
           {/* ========================================================= */}
-          {/* 3. BOTÓN DE ACCIÓN ÚNICA: PAGAR CON MERCADO PAGO          */}
+          {/* 4. FOOTER: BOTÓN DE ACCIÓN SEGÚN MEDIO DE PAGO             */}
           {/* ========================================================= */}
           <div className="p-6 border-t border-cirqa-negro/10 bg-[#FBFBFA] flex-shrink-0 space-y-3">
             <div className="flex items-center justify-between text-xs text-cirqa-negro/70">
@@ -679,44 +938,164 @@ export default function CheckoutDrawer() {
               </span>
             </div>
 
-            <button
-              type="submit"
-              form="checkout-form"
-              disabled={isSubmitting || activeItems.length === 0}
-              className="w-full py-4 px-6 rounded-2xl bg-[#009EE3] hover:bg-[#0086C3] text-white font-semibold text-sm tracking-wide shadow-lg shadow-[#009EE3]/25 flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed group"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 className="w-5 h-5 animate-spin" />
-                  <span>Conectando con Mercado Pago...</span>
-                </>
-              ) : (
-                <>
-                  <CreditCard className="w-5 h-5 text-white/90" />
-                  <span>Pagar con Mercado Pago</span>
-                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full font-mono">
-                    $ {total.toLocaleString('es-AR')}
-                  </span>
-                  <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
-                </>
-              )}
-            </button>
+            {/* BOTÓN MERCADO PAGO */}
+            {paymentMethod === 'mercadopago' && (
+              <button
+                type="submit"
+                form="checkout-form"
+                disabled={isSubmitting || activeItems.length === 0}
+                className="w-full py-4 px-6 rounded-2xl bg-[#009EE3] hover:bg-[#0086C3] text-white font-semibold text-sm tracking-wide shadow-lg shadow-[#009EE3]/25 flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Conectando con Mercado Pago...</span>
+                  </>
+                ) : (
+                  <>
+                    <CreditCard className="w-5 h-5 text-white/90" />
+                    <span>Pagar con Mercado Pago</span>
+                    <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full font-mono">
+                      $ {total.toLocaleString('es-AR')}
+                    </span>
+                    <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
+              </button>
+            )}
+
+            {/* BOTÓN TRANSFERENCIA BANCARIA */}
+            {paymentMethod === 'transfer' && (
+              <button
+                type="submit"
+                form="checkout-form"
+                disabled={isSubmitting || activeItems.length === 0}
+                className="w-full py-4 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm tracking-wide shadow-lg shadow-emerald-600/25 flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed group"
+              >
+                {isSubmitting ? (
+                  <>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Registrando orden...</span>
+                  </>
+                ) : (
+                  <>
+                    <MessageCircle className="w-5 h-5 text-white/90" />
+                    <span>Confirmar y Enviar Comprobante por WhatsApp</span>
+                    <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                  </>
+                )}
+              </button>
+            )}
 
             <div className="flex items-center justify-center gap-3 pt-1 text-[10px] text-cirqa-negro/50">
               <span className="flex items-center gap-1">
                 <Lock className="w-3 h-3 text-emerald-600" />
-                Pago Encriptado SSL
+                Pago Seguro SSL
               </span>
               <span>•</span>
-              <span>Hasta 6 cuotas sin interés según banco</span>
+              <span>Atención Directa</span>
               <span>•</span>
               <span className="flex items-center gap-1">
                 <ShieldCheck className="w-3 h-3 text-cirqa-primario" />
-                Garantía CIRQA
+                Garantía Oficial CIRQA
               </span>
             </div>
           </div>
         </motion.div>
+
+        {/* MODAL / PANTALLA DE CONFIRMACIÓN DE TRANSFERENCIA */}
+        <AnimatePresence>
+          {transferSuccessOrder && (
+            <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={handleCloseSuccessModal}
+                className="fixed inset-0 bg-black/70 backdrop-blur-md"
+              />
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
+                className="relative w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 shadow-2xl z-10 border border-cirqa-negro/10 text-center font-montserrat space-y-5"
+              >
+                <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto shadow-sm">
+                  <CheckCircle2 className="w-9 h-9" />
+                </div>
+
+                <div className="space-y-1.5">
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-700 font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
+                    Pedido Registrado con Éxito
+                  </span>
+                  <h3 className="text-xl sm:text-2xl font-light text-cirqa-negro pt-1">
+                    ¡Gracias, {transferSuccessOrder.customerName}!
+                  </h3>
+                  <p className="text-xs sm:text-sm text-cirqa-negro/60 font-light max-w-sm mx-auto">
+                    Tu orden quedó registrada. Para confirmarla, completá la transferencia bancaria y envianos el comprobante por WhatsApp.
+                  </p>
+                </div>
+
+                {/* Tarjeta del Número de Orden con Botón de Copia */}
+                <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-2">
+                  <span className="text-[10px] uppercase font-bold tracking-wider text-cirqa-negro/50 block">
+                    Tu Número de Orden
+                  </span>
+                  <div className="flex items-center justify-center gap-3">
+                    <span className="text-xl sm:text-2xl font-mono font-bold text-cirqa-negro tracking-wider">
+                      #{transferSuccessOrder.orderNumber}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(transferSuccessOrder.orderNumber, 'orderNumber')}
+                      className="p-2 rounded-xl bg-white border border-cirqa-negro/10 hover:border-cirqa-negro/30 text-cirqa-negro/70 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+                      title="Copiar número de orden"
+                    >
+                      {copiedField === 'orderNumber' ? (
+                        <>
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
+                          <span className="text-emerald-600">Copiado</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3.5 h-3.5" />
+                          <span>Copiar</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  <span className="text-xs font-mono text-cirqa-negro/70 block">
+                    Total a transferir: <strong>$ {transferSuccessOrder.totalAmount.toLocaleString('es-AR')} ARS</strong>
+                  </span>
+                </div>
+
+                {/* Acciones */}
+                <div className="space-y-2.5 pt-2">
+                  <a
+                    href={transferSuccessOrder.waUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs tracking-wider uppercase shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all"
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>Reabrir WhatsApp Oficial</span>
+                    <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
+                  </a>
+
+                  <button
+                    type="button"
+                    onClick={handleCloseSuccessModal}
+                    className="w-full py-3 rounded-xl border border-cirqa-negro/15 text-xs text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5 transition-colors font-medium"
+                  >
+                    Volver a la Tienda
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
       </div>
     </AnimatePresence>
   );

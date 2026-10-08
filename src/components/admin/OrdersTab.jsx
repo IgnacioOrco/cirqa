@@ -24,6 +24,8 @@ import {
   ExternalLink,
   ChevronRight,
   ShieldCheck,
+  CreditCard,
+  Building2,
 } from 'lucide-react';
 import { orderService, formatMediaUrl } from '../../services/api';
 
@@ -41,7 +43,8 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
 
   // Filtros y Búsqueda
   const [searchQuery, setSearchQuery] = useState('');
-  const [paymentFilter, setPaymentFilter] = useState('ALL'); // ALL | PAID | PENDING | CANCELLED
+  const [paymentFilter, setPaymentFilter] = useState('ALL'); // ALL | pending | paid | shipped | cancelled
+  const [methodFilter, setMethodFilter] = useState('ALL'); // ALL | mercadopago | transfer
   const [shippingFilter, setShippingFilter] = useState('ALL'); // ALL | PENDIENTE | PREPARACION | ENVIADO | ENTREGADO
 
   // Modal Detalle
@@ -52,6 +55,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
     status: 'PENDIENTE',
   });
   const [savingShipping, setSavingShipping] = useState(false);
+  const [confirmingPaymentId, setConfirmingPaymentId] = useState(null);
 
   // Carga de órdenes desde API
   const fetchOrders = useCallback(async () => {
@@ -92,13 +96,21 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
         custEmail.includes(q) ||
         custDni.includes(q);
 
-      // Pago
-      const pStatus = (order.status || '').toUpperCase();
+      // Estado de Pago / Orden
+      const pStatus = (order.status || '').toLowerCase();
       const matchesPayment =
         paymentFilter === 'ALL' ||
-        (paymentFilter === 'PAID' && (pStatus === 'PAID' || pStatus === 'APROBADO' || pStatus === 'APPROVED')) ||
-        (paymentFilter === 'PENDING' && (pStatus === 'PENDING' || pStatus === 'PENDIENTE')) ||
-        (paymentFilter === 'CANCELLED' && (pStatus === 'CANCELLED' || pStatus === 'REJECTED' || pStatus === 'FALLIDO'));
+        (paymentFilter === 'paid' && (pStatus === 'paid' || pStatus === 'aprobado' || pStatus === 'approved')) ||
+        (paymentFilter === 'pending' && (pStatus === 'pending' || pStatus === 'pendiente')) ||
+        (paymentFilter === 'shipped' && (pStatus === 'shipped' || (order.shipping?.status || '').toLowerCase() === 'enviado')) ||
+        (paymentFilter === 'cancelled' && (pStatus === 'cancelled' || pStatus === 'rejected' || pStatus === 'fallido'));
+
+      // Método de Pago
+      const method = (order.payment?.method || (order.paymentMethod === 'TRANSFERENCIA' ? 'transfer' : 'mercadopago')).toLowerCase();
+      const matchesMethod =
+        methodFilter === 'ALL' ||
+        (methodFilter === 'mercadopago' && (method.includes('mercado') || order.paymentMethod === 'MERCADO_PAGO')) ||
+        (methodFilter === 'transfer' && (method.includes('transfer') || order.paymentMethod === 'TRANSFERENCIA'));
 
       // Envío
       const currentShippingStatus = (
@@ -114,22 +126,22 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
         (shippingFilter === 'ENVIADO' && currentShippingStatus === 'ENVIADO') ||
         (shippingFilter === 'ENTREGADO' && currentShippingStatus === 'ENTREGADO');
 
-      return matchesSearch && matchesPayment && matchesShipping;
+      return matchesSearch && matchesPayment && matchesMethod && matchesShipping;
     });
-  }, [orders, searchQuery, paymentFilter, shippingFilter]);
+  }, [orders, searchQuery, paymentFilter, methodFilter, shippingFilter]);
 
   // Métricas
   const stats = useMemo(() => {
     const totalCount = orders.length;
     const paidCount = orders.filter((o) => {
-      const s = (o.status || '').toUpperCase();
-      return s === 'PAID' || s === 'APROBADO' || s === 'APPROVED';
+      const s = (o.status || '').toLowerCase();
+      return s === 'paid' || s === 'aprobado' || s === 'approved';
     }).length;
 
     const totalRevenue = orders
       .filter((o) => {
-        const s = (o.status || '').toUpperCase();
-        return s === 'PAID' || s === 'APROBADO' || s === 'APPROVED';
+        const s = (o.status || '').toLowerCase();
+        return s === 'paid' || s === 'aprobado' || s === 'approved';
       })
       .reduce((acc, o) => acc + (Number(o.totalAmount) || 0), 0);
 
@@ -138,7 +150,12 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
       return s === 'PENDIENTE' || s === 'PREPARACION';
     }).length;
 
-    return { totalCount, paidCount, totalRevenue, pendingShippingCount };
+    const transferOrdersCount = orders.filter((o) => {
+      const m = (o.payment?.method || (o.paymentMethod === 'TRANSFERENCIA' ? 'transfer' : '')).toLowerCase();
+      return m.includes('transfer') || o.paymentMethod === 'TRANSFERENCIA';
+    }).length;
+
+    return { totalCount, paidCount, totalRevenue, pendingShippingCount, transferOrdersCount };
   }, [orders]);
 
   // Formato de fecha
@@ -181,7 +198,6 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
         showToast('Logística y estado de envío actualizados correctamente', 'success');
       }
 
-      // Actualizar localmente
       setOrders((prev) =>
         prev.map((o) =>
           o._id === selectedOrder._id
@@ -215,10 +231,41 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
     }
   };
 
+  // Acción directa: Confirmar Pago de Transferencia (pasa el estado a 'paid' y descuenta stock)
+  const handleConfirmPayment = async (order, e) => {
+    if (e) e.stopPropagation();
+    setConfirmingPaymentId(order._id);
+    try {
+      await orderService.updateOrderStatus(order._id, 'paid', 'Pago confirmado por administrador');
+
+      if (showToast) {
+        showToast(`Pago de la orden ${order.orderNumber || order._id} confirmado exitosamente.`, 'success');
+      }
+
+      // Actualizar localmente
+      setOrders((prev) =>
+        prev.map((o) =>
+          o._id === order._id ? { ...o, status: 'paid' } : o
+        )
+      );
+
+      if (selectedOrder && selectedOrder._id === order._id) {
+        setSelectedOrder((prev) => ({ ...prev, status: 'paid' }));
+      }
+    } catch (err) {
+      console.error('[OrdersTab] Error confirmando pago:', err);
+      if (showToast) {
+        showToast(err.message || 'Error al confirmar el pago.', 'error');
+      }
+    } finally {
+      setConfirmingPaymentId(null);
+    }
+  };
+
   // Badges
   const renderPaymentBadge = (status) => {
-    const norm = (status || '').toUpperCase();
-    if (norm === 'PAID' || norm === 'APROBADO' || norm === 'APPROVED') {
+    const norm = (status || '').toLowerCase();
+    if (norm === 'paid' || norm === 'aprobado' || norm === 'approved') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -226,7 +273,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
         </span>
       );
     }
-    if (norm === 'PENDING' || norm === 'PENDIENTE') {
+    if (norm === 'pending' || norm === 'pendiente') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
           <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
@@ -234,10 +281,39 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
         </span>
       );
     }
+    if (norm === 'shipped' || norm === 'enviado') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
+          <Truck className="w-3 h-3 text-indigo-600" />
+          Enviado
+        </span>
+      );
+    }
     return (
       <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-red-50 text-cirqa-carmin border border-red-200">
         <span className="w-1.5 h-1.5 rounded-full bg-cirqa-carmin" />
         Fallido
+      </span>
+    );
+  };
+
+  const renderMethodBadge = (order) => {
+    const method = (order.payment?.method || (order.paymentMethod === 'TRANSFERENCIA' ? 'transfer' : 'mercadopago')).toLowerCase();
+    const isTransfer = method.includes('transfer') || order.paymentMethod === 'TRANSFERENCIA';
+
+    if (isTransfer) {
+      return (
+        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+          <Building2 className="w-3 h-3 text-emerald-600" />
+          Transferencia
+        </span>
+      );
+    }
+
+    return (
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#009EE3]/10 text-[#009EE3] border border-[#009EE3]/20">
+        <CreditCard className="w-3 h-3" />
+        Mercado Pago
       </span>
     );
   };
@@ -279,7 +355,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
   return (
     <div className="space-y-6">
       {/* 1. Tarjetas de Métricas Rápidas */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <div className="bg-white rounded-3xl p-5 border border-cirqa-negro/10 shadow-xs flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-cirqa-surface border border-cirqa-negro/5 flex items-center justify-center text-cirqa-negro">
             <ClipboardList className="w-6 h-6" />
@@ -309,6 +385,20 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
         </div>
 
         <div className="bg-white rounded-3xl p-5 border border-cirqa-negro/10 shadow-xs flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 border border-emerald-100 flex items-center justify-center">
+            <Building2 className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-700 block">
+              Transferencias
+            </span>
+            <span className="text-xl sm:text-2xl font-light text-cirqa-negro font-mono font-bold">
+              {stats.transferOrdersCount}
+            </span>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-3xl p-5 border border-cirqa-negro/10 shadow-xs flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center">
             <Truck className="w-6 h-6" />
           </div>
@@ -322,7 +412,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
           </div>
         </div>
 
-        <div className="bg-white rounded-3xl p-5 border border-cirqa-negro/10 shadow-xs flex items-center gap-4">
+        <div className="bg-white rounded-3xl p-5 border border-cirqa-negro/10 shadow-xs flex items-center gap-4 col-span-2 lg:col-span-1">
           <div className="w-12 h-12 rounded-2xl bg-cirqa-primario/10 text-cirqa-primario border border-cirqa-primario/20 flex items-center justify-center">
             <DollarSign className="w-6 h-6" />
           </div>
@@ -337,9 +427,9 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
         </div>
       </div>
 
-      {/* 2. Barra de Filtros y Búsqueda */}
+      {/* 2. Barra de Filtros Duales y Búsqueda */}
       <div className="bg-white rounded-3xl p-4 sm:p-5 border border-cirqa-negro/10 shadow-xs space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           {/* Buscador */}
           <div className="relative flex-grow max-w-md">
             <Search className="w-4 h-4 text-cirqa-negro/40 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -352,23 +442,22 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
             />
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* Filtro de Pago */}
+          <div className="flex items-center gap-2.5 flex-wrap">
+            {/* FILTRO 1: Método de Pago (Mercado Pago vs Transferencia) */}
             <div className="flex items-center gap-1 bg-cirqa-surface p-1 rounded-2xl border border-cirqa-negro/5 text-xs">
               <span className="text-[10px] font-semibold text-cirqa-negro/50 uppercase px-2">
-                Pago:
+                Método:
               </span>
               {[
                 { id: 'ALL', label: 'Todos' },
-                { id: 'PAID', label: 'Pagado' },
-                { id: 'PENDING', label: 'Pendiente' },
-                { id: 'CANCELLED', label: 'Fallido' },
+                { id: 'mercadopago', label: 'Mercado Pago' },
+                { id: 'transfer', label: 'Transferencia' },
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setPaymentFilter(tab.id)}
+                  onClick={() => setMethodFilter(tab.id)}
                   className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
-                    paymentFilter === tab.id
+                    methodFilter === tab.id
                       ? 'bg-cirqa-negro text-white shadow-xs font-semibold'
                       : 'text-cirqa-negro/70 hover:text-cirqa-negro'
                   }`}
@@ -378,23 +467,22 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
               ))}
             </div>
 
-            {/* Filtro de Envío */}
+            {/* FILTRO 2: Estado de la Orden (pending, paid, shipped) */}
             <div className="flex items-center gap-1 bg-cirqa-surface p-1 rounded-2xl border border-cirqa-negro/5 text-xs">
               <span className="text-[10px] font-semibold text-cirqa-negro/50 uppercase px-2">
-                Envío:
+                Estado:
               </span>
               {[
                 { id: 'ALL', label: 'Todos' },
-                { id: 'PENDIENTE', label: 'Pendiente' },
-                { id: 'PREPARACION', label: 'Preparación' },
-                { id: 'ENVIADO', label: 'Enviado' },
-                { id: 'ENTREGADO', label: 'Entregado' },
+                { id: 'pending', label: 'Pendiente' },
+                { id: 'paid', label: 'Pagado' },
+                { id: 'shipped', label: 'Enviado' },
               ].map((tab) => (
                 <button
                   key={tab.id}
-                  onClick={() => setShippingFilter(tab.id)}
+                  onClick={() => setPaymentFilter(tab.id)}
                   className={`px-2.5 py-1 rounded-xl text-[11px] font-medium transition-all ${
-                    shippingFilter === tab.id
+                    paymentFilter === tab.id
                       ? 'bg-cirqa-negro text-white shadow-xs font-semibold'
                       : 'text-cirqa-negro/70 hover:text-cirqa-negro'
                   }`}
@@ -426,27 +514,28 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                 <th className="py-4 px-6">N° de Orden</th>
                 <th className="py-4 px-6">Fecha</th>
                 <th className="py-4 px-6">Cliente</th>
-                <th className="py-4 px-6">Monto Total</th>
-                <th className="py-4 px-6">Estado de Pago</th>
-                <th className="py-4 px-6">Estado de Entrega</th>
+                <th className="py-4 px-6">Método</th>
+                <th className="py-4 px-6">Total</th>
+                <th className="py-4 px-6">Estado Pago</th>
+                <th className="py-4 px-6">Logística</th>
                 <th className="py-4 px-6 text-right">Acción</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-cirqa-negro/5 text-xs text-cirqa-negro">
               {loading && orders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-cirqa-negro/50">
+                  <td colSpan={8} className="py-12 text-center text-cirqa-negro/50">
                     <RefreshCw className="w-6 h-6 animate-spin mx-auto text-cirqa-primario mb-2" />
                     <span>Cargando órdenes registradas...</span>
                   </td>
                 </tr>
               ) : filteredOrders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-cirqa-negro/50">
+                  <td colSpan={8} className="py-12 text-center text-cirqa-negro/50">
                     <ClipboardList className="w-8 h-8 mx-auto text-cirqa-negro/20 mb-2" />
                     <p className="font-medium text-cirqa-negro">No se encontraron órdenes</p>
                     <p className="text-[11px] text-cirqa-negro/40 mt-0.5">
-                      Intenta ajustar los filtros o el término de búsqueda.
+                      Intenta ajustar los filtros de método o estado.
                     </p>
                   </td>
                 </tr>
@@ -458,6 +547,10 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
 
                   const shippingStatus =
                     order.shipping?.status || order.shippingStatus || 'PENDIENTE';
+
+                  const isPendingTransfer =
+                    (order.payment?.method === 'transfer' || order.paymentMethod === 'TRANSFERENCIA') &&
+                    (order.status || '').toLowerCase() === 'pending';
 
                   return (
                     <tr
@@ -487,9 +580,14 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                         </div>
                       </td>
 
+                      {/* Método de Pago */}
+                      <td className="py-4 px-6">
+                        {renderMethodBadge(order)}
+                      </td>
+
                       {/* Monto Total */}
-                      <td className="py-4 px-6 font-semibold text-cirqa-negro">
-                        ${(Number(order.totalAmount) || 0).toLocaleString('es-AR')} ARS
+                      <td className="py-4 px-6 font-semibold text-cirqa-negro font-mono">
+                        ${(Number(order.totalAmount) || 0).toLocaleString('es-AR')}
                       </td>
 
                       {/* Estado de Pago */}
@@ -502,19 +600,36 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                         {renderShippingBadge(shippingStatus)}
                       </td>
 
-                      {/* Acción */}
+                      {/* Acciones */}
                       <td className="py-4 px-6 text-right">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleOpenDetail(order);
-                          }}
-                          className="p-2 rounded-xl text-cirqa-negro/50 hover:text-cirqa-negro hover:bg-black/5 transition-all inline-flex items-center gap-1 text-[11px] font-medium"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>Ver</span>
-                        </button>
+                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          {/* BOTÓN DE ACCIÓN DIRECTA PARA TRANSFERENCIAS PENDIENTES */}
+                          {isPendingTransfer && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleConfirmPayment(order, e)}
+                              disabled={confirmingPaymentId === order._id}
+                              className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[10px] tracking-wide inline-flex items-center gap-1 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                              title="Confirmar recepción de transferencia bancaria"
+                            >
+                              {confirmingPaymentId === order._id ? (
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="w-3 h-3" />
+                              )}
+                              <span>Confirmar Pago</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDetail(order)}
+                            className="p-1.5 px-2.5 rounded-xl text-cirqa-negro/60 hover:text-cirqa-negro hover:bg-black/5 transition-all inline-flex items-center gap-1 text-[11px] font-medium"
+                          >
+                            <Eye className="w-3.5 h-3.5" />
+                            <span>Ver</span>
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -558,6 +673,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                         {selectedOrder.orderNumber || `CQ-${selectedOrder._id?.slice(-6).toUpperCase()}`}
                       </h3>
                       {renderPaymentBadge(selectedOrder.status)}
+                      {renderMethodBadge(selectedOrder)}
                     </div>
                     <span className="text-[11px] text-cirqa-negro/50 font-light block">
                       Registrada el {formatDate(selectedOrder.createdAt)}
@@ -567,7 +683,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
 
                 <button
                   onClick={() => setSelectedOrder(null)}
-                  className="p-2 text-cirqa-negro/60 hover:text-cirqa-negro rounded-full hover:bg-black/5 transition-colors"
+                  className="p-2 text-cirqa-negro/60 hover:text-cirqa-negro rounded-full hover:bg-black/5 transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -704,9 +820,57 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                   </div>
                 </div>
 
-                {/* Columna Derecha: Envío y Logística */}
+                {/* Columna Derecha: Envío, Logística y Confirmación de Pago */}
                 <div className="lg:col-span-5 p-6 sm:p-8 bg-cirqa-surface/50 flex flex-col justify-between space-y-6">
                   <div className="space-y-5">
+                    {/* ACCIÓN DESTACADA: CONFIRMAR PAGO POR TRANSFERENCIA */}
+                    {(selectedOrder.payment?.method === 'transfer' || selectedOrder.paymentMethod === 'TRANSFERENCIA') &&
+                      (selectedOrder.status || '').toLowerCase() === 'pending' && (
+                        <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-3">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="w-4 h-4 text-emerald-700" />
+                            <span className="text-xs font-bold text-emerald-900 uppercase tracking-wider">
+                              Transferencia Pendiente
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-emerald-800 leading-relaxed font-light">
+                            Verificá el ingreso del comprobante en la cuenta bancaria de CIRQA. Al confirmar, la orden pasará a estado <strong>Pagado</strong> y el stock quedará confirmado.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={(e) => handleConfirmPayment(selectedOrder, e)}
+                            disabled={confirmingPaymentId === selectedOrder._id}
+                            className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs tracking-wider uppercase shadow-md flex items-center justify-center gap-2 cursor-pointer transition-all disabled:opacity-50"
+                          >
+                            {confirmingPaymentId === selectedOrder._id ? (
+                              <RefreshCw className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <CheckCircle2 className="w-4 h-4" />
+                            )}
+                            <span>Confirmar Pago Recibido</span>
+                          </button>
+                        </div>
+                      )}
+
+                    {/* Comprobante subido si existe */}
+                    {selectedOrder.receipt_url && (
+                      <div className="p-3.5 rounded-2xl bg-white border border-cirqa-negro/10 flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2">
+                          <FileText className="w-4 h-4 text-cirqa-primario" />
+                          <span className="font-semibold text-cirqa-negro">Comprobante de Pago</span>
+                        </div>
+                        <a
+                          href={formatMediaUrl(selectedOrder.receipt_url)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-[11px] font-bold text-cirqa-primario hover:underline"
+                        >
+                          <span>Ver archivo</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    )}
+
                     <div className="flex items-center gap-2 border-b border-cirqa-negro/10 pb-3">
                       <Truck className="w-4 h-4 text-cirqa-primario" />
                       <h4 className="text-xs font-bold uppercase tracking-wider text-cirqa-negro">
@@ -794,7 +958,14 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                       <span className="font-semibold text-cirqa-negro block text-[11px] uppercase tracking-wider">
                         Pasarela & Facturación
                       </span>
-                      <p>Método de Pago: <strong>{selectedOrder.paymentMethod || 'MERCADO_PAGO'}</strong></p>
+                      <p>
+                        Método de Pago:{' '}
+                        <strong>
+                          {selectedOrder.payment?.method === 'transfer' || selectedOrder.paymentMethod === 'TRANSFERENCIA'
+                            ? 'Transferencia Bancaria'
+                            : 'Mercado Pago'}
+                        </strong>
+                      </p>
                       {selectedOrder.gateway_id && (
                         <p className="font-mono text-[10px] truncate text-cirqa-negro/60">
                           Gateway ID: {selectedOrder.gateway_id}
@@ -807,7 +978,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                     <button
                       type="button"
                       onClick={() => setSelectedOrder(null)}
-                      className="w-full py-2.5 rounded-xl border border-cirqa-negro/15 text-xs text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5 transition-colors"
+                      className="w-full py-2.5 rounded-xl border border-cirqa-negro/15 text-xs text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5 transition-colors cursor-pointer"
                     >
                       Cerrar Detalle
                     </button>

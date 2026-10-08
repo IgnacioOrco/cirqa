@@ -6,6 +6,7 @@ import {
   getOrders,
   getOrderById,
   updateOrderShipping,
+  updateOrderStatus,
 } from '../controllers/orderController.js';
 import { protectAdmin } from '../middlewares/authMiddleware.js';
 import { uploadReceipt } from '../middlewares/uploadMiddleware.js';
@@ -14,7 +15,7 @@ const router = express.Router();
 
 /**
  * @route   POST /api/orders/create-preference
- * @desc    Crear preferencia de Mercado Pago Checkout Pro y registrar orden
+ * @desc    Crear preferencia de Mercado Pago Checkout Pro o registrar orden por Transferencia
  * @access  Público
  */
 router.post('/create-preference', createPreference);
@@ -41,6 +42,13 @@ router.get('/:orderId', getOrderById);
 router.patch('/:orderId/shipping', protectAdmin, updateOrderShipping);
 
 /**
+ * @route   PATCH /api/orders/:orderId/status
+ * @desc    Actualizar estado de pago / progreso de una orden (ej: confirmar transferencia a 'paid')
+ * @access  Privado (Admin)
+ */
+router.patch('/:orderId/status', protectAdmin, updateOrderStatus);
+
+/**
  * @route   POST /api/orders/:orderId/preference
  * @desc    Crear preferencia de Mercado Pago basada en los items de una orden preexistente
  * @access  Público
@@ -55,5 +63,3 @@ router.post('/:orderId/preference', createOrderPreference);
 router.post('/:orderId/receipt', uploadReceipt.single('receipt'), uploadOrderReceipt);
 
 export default router;
-
-

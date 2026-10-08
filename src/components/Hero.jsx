@@ -1,7 +1,8 @@
 import React from 'react';
 import { motion } from 'framer-motion';
+import { Sparkles } from 'lucide-react';
 
-export default function Hero({ onExploreModels, onExploreTech }) {
+export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz }) {
   return (
     <section className="relative min-h-[92vh] pt-28 sm:pt-32 pb-0 flex items-end justify-center bg-white overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-end min-h-[calc(92vh-7rem)]">
@@ -28,19 +29,29 @@ export default function Hero({ onExploreModels, onExploreTech }) {
             El cuerpo entiende de señales, no de buenas intenciones. CIRQA filtra la luz que te desconcentra para que tu ritmo natural haga el resto.
           </p>
 
-          {/* Action Buttons: Apple Pill Style */}
-          <div className="flex flex-wrap items-center gap-4">
+          {/* Action Buttons: Apple Pill Style con Acceso Directo al Test Circadiano */}
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4">
             <button
               onClick={onExploreModels}
-              className="bg-cirqa-primario text-white text-[13px] font-semibold tracking-wider uppercase px-8 py-4 rounded-full hover:brightness-110 active:scale-95 transition-all shadow-md"
+              className="bg-cirqa-primario text-white text-[13px] font-semibold tracking-wider uppercase px-7 py-4 rounded-full hover:brightness-110 active:scale-95 transition-all shadow-md cursor-pointer"
             >
               Ver modelos
             </button>
+            {onOpenQuiz && (
+              <button
+                onClick={onOpenQuiz}
+                className="bg-gradient-to-r from-amber-500/10 to-amber-600/15 border border-amber-500/40 text-amber-900 text-[13px] font-semibold tracking-wider uppercase px-6 py-4 rounded-full hover:bg-amber-500/20 active:scale-95 transition-all flex items-center gap-2 shadow-xs cursor-pointer group"
+                title="Descubrí tu rutina circadiana"
+              >
+                <Sparkles className="w-4 h-4 text-amber-600 group-hover:rotate-12 transition-transform" />
+                <span>Test Circadiano</span>
+              </button>
+            )}
             <button
               onClick={onExploreTech}
-              className="border border-cirqa-negro/30 text-cirqa-negro text-[13px] font-semibold tracking-wider uppercase px-7 py-4 rounded-full hover:border-cirqa-negro hover:bg-black/5 active:scale-95 transition-all"
+              className="border border-cirqa-negro/30 text-cirqa-negro text-[13px] font-semibold tracking-wider uppercase px-6 py-4 rounded-full hover:border-cirqa-negro hover:bg-black/5 active:scale-95 transition-all cursor-pointer"
             >
-              Conocer la tecnología
+              Tecnología
             </button>
           </div>
 

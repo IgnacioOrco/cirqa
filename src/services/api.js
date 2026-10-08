@@ -371,6 +371,18 @@ export const orderService = {
     const res = await api.patch(`/api/orders/${orderId}/shipping`, shippingData);
     return res.data || res;
   },
+
+  /**
+   * Actualizar estado general de la orden (ej: confirmar transferencia a 'paid')
+   * PATCH /api/orders/:orderId/status
+   * @param {string} orderId
+   * @param {string} status - 'paid' | 'pending' | 'cancelled' | 'shipped'
+   * @param {string} [note]
+   */
+  async updateOrderStatus(orderId, status, note = '') {
+    const res = await api.patch(`/api/orders/${orderId}/status`, { status, note });
+    return res.data || res;
+  },
 };
 
 /**

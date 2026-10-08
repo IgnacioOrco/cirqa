@@ -117,6 +117,7 @@ export default function Home() {
         <Hero
           onExploreModels={handleScrollToModels}
           onExploreTech={handleScrollToTech}
+          onOpenQuiz={() => setQuizOpen(true)}
         />
 
         {/* SECCIÓN DIAGNÓSTICO: Test Circadiano "Descubrí tu rutina" */}

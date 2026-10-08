@@ -57,7 +57,7 @@ const orderItemSchema = new mongoose.Schema(
 
 const orderSchema = new mongoose.Schema(
   {
-    // Código legible de orden para el cliente y seguimiento (ej: CQ-849201)
+    // Código legible de orden para el cliente y seguimiento (ej: CQ-2026-849201)
     orderNumber: {
       type: String,
       trim: true,
@@ -127,32 +127,61 @@ const orderSchema = new mongoose.Schema(
       trackingNumber: { type: String, trim: true, default: '' },
       status: {
         type: String,
-        enum: ['PENDIENTE', 'PREPARACION', 'ENVIADO', 'ENTREGADO'],
+        enum: ['PENDIENTE', 'PREPARACION', 'ENVIADO', 'ENTREGADO', 'pending', 'preparacion', 'enviado', 'entregado'],
         default: 'PENDIENTE',
       },
       cost: { type: Number, default: 0 },
     },
 
-    // Método de pago soportado
+    // Método de pago estructurado
+    payment: {
+      method: {
+        type: String,
+        required: [true, 'El método de pago es obligatorio'],
+        enum: {
+          values: ['mercadopago', 'transfer'],
+          message: '{VALUE} no es un método de pago válido. Debe ser mercadopago o transfer',
+        },
+        default: 'mercadopago',
+      },
+      provider: {
+        type: String,
+        default: 'mercadopago',
+      },
+      details: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {},
+      },
+    },
+
+    // Campo de retrocompatibilidad con frontend existente y queries
     paymentMethod: {
       type: String,
-      required: [true, 'El método de pago es obligatorio'],
-      enum: {
-        values: ['MERCADO_PAGO', 'TRANSFERENCIA'],
-        message: '{VALUE} no es un método de pago válido. Debe ser MERCADO_PAGO o TRANSFERENCIA',
-      },
       default: 'MERCADO_PAGO',
     },
 
-    // Control de estados
+    // Control de estados de la orden
     status: {
       type: String,
       required: true,
       enum: {
-        values: ['PENDING', 'PAID', 'CANCELLED'],
-        message: '{VALUE} no es un estado válido. Debe ser PENDING, PAID o CANCELLED',
+        values: [
+          'pending',
+          'paid',
+          'failed',
+          'cancelled',
+          'shipped',
+          'delivered',
+          'PENDING',
+          'PAID',
+          'FAILED',
+          'CANCELLED',
+          'SHIPPED',
+          'DELIVERED',
+        ],
+        message: '{VALUE} no es un estado válido de orden',
       },
-      default: 'PENDING',
+      default: 'pending',
       index: true,
     },
 
@@ -181,6 +210,54 @@ const orderSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
+// Middleware pre-validate para auto-generación de orderNumber y sincronización payment / paymentMethod
+orderSchema.pre('validate', function (next) {
+  // 1. Auto-generación de orderNumber con formato CQ-AÑO-RANDOM (ej: CQ-2026-784912)
+  if (!this.orderNumber) {
+    const year = new Date().getFullYear();
+    const randomCode = Math.floor(100000 + Math.random() * 900000);
+    this.orderNumber = `CQ-${year}-${randomCode}`;
+  }
+
+  // 2. Normalización de payment y retrocompatibilidad con paymentMethod
+  if (!this.payment) {
+    this.payment = {
+      method: 'mercadopago',
+      provider: 'mercadopago',
+    };
+  }
+
+  if (this.paymentMethod) {
+    const pmLower = String(this.paymentMethod).toLowerCase();
+    if (pmLower.includes('transfer')) {
+      this.payment.method = 'transfer';
+      this.payment.provider = this.payment.provider || 'manual';
+    } else {
+      this.payment.method = 'mercadopago';
+      this.payment.provider = this.payment.provider || 'mercadopago';
+    }
+  } else if (this.payment?.method) {
+    const mLower = String(this.payment.method).toLowerCase();
+    this.payment.method = mLower.includes('transfer') ? 'transfer' : 'mercadopago';
+  }
+
+  if (!this.payment.provider) {
+    this.payment.provider = this.payment.method === 'transfer' ? 'manual' : 'mercadopago';
+  }
+
+  // 3. Sincronizar paymentMethod en formato compatible
+  this.paymentMethod = this.payment.method === 'transfer' ? 'TRANSFERENCIA' : 'MERCADO_PAGO';
+
+  // 4. Normalizar status si viene en mayúsculas
+  if (this.status) {
+    this.status = this.status.toLowerCase();
+  } else {
+    this.status = 'pending';
+  }
+
+  next();
+});
 
 // Índice compuesto útil para consultas de pedidos recientes por estado
 orderSchema.index({ status: 1, createdAt: -1 });
