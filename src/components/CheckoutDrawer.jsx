@@ -1,0 +1,723 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  X,
+  ShieldCheck,
+  CreditCard,
+  Lock,
+  Loader2,
+  AlertCircle,
+  ArrowRight,
+  Package,
+  CheckCircle2,
+  Trash2,
+  Plus,
+  Minus,
+  Sparkles,
+  MapPin,
+} from 'lucide-react';
+import { useCart } from '../context/CartContext';
+import { orderService, formatMediaUrl } from '../services/api';
+
+const PROVINCIAS_ARG = [
+  'Ciudad Autónoma de Buenos Aires',
+  'Buenos Aires',
+  'Catamarca',
+  'Chaco',
+  'Chubut',
+  'Córdoba',
+  'Corrientes',
+  'Entre Ríos',
+  'Formosa',
+  'Jujuy',
+  'La Pampa',
+  'La Rioja',
+  'Mendoza',
+  'Misiones',
+  'Neuquén',
+  'Río Negro',
+  'Salta',
+  'San Juan',
+  'San Luis',
+  'Santa Cruz',
+  'Santa Fe',
+  'Santiago del Estero',
+  'Tierra del Fuego',
+  'Tucumán',
+];
+
+// Mapeo inteligente de Código Postal (CP) argentino a Provincia y Localidad por defecto
+function detectProvinceFromZip(zipCode) {
+  const cleanZip = String(zipCode).trim().replace(/\D/g, '');
+  if (!cleanZip) return null;
+  const num = parseInt(cleanZip.slice(0, 4), 10);
+
+  if (num >= 1000 && num <= 1499) {
+    return { province: 'Ciudad Autónoma de Buenos Aires', city: 'CABA' };
+  }
+  if ((num >= 1600 && num <= 1999) || (num >= 2700 && num <= 2999) || (num >= 6000 && num <= 7999)) {
+    return { province: 'Buenos Aires', city: '' };
+  }
+  if (num >= 5000 && num <= 5999) {
+    return { province: 'Córdoba', city: num === 5000 ? 'Córdoba Capital' : '' };
+  }
+  if (num >= 2000 && num <= 2699 || (num >= 3000 && num <= 3099)) {
+    return { province: 'Santa Fe', city: num === 2000 ? 'Rosario' : (num === 3000 ? 'Santa Fe' : '') };
+  }
+  if (num >= 5500 && num <= 5699) {
+    return { province: 'Mendoza', city: num === 5500 ? 'Mendoza' : '' };
+  }
+  if (num >= 4000 && num <= 4199) {
+    return { province: 'Tucumán', city: num === 4000 ? 'San Miguel de Tucumán' : '' };
+  }
+  if (num >= 4400 && num <= 4599) {
+    return { province: 'Salta', city: num === 4400 ? 'Salta Capital' : '' };
+  }
+  if (num >= 3100 && num <= 3299) {
+    return { province: 'Entre Ríos', city: num === 3100 ? 'Paraná' : '' };
+  }
+  if (num >= 3300 && num <= 3399) {
+    return { province: 'Misiones', city: num === 3300 ? 'Posadas' : '' };
+  }
+  if (num >= 3400 && num <= 3499) {
+    return { province: 'Corrientes', city: num === 3400 ? 'Corrientes' : '' };
+  }
+  if (num >= 3500 && num <= 3799) {
+    return { province: 'Chaco', city: num === 3500 ? 'Resistencia' : '' };
+  }
+  if (num >= 8300 && num <= 8399) {
+    return { province: 'Neuquén', city: num === 8300 ? 'Neuquén' : '' };
+  }
+  if (num >= 8400 && num <= 8599) {
+    return { province: 'Río Negro', city: num === 8400 ? 'Bariloche' : '' };
+  }
+  if (num >= 9000 && num <= 9299) {
+    return { province: 'Chubut', city: '' };
+  }
+  if (num >= 9400 && num <= 9499) {
+    return { province: 'Tierra del Fuego', city: num === 9410 ? 'Ushuaia' : '' };
+  }
+  if (num >= 5400 && num <= 5499) {
+    return { province: 'San Juan', city: num === 5400 ? 'San Juan' : '' };
+  }
+  if (num >= 5700 && num <= 5899) {
+    return { province: 'San Luis', city: num === 5700 ? 'San Luis' : '' };
+  }
+  if (num >= 4600 && num <= 4699) {
+    return { province: 'Jujuy', city: num === 4600 ? 'San Salvador de Jujuy' : '' };
+  }
+  return null;
+}
+
+export default function CheckoutDrawer() {
+  const {
+    isCheckoutOpen,
+    closeCheckout,
+    items,
+    checkoutTargetItem,
+    removeFromCart,
+    updateQuantity,
+  } = useCart();
+
+  // Si hay compra directa desde configurador, se usa ese item; si no, todos los items del carrito
+  const activeItems = checkoutTargetItem ? [checkoutTargetItem] : items;
+
+  // Formulario ágil de envío
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    dni: '',
+    street: '',
+    number: '',
+    floor: '',
+    apartment: '',
+    city: '',
+    province: 'Ciudad Autónoma de Buenos Aires',
+    zipCode: '',
+  });
+
+  const [errors, setErrors] = useState({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submissionError, setSubmissionError] = useState(null);
+
+  const subtotal = activeItems.reduce(
+    (acc, it) => acc + (Number(it.price) || 0) * (it.quantity || 1),
+    0
+  );
+  const shippingCost = 0; // Envío asegurado oficial de lanzamiento sin cargo
+  const total = subtotal + shippingCost;
+
+  // Autocompletado reactivo de CP
+  const handleZipCodeChange = (e) => {
+    const rawVal = e.target.value;
+    setFormData((prev) => {
+      const next = { ...prev, zipCode: rawVal };
+      const detected = detectProvinceFromZip(rawVal);
+      if (detected) {
+        if (detected.province) next.province = detected.province;
+        if (detected.city && (!prev.city || prev.city === 'CABA')) next.city = detected.city;
+      }
+      return next;
+    });
+
+    if (errors.zipCode) {
+      setErrors((prev) => ({ ...prev, zipCode: null }));
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: null }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = 'Ingresá tu nombre y apellido';
+    }
+    if (!formData.email.trim()) {
+      newErrors.email = 'El email es obligatorio';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = 'Ingresá un email válido';
+    }
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'Teléfono requerido para el seguimiento';
+    }
+    if (!formData.dni.trim()) {
+      newErrors.dni = 'DNI / CUIL requerido';
+    }
+    if (!formData.street.trim()) {
+      newErrors.street = 'Ingresá la calle o avenida';
+    }
+    if (!formData.number.trim()) {
+      newErrors.number = 'Número';
+    }
+    if (!formData.zipCode.trim()) {
+      newErrors.zipCode = 'Código Postal';
+    }
+    if (!formData.city.trim()) {
+      newErrors.city = 'Localidad o ciudad';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handlePayMercadoPago = async (e) => {
+    e.preventDefault();
+    setSubmissionError(null);
+
+    if (activeItems.length === 0) {
+      setSubmissionError('Tu carrito está vacío. Agregá al menos un armazón para continuar.');
+      return;
+    }
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+      const payload = {
+        customer: {
+          name: formData.name.trim(),
+          email: formData.email.trim().toLowerCase(),
+          phone: formData.phone.trim(),
+          dni: formData.dni.trim(),
+          shippingAddress: {
+            street: `${formData.street.trim()} ${formData.number.trim()}`,
+            floor: formData.floor.trim() || undefined,
+            apartment: formData.apartment.trim() || undefined,
+            city: formData.city.trim(),
+            state: formData.province,
+            zipCode: formData.zipCode.trim(),
+          },
+        },
+        items: activeItems.map((item) => ({
+          product: item.productId || item.id,
+          name: item.name || 'Armazón CIRQA',
+          modelCode: item.modelCode || 'Q-001',
+          price: Number(item.price) || 0,
+          quantity: item.quantity || 1,
+          variantKey: item.variantKey || undefined,
+          variantName: item.variantName || undefined,
+          variantSubtitle: item.variantSubtitle || undefined,
+          filter: item.variantName || (typeof item.filter === 'object' ? item.filter.name : item.filter),
+          prescription: item.prescription?.notes || (item.prescription ? 'Con receta médica adjunta' : null),
+          image: item.image || '/products/_DSC8649.webp',
+        })),
+        shippingCost: 0,
+      };
+
+      const response = await orderService.createPreference(payload);
+
+      const initPoint =
+        response?.initPoint ||
+        response?.data?.initPoint ||
+        response?.init_point ||
+        response?.data?.init_point ||
+        response?.sandboxInitPoint ||
+        response?.data?.sandboxInitPoint ||
+        response?.sandbox_init_point ||
+        response?.data?.sandbox_init_point;
+
+      if (!initPoint) {
+        throw new Error(
+          response?.message || 'No se recibió el enlace de pago de Mercado Pago. Reintenta en instantes.'
+        );
+      }
+
+      window.location.href = initPoint;
+    } catch (err) {
+      console.error('[Checkout Error]:', err);
+      setSubmissionError(
+        err.message || 'Ocurrió un error al conectar con Mercado Pago. Verificá tu conexión e intentá de nuevo.'
+      );
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!isCheckoutOpen) return null;
+
+  return (
+    <AnimatePresence>
+      <div className="fixed inset-0 z-50 overflow-hidden flex justify-end font-montserrat">
+        {/* Backdrop suave */}
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+          onClick={() => !isSubmitting && closeCheckout()}
+          className="fixed inset-0 bg-cirqa-negro/60 backdrop-blur-sm"
+        />
+
+        {/* DRAWER LATERAL ANIMADO */}
+        <motion.div
+          initial={{ x: '100%' }}
+          animate={{ x: 0 }}
+          exit={{ x: '100%' }}
+          transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+          className="relative w-full max-w-xl bg-white h-full shadow-2xl flex flex-col z-10 overflow-hidden text-cirqa-negro border-l border-cirqa-negro/10"
+        >
+          {/* Header del Drawer */}
+          <div className="px-6 py-5 border-b border-cirqa-negro/10 flex items-center justify-between bg-cirqa-surface/80 backdrop-blur-sm flex-shrink-0">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-cirqa-negro text-white flex items-center justify-center font-bold text-xs">
+                C
+              </div>
+              <div>
+                <span className="text-[10px] uppercase tracking-widest text-cirqa-primario font-semibold block">
+                  CIRQA · Checkout en 1 Clic
+                </span>
+                <h2 className="text-lg font-light tracking-tight text-cirqa-negro">
+                  {checkoutTargetItem ? 'Confirmar Compra' : 'Tu Bolsa de Compra'}
+                </h2>
+              </div>
+            </div>
+
+            <button
+              onClick={() => !isSubmitting && closeCheckout()}
+              disabled={isSubmitting}
+              className="p-2 text-cirqa-negro/50 hover:text-cirqa-negro rounded-full hover:bg-black/5 transition-colors cursor-pointer disabled:opacity-30"
+              aria-label="Cerrar checkout drawer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Contenido scrolleable */}
+          <div className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+            {submissionError && (
+              <div className="p-3.5 rounded-2xl bg-cirqa-carmin/10 border border-cirqa-carmin/20 text-cirqa-carmin text-xs flex items-start gap-2.5">
+                <AlertCircle className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                <p className="leading-relaxed">{submissionError}</p>
+              </div>
+            )}
+
+            {/* ========================================================= */}
+            {/* 1. RESUMEN SUPERIOR: PRODUCTOS Y VARIANTE EXACTA          */}
+            {/* ========================================================= */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/60">
+                  Resumen de tu Configuración ({activeItems.length})
+                </span>
+                <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">
+                  Envío Bonificado 100%
+                </span>
+              </div>
+
+              {activeItems.length === 0 ? (
+                <div className="p-8 text-center bg-[#FBFBFA] rounded-2xl border border-dashed border-cirqa-negro/15">
+                  <Package className="w-8 h-8 text-cirqa-negro/30 mx-auto mb-2" />
+                  <p className="text-xs text-cirqa-negro/60 font-light">Tu bolsa está vacía.</p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {activeItems.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3.5 bg-[#FBFBFA] rounded-2xl border border-cirqa-negro/10 flex items-center gap-3.5"
+                    >
+                      {/* Foto exacta de la variante configurada */}
+                      <div className="w-16 h-16 rounded-xl bg-white border border-cirqa-negro/5 p-1 flex items-center justify-center flex-shrink-0 shadow-2xs overflow-hidden">
+                        <img
+                          src={formatMediaUrl(item.image)}
+                          alt={item.name}
+                          className="w-full h-full object-contain"
+                          onError={(e) => {
+                            e.currentTarget.src = '/products/_DSC8649.webp';
+                          }}
+                        />
+                      </div>
+
+                      {/* Detalles del modelo y variante */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-mono font-bold text-cirqa-primario uppercase">
+                            {item.modelCode || 'Q-001'}
+                          </span>
+                          <span className="text-xs font-semibold text-cirqa-negro truncate">
+                            {item.name}
+                          </span>
+                        </div>
+
+                        {/* Badge de la variante */}
+                        {item.variantName && (
+                          <div className="flex items-center gap-1.5 mt-1">
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-black/10 flex-shrink-0"
+                              style={{ backgroundColor: item.badgeColor || '#F3B93A' }}
+                            />
+                            <span className="text-[11px] font-medium text-cirqa-negro truncate">
+                              {item.variantName}
+                            </span>
+                            {item.variantSubtitle && (
+                              <span className="text-[9px] text-cirqa-negro/50 font-mono">
+                                ({item.variantSubtitle})
+                              </span>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="flex items-center justify-between mt-2">
+                          <span className="text-xs font-mono font-bold text-cirqa-negro">
+                            $ {Number(item.price || 0).toLocaleString('es-AR')}
+                          </span>
+
+                          {/* Controles de cantidad solo si no es compra rápida directa */}
+                          {!checkoutTargetItem && (
+                            <div className="flex items-center gap-2">
+                              <div className="flex items-center border border-cirqa-negro/15 rounded-lg bg-white overflow-hidden">
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuantity(item.id, (item.quantity || 1) - 1)}
+                                  className="p-1 hover:bg-black/5 text-cirqa-negro/60"
+                                >
+                                  <Minus className="w-3 h-3" />
+                                </button>
+                                <span className="px-2 text-[11px] font-mono font-semibold">
+                                  {item.quantity || 1}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => updateQuantity(item.id, (item.quantity || 1) + 1)}
+                                  className="p-1 hover:bg-black/5 text-cirqa-negro/60"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </button>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeFromCart(item.id)}
+                                className="p-1 text-cirqa-negro/30 hover:text-cirqa-carmin transition-colors"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ========================================================= */}
+            {/* 2. FORMULARIO ÁGIL DE DATOS DE ENVÍO                      */}
+            {/* ========================================================= */}
+            <form id="checkout-form" onSubmit={handlePayMercadoPago} className="space-y-4 pt-2 border-t border-cirqa-negro/10">
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-cirqa-primario" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro">
+                  Datos de Envío y Facturación
+                </span>
+              </div>
+
+              {/* Nombre y Email */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    Nombre Completo *
+                  </label>
+                  <input
+                    type="text"
+                    name="name"
+                    value={formData.name}
+                    onChange={handleChange}
+                    placeholder="ej. Agustín Gómez"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${
+                      errors.name ? 'border-cirqa-carmin' : 'border-cirqa-negro/15 focus:border-cirqa-primario'
+                    }`}
+                  />
+                  {errors.name && <p className="text-[10px] text-cirqa-carmin mt-1">{errors.name}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    Email de Confirmación *
+                  </label>
+                  <input
+                    type="email"
+                    name="email"
+                    value={formData.email}
+                    onChange={handleChange}
+                    placeholder="tu@email.com"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${
+                      errors.email ? 'border-cirqa-carmin' : 'border-cirqa-negro/15 focus:border-cirqa-primario'
+                    }`}
+                  />
+                  {errors.email && <p className="text-[10px] text-cirqa-carmin mt-1">{errors.email}</p>}
+                </div>
+              </div>
+
+              {/* Teléfono y DNI */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    Teléfono Celular *
+                  </label>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={formData.phone}
+                    onChange={handleChange}
+                    placeholder="11 5555-5555"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${
+                      errors.phone ? 'border-cirqa-carmin' : 'border-cirqa-negro/15 focus:border-cirqa-primario'
+                    }`}
+                  />
+                  {errors.phone && <p className="text-[10px] text-cirqa-carmin mt-1">{errors.phone}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    DNI / CUIL (Facturación) *
+                  </label>
+                  <input
+                    type="text"
+                    name="dni"
+                    value={formData.dni}
+                    onChange={handleChange}
+                    placeholder="ej. 38123456"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${
+                      errors.dni ? 'border-cirqa-carmin' : 'border-cirqa-negro/15 focus:border-cirqa-primario'
+                    }`}
+                  />
+                  {errors.dni && <p className="text-[10px] text-cirqa-carmin mt-1">{errors.dni}</p>}
+                </div>
+              </div>
+
+              {/* Código Postal (Con autocompletado inteligente) */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    Código Postal *
+                  </label>
+                  <input
+                    type="text"
+                    name="zipCode"
+                    value={formData.zipCode}
+                    onChange={handleZipCodeChange}
+                    placeholder="ej. 1425"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${
+                      errors.zipCode ? 'border-cirqa-carmin' : 'border-cirqa-negro/15 focus:border-cirqa-primario'
+                    }`}
+                  />
+                  {errors.zipCode && <p className="text-[10px] text-cirqa-carmin mt-1">{errors.zipCode}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    Ciudad / Localidad *
+                  </label>
+                  <input
+                    type="text"
+                    name="city"
+                    value={formData.city}
+                    onChange={handleChange}
+                    placeholder="ej. Palermo / CABA"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${
+                      errors.city ? 'border-cirqa-carmin' : 'border-cirqa-negro/15 focus:border-cirqa-primario'
+                    }`}
+                  />
+                  {errors.city && <p className="text-[10px] text-cirqa-carmin mt-1">{errors.city}</p>}
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    Provincia *
+                  </label>
+                  <select
+                    name="province"
+                    value={formData.province}
+                    onChange={handleChange}
+                    className="w-full px-3 py-2 rounded-xl border border-cirqa-negro/15 text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none focus:border-cirqa-primario"
+                  >
+                    {PROVINCIAS_ARG.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Dirección de Entrega */}
+              <div className="grid grid-cols-12 gap-2">
+                <div className="col-span-8 sm:col-span-9">
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    Calle / Avenida *
+                  </label>
+                  <input
+                    type="text"
+                    name="street"
+                    value={formData.street}
+                    onChange={handleChange}
+                    placeholder="ej. Av. del Libertador"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${
+                      errors.street ? 'border-cirqa-carmin' : 'border-cirqa-negro/15 focus:border-cirqa-primario'
+                    }`}
+                  />
+                  {errors.street && <p className="text-[10px] text-cirqa-carmin mt-1">{errors.street}</p>}
+                </div>
+
+                <div className="col-span-4 sm:col-span-3">
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    Altura / Nº *
+                  </label>
+                  <input
+                    type="text"
+                    name="number"
+                    value={formData.number}
+                    onChange={handleChange}
+                    placeholder="2450"
+                    className={`w-full px-3 py-2 rounded-xl border text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${
+                      errors.number ? 'border-cirqa-carmin' : 'border-cirqa-negro/15 focus:border-cirqa-primario'
+                    }`}
+                  />
+                  {errors.number && <p className="text-[10px] text-cirqa-carmin mt-1">{errors.number}</p>}
+                </div>
+              </div>
+
+              {/* Piso y Departamento */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    Piso (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    name="floor"
+                    value={formData.floor}
+                    onChange={handleChange}
+                    placeholder="4"
+                    className="w-full px-3 py-2 rounded-xl border border-cirqa-negro/15 text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none focus:border-cirqa-primario"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-cirqa-negro/70 mb-1">
+                    Depto (Opcional)
+                  </label>
+                  <input
+                    type="text"
+                    name="apartment"
+                    value={formData.apartment}
+                    onChange={handleChange}
+                    placeholder="B"
+                    className="w-full px-3 py-2 rounded-xl border border-cirqa-negro/15 text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none focus:border-cirqa-primario"
+                  />
+                </div>
+              </div>
+            </form>
+          </div>
+
+          {/* ========================================================= */}
+          {/* 3. BOTÓN DE ACCIÓN ÚNICA: PAGAR CON MERCADO PAGO          */}
+          {/* ========================================================= */}
+          <div className="p-6 border-t border-cirqa-negro/10 bg-[#FBFBFA] flex-shrink-0 space-y-3">
+            <div className="flex items-center justify-between text-xs text-cirqa-negro/70">
+              <span>Subtotal</span>
+              <span className="font-mono font-medium">$ {subtotal.toLocaleString('es-AR')}</span>
+            </div>
+            <div className="flex items-center justify-between text-xs text-emerald-700">
+              <span>Envío Asegurado Oficial</span>
+              <span className="font-semibold uppercase text-[10px] tracking-wider">Gratis</span>
+            </div>
+            <div className="flex items-center justify-between text-base font-medium text-cirqa-negro pt-1 border-t border-cirqa-negro/5">
+              <span>Total a Pagar</span>
+              <span className="font-mono text-xl font-bold text-cirqa-negro">
+                $ {total.toLocaleString('es-AR')}
+              </span>
+            </div>
+
+            <button
+              type="submit"
+              form="checkout-form"
+              disabled={isSubmitting || activeItems.length === 0}
+              className="w-full py-4 px-6 rounded-2xl bg-[#009EE3] hover:bg-[#0086C3] text-white font-semibold text-sm tracking-wide shadow-lg shadow-[#009EE3]/25 flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed group"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>Conectando con Mercado Pago...</span>
+                </>
+              ) : (
+                <>
+                  <CreditCard className="w-5 h-5 text-white/90" />
+                  <span>Pagar con Mercado Pago</span>
+                  <span className="text-xs bg-white/20 px-2 py-0.5 rounded-full font-mono">
+                    $ {total.toLocaleString('es-AR')}
+                  </span>
+                  <ArrowRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
+            </button>
+
+            <div className="flex items-center justify-center gap-3 pt-1 text-[10px] text-cirqa-negro/50">
+              <span className="flex items-center gap-1">
+                <Lock className="w-3 h-3 text-emerald-600" />
+                Pago Encriptado SSL
+              </span>
+              <span>•</span>
+              <span>Hasta 6 cuotas sin interés según banco</span>
+              <span>•</span>
+              <span className="flex items-center gap-1">
+                <ShieldCheck className="w-3 h-3 text-cirqa-primario" />
+                Garantía CIRQA
+              </span>
+            </div>
+          </div>
+        </motion.div>
+      </div>
+    </AnimatePresence>
+  );
+}

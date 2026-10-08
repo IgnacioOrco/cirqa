@@ -12,6 +12,8 @@ export default function ConfiguratorModal({
   onClose,
   initialModel = null,
   initialFilter = null,
+  initialVariantKey = null,
+  initialVariant = null,
   onOpenPrescription,
 }) {
   const { products } = useProducts({ all: false });
@@ -34,12 +36,17 @@ export default function ConfiguratorModal({
     }
   }, [initialModel, products]);
 
-  // Sincronizar filtro inicial
+  // Sincronizar filtro inicial o key de variante para modelos clásicos
   useEffect(() => {
     if (initialFilter) {
       setSelectedFilter(initialFilter);
+    } else if (initialVariantKey) {
+      const matchedFilter = FILTERS.find((f) => f.id === initialVariantKey);
+      if (matchedFilter) {
+        setSelectedFilter(matchedFilter);
+      }
     }
-  }, [initialFilter]);
+  }, [initialFilter, initialVariantKey]);
 
   if (!selectedModel && products.length > 0) {
     setSelectedModel(products[0]);
@@ -53,15 +60,26 @@ export default function ConfiguratorModal({
   );
   const variantsList = hasVariants ? currentModel.variants : [];
 
-  // Sincronizar variante seleccionada por defecto al cambiar de modelo
+  // Sincronizar variante seleccionada por defecto al cambiar de modelo o recibir initialVariantKey
   useEffect(() => {
     if (hasVariants && variantsList.length > 0) {
+      if (initialVariantKey) {
+        const found = variantsList.find((v) => v.key === initialVariantKey);
+        if (found) {
+          setSelectedVariant(found);
+          return;
+        }
+      }
+      if (initialVariant) {
+        setSelectedVariant(initialVariant);
+        return;
+      }
       const defaultVar = variantsList.find((v) => v.isDefault) || variantsList[0];
       setSelectedVariant(defaultVar);
     } else {
       setSelectedVariant(null);
     }
-  }, [currentModel?._id, currentModel?.id, hasVariants]);
+  }, [currentModel?._id, currentModel?.id, hasVariants, initialVariantKey, initialVariant]);
 
   const customImages = Array.isArray(currentModel.images) ? currentModel.images : [];
   const hasCustomImages = customImages.length > 0 && customImages[0]?.url && !customImages[0]?.url.includes('_DSC');

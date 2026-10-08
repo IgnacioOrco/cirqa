@@ -1,10 +1,22 @@
 import React from 'react';
-import { ShoppingBag } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { ShoppingBag, Sparkles } from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 
-export default function Navbar({ isDark = false }) {
+export default function Navbar({ isDark = false, onOpenQuiz }) {
   const { cartCount, openCheckout } = useCart();
+  const navigate = useNavigate();
+
+  const handleQuizClick = () => {
+    if (onOpenQuiz) {
+      onOpenQuiz();
+    } else {
+      window.dispatchEvent(new CustomEvent('open-circadian-quiz'));
+      if (window.location.pathname !== '/') {
+        navigate('/?quiz=true');
+      }
+    }
+  };
 
   return (
     <header
@@ -31,29 +43,37 @@ export default function Navbar({ isDark = false }) {
         </Link>
 
         {/* Minimalist Navigation & Cart Action */}
-        <div className="flex items-center gap-6 sm:gap-10">
-          <nav className="flex items-center gap-5 sm:gap-8 text-[11px] sm:text-[12px] font-medium tracking-[0.18em] uppercase">
+        <div className="flex items-center gap-4 sm:gap-8">
+          <nav className="flex items-center gap-4 sm:gap-7 text-[11px] sm:text-[12px] font-medium tracking-[0.16em] uppercase">
+            <button
+              onClick={handleQuizClick}
+              className="inline-flex items-center gap-1.5 text-cirqa-primario font-semibold hover:opacity-80 transition-opacity cursor-pointer group"
+              title="Descubrí tu rutina circadiana"
+            >
+              <Sparkles className="w-3.5 h-3.5 animate-pulse text-amber-500" />
+              <span>Descubrí tu rutina</span>
+            </button>
             <Link
               to="/catalogo"
-              className="text-cirqa-primario font-semibold hover:opacity-80 transition-opacity"
+              className="hover:text-cirqa-primario transition-colors duration-200 hidden md:inline-block"
             >
               Catálogo
             </Link>
             <a
               href="/#ritmo-circadiano"
-              className="hover:text-cirqa-primario transition-colors duration-200"
+              className="hover:text-cirqa-primario transition-colors duration-200 hidden sm:inline-block"
             >
               Tecnología
             </a>
             <a
               href="/#pasarela-productos"
-              className="hover:text-cirqa-primario transition-colors duration-200"
+              className="hover:text-cirqa-primario transition-colors duration-200 hidden sm:inline-block"
             >
               Modelos
             </a>
             <a
               href="/#nosotros"
-              className="hover:text-cirqa-primario transition-colors duration-200"
+              className="hover:text-cirqa-primario transition-colors duration-200 hidden lg:inline-block"
             >
               Nosotros
             </a>

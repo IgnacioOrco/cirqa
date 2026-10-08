@@ -6,6 +6,7 @@ import Navbar from '../components/Navbar';
 import PhilosophyAndFooter from '../components/PhilosophyAndFooter';
 import ConfiguratorModal from '../components/ConfiguratorModal';
 import PrescriptionDrawer from '../components/PrescriptionDrawer';
+import CircadianQuizModal from '../components/CircadianQuizModal';
 import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { getProductImage as getStudioProductImage } from '../data/productImages';
@@ -20,6 +21,10 @@ export default function Catalog() {
   // Configurator Modal state
   const [configuratorOpen, setConfiguratorOpen] = useState(false);
   const [activeModel, setActiveModel] = useState(null);
+  const [activeVariantKey, setActiveVariantKey] = useState(null);
+
+  // Circadian Quiz state
+  const [quizOpen, setQuizOpen] = useState(false);
 
   // Prescription Drawer state
   const [prescriptionOpen, setPrescriptionOpen] = useState(false);
@@ -31,6 +36,13 @@ export default function Catalog() {
 
   const handleOpenConfigurator = (model) => {
     setActiveModel(model);
+    setActiveVariantKey(null);
+    setConfiguratorOpen(true);
+  };
+
+  const handleQuizRecommendation = (recommendedProduct, recommendedVariantKey) => {
+    setActiveModel(recommendedProduct);
+    setActiveVariantKey(recommendedVariantKey);
     setConfiguratorOpen(true);
   };
 
@@ -63,7 +75,7 @@ export default function Catalog() {
 
   return (
     <div className="min-h-screen bg-white text-cirqa-negro font-montserrat flex flex-col selection:bg-cirqa-arena selection:text-cirqa-negro">
-      <Navbar />
+      <Navbar onOpenQuiz={() => setQuizOpen(true)} />
 
       <main className="flex-grow pt-28 pb-20">
         <div className="max-w-7xl mx-auto px-6">
@@ -319,7 +331,14 @@ export default function Catalog() {
         isOpen={configuratorOpen}
         onClose={() => setConfiguratorOpen(false)}
         initialModel={activeModel}
+        initialVariantKey={activeVariantKey}
         onOpenPrescription={(model) => handleOpenPrescription(model)}
+      />
+
+      <CircadianQuizModal
+        isOpen={quizOpen}
+        onClose={() => setQuizOpen(false)}
+        onSelectRecommendation={handleQuizRecommendation}
       />
 
       <PrescriptionDrawer

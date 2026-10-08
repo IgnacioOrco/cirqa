@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle, ArrowRight } from 'lucide-react';
 import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { getProductImage as getStudioProductImage } from '../data/productImages';
@@ -148,32 +149,42 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
             </p>
           </div>
           
-          {/* Controles de Navegación & Refresco */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => refetch()}
-              className="w-10 h-10 rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro/70 hover:text-cirqa-negro hover:border-cirqa-negro transition-all shadow-sm"
-              title="Sincronizar catálogo"
-              aria-label="Refrescar catálogo"
+          {/* Controles de Navegación & Botón Ver Catálogo Completo */}
+          <div className="flex flex-wrap items-center gap-3">
+            <Link
+              to="/catalogo"
+              className="inline-flex items-center gap-2 px-5 py-2.5 bg-cirqa-negro text-white hover:bg-cirqa-primario rounded-full text-xs font-semibold uppercase tracking-wider transition-all shadow-xs group cursor-pointer"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button
-              onClick={() => scroll('left')}
-              disabled={!canScrollLeft}
-              className="w-10 h-10 rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro hover:border-cirqa-negro hover:bg-cirqa-negro hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-cirqa-negro transition-all shadow-sm"
-              aria-label="Anterior"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => scroll('right')}
-              disabled={!canScrollRight}
-              className="w-10 h-10 rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro hover:border-cirqa-negro hover:bg-cirqa-negro hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-cirqa-negro transition-all shadow-sm"
-              aria-label="Siguiente"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
+              <span>Ver Catálogo Completo</span>
+              <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
+            </Link>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => refetch()}
+                className="w-10 h-10 rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro/70 hover:text-cirqa-negro hover:border-cirqa-negro transition-all shadow-sm"
+                title="Sincronizar catálogo"
+                aria-label="Refrescar catálogo"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+              </button>
+              <button
+                onClick={() => scroll('left')}
+                disabled={!canScrollLeft}
+                className="w-10 h-10 rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro hover:border-cirqa-negro hover:bg-cirqa-negro hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-cirqa-negro transition-all shadow-sm"
+                aria-label="Anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => scroll('right')}
+                disabled={!canScrollRight}
+                className="w-10 h-10 rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro hover:border-cirqa-negro hover:bg-cirqa-negro hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-cirqa-negro transition-all shadow-sm"
+                aria-label="Siguiente"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         </div>
 
@@ -402,9 +413,42 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
               );
             })}
 
+            {/* Tarjeta Final: Acceso al Catálogo Completo */}
+            <div className="flex-shrink-0 w-[240px] sm:w-[280px] snap-center flex flex-col justify-center items-center p-8 bg-white/70 hover:bg-white rounded-3xl border border-dashed border-cirqa-negro/20 text-center space-y-4 group transition-all shadow-2xs">
+              <div className="w-12 h-12 rounded-full bg-cirqa-negro/5 group-hover:bg-cirqa-primario/10 flex items-center justify-center transition-colors">
+                <ArrowRight className="w-5 h-5 text-cirqa-negro/70 group-hover:text-cirqa-primario transition-colors" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-cirqa-negro">
+                  ¿Buscás más modelos?
+                </h4>
+                <p className="text-xs text-cirqa-negro/60 font-light mt-1">
+                  Explorá todos los armazones y filtros de la colección oficial.
+                </p>
+              </div>
+              <Link
+                to="/catalogo"
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-cirqa-negro text-white hover:bg-cirqa-primario rounded-full text-[11px] font-bold uppercase tracking-wider transition-all"
+              >
+                <span>Ver Catálogo</span>
+                <ArrowRight className="w-3 h-3" />
+              </Link>
+            </div>
+
             {/* Espaciador final para scroll fluido */}
             <div className="w-2 sm:w-6 flex-shrink-0 pointer-events-none" aria-hidden="true" />
           </div>
+        </div>
+
+        {/* Botón Central Inferior: Ver Catálogo Completo */}
+        <div className="mt-8 flex justify-center">
+          <Link
+            to="/catalogo"
+            className="inline-flex items-center gap-2.5 px-8 py-3.5 bg-cirqa-negro hover:bg-cirqa-primario text-white rounded-full text-xs font-semibold uppercase tracking-widest transition-all shadow-sm hover:shadow-md group cursor-pointer"
+          >
+            <span>Ver Catálogo Completo</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </Link>
         </div>
 
       </div>
