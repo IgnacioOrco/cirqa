@@ -141,11 +141,14 @@ const orderSchema = new mongoose.Schema(
       },
       shippingAddress: {
         street: { type: String, trim: true },
+        number: { type: String, trim: true, default: 'S/N' },
         floor: { type: String, trim: true },
         apartment: { type: String, trim: true },
         city: { type: String, trim: true },
-        state: { type: String, trim: true },
-        zipCode: { type: String, trim: true },
+        province: { type: String, trim: true, default: 'Ciudad Autónoma de Buenos Aires' },
+        state: { type: String, trim: true, default: 'Ciudad Autónoma de Buenos Aires' },
+        postalCode: { type: String, trim: true, default: '' },
+        zipCode: { type: String, trim: true, default: '' },
       },
     },
 
@@ -247,6 +250,25 @@ const orderSchema = new mongoose.Schema(
 
 // Middleware pre-validate para auto-generación de orderNumber, cálculo consistente y sincronización
 orderSchema.pre('validate', function (next) {
+  // 0. Sincronización robusta de dirección de envío y sinónimos (postalCode <-> zipCode, province <-> state, number)
+  if (this.customer && this.customer.shippingAddress) {
+    const addr = this.customer.shippingAddress;
+    const zip = addr.postalCode || addr.zipCode || '';
+    addr.postalCode = zip;
+    addr.zipCode = zip;
+
+    const prov = addr.province || addr.state || 'Ciudad Autónoma de Buenos Aires';
+    addr.province = prov;
+    addr.state = prov;
+
+    if (!addr.number && addr.street) {
+      const match = String(addr.street).match(/\d+/);
+      addr.number = match ? match[0] : 'S/N';
+    } else if (!addr.number) {
+      addr.number = 'S/N';
+    }
+  }
+
   // 1. Auto-generación de orderNumber con formato CQ-AÑO-RANDOM (ej: CQ-2026-784912)
   if (!this.orderNumber) {
     const year = new Date().getFullYear();

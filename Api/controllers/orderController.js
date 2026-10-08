@@ -315,10 +315,36 @@ export const createPreference = async (req, res, next) => {
     const randomCode = Math.floor(100000 + Math.random() * 900000);
     const orderNumber = `CQ-${year}-${randomCode}`;
 
+    // Normalizar datos del comprador y dirección de envío para garantizar compatibilidad total con Mongoose
+    const rawAddr = customer.shippingAddress || {};
+    const streetRaw = String(rawAddr.street || '').trim();
+    const streetNumber = String(rawAddr.number || '').trim() || (streetRaw.match(/\d+/) ? streetRaw.match(/\d+/)[0] : 'S/N');
+    const zip = String(rawAddr.postalCode || rawAddr.zipCode || '').trim() || 'C1000';
+    const prov = String(rawAddr.province || rawAddr.state || 'Ciudad Autónoma de Buenos Aires').trim();
+    const city = String(rawAddr.city || '').trim() || prov;
+
+    const normalizedCustomer = {
+      name: String(customer.name || '').trim(),
+      email: String(customer.email || '').trim().toLowerCase(),
+      phone: String(customer.phone || '').trim(),
+      dni: String(customer.dni || '').trim(),
+      shippingAddress: {
+        street: streetRaw,
+        number: streetNumber,
+        floor: rawAddr.floor || undefined,
+        apartment: rawAddr.apartment || undefined,
+        city: city,
+        province: prov,
+        state: prov,
+        postalCode: zip,
+        zipCode: zip,
+      },
+    };
+
     // 5. Crear el documento de la Orden en MongoDB con los ítems validados
     const order = new Order({
       orderNumber,
-      customer,
+      customer: normalizedCustomer,
       items: validatedItems,
       subtotal,
       discountAmount,
@@ -414,16 +440,16 @@ export const createPreference = async (req, res, next) => {
         body: {
           items: mpItems,
           payer: {
-            name: customer.name,
-            email: customer.email,
-            phone: customer.phone ? { number: customer.phone } : undefined,
-            identification: customer.dni
-              ? { type: 'DNI', number: String(customer.dni) }
+            name: normalizedCustomer.name,
+            email: normalizedCustomer.email,
+            phone: normalizedCustomer.phone ? { number: normalizedCustomer.phone } : undefined,
+            identification: normalizedCustomer.dni
+              ? { type: 'DNI', number: String(normalizedCustomer.dni) }
               : undefined,
-            address: customer.shippingAddress
+            address: normalizedCustomer.shippingAddress
               ? {
-                  street_name: customer.shippingAddress.street || '',
-                  zip_code: customer.shippingAddress.zipCode || '',
+                  street_name: normalizedCustomer.shippingAddress.street || '',
+                  zip_code: normalizedCustomer.shippingAddress.postalCode || normalizedCustomer.shippingAddress.zipCode || '',
                 }
               : undefined,
           },
@@ -439,7 +465,7 @@ export const createPreference = async (req, res, next) => {
           metadata: {
             order_id: order._id.toString(),
             order_number: order.orderNumber,
-            customer_email: customer.email,
+            customer_email: normalizedCustomer.email,
           },
         },
       };
