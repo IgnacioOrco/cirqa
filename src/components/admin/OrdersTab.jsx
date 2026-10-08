@@ -178,10 +178,15 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
   // Abrir Modal de Detalle
   const handleOpenDetail = (order) => {
     setSelectedOrder(order);
+    const initialShippingStatus =
+      order.shipping?.status ||
+      order.shippingStatus ||
+      (order.status === 'shipped' ? 'ENVIADO' : order.status === 'delivered' ? 'ENTREGADO' : 'PENDIENTE');
+
     setShippingForm({
       carrier: order.shipping?.carrier || order.carrier || 'Zipnova',
       trackingNumber: order.shipping?.trackingNumber || order.trackingNumber || '',
-      status: order.shipping?.status || order.shippingStatus || 'PENDIENTE',
+      status: initialShippingStatus,
     });
   };
 
@@ -192,7 +197,24 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
 
     setSavingShipping(true);
     try {
-      await orderService.updateOrderShipping(selectedOrder._id, shippingForm);
+      const norm = String(shippingForm.status || '').toUpperCase();
+      const mappedOrderStatus =
+        norm === 'ENVIADO'
+          ? 'shipped'
+          : norm === 'ENTREGADO'
+          ? 'delivered'
+          : (selectedOrder.status || '').toLowerCase() === 'paid'
+          ? 'paid'
+          : 'pending';
+
+      const payload = {
+        carrier: shippingForm.carrier,
+        trackingNumber: shippingForm.trackingNumber,
+        status: mappedOrderStatus,
+        shippingStatus: shippingForm.status,
+      };
+
+      await orderService.updateOrderShipping(selectedOrder._id, payload);
 
       if (showToast) {
         showToast('Logística y estado de envío actualizados correctamente', 'success');
@@ -203,9 +225,12 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
           o._id === selectedOrder._id
             ? {
                 ...o,
+                status: mappedOrderStatus,
                 shipping: {
                   ...(o.shipping || {}),
-                  ...shippingForm,
+                  carrier: shippingForm.carrier,
+                  trackingNumber: shippingForm.trackingNumber,
+                  status: shippingForm.status,
                 },
                 shippingStatus: shippingForm.status,
               }
@@ -215,9 +240,12 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
 
       setSelectedOrder((prev) => ({
         ...prev,
+        status: mappedOrderStatus,
         shipping: {
           ...(prev?.shipping || {}),
-          ...shippingForm,
+          carrier: shippingForm.carrier,
+          trackingNumber: shippingForm.trackingNumber,
+          status: shippingForm.status,
         },
         shippingStatus: shippingForm.status,
       }));
@@ -320,7 +348,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
 
   const renderShippingBadge = (status) => {
     const norm = (status || 'PENDIENTE').toUpperCase();
-    if (norm === 'ENTREGADO') {
+    if (norm === 'ENTREGADO' || norm === 'DELIVERED') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
           <CheckCircle2 className="w-3 h-3 text-emerald-600" />
@@ -328,7 +356,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
         </span>
       );
     }
-    if (norm === 'ENVIADO') {
+    if (norm === 'ENVIADO' || norm === 'SHIPPED') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
           <Truck className="w-3 h-3 text-indigo-600" />
@@ -336,7 +364,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
         </span>
       );
     }
-    if (norm === 'PREPARACION' || norm === 'PREPARACIÓN') {
+    if (norm === 'PREPARACION' || norm === 'PREPARACIÓN' || norm === 'PROCESSING') {
       return (
         <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
           <Package className="w-3 h-3 text-amber-600" />

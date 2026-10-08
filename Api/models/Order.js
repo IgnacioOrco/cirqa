@@ -215,6 +215,14 @@ const orderSchema = new mongoose.Schema(
           'CANCELLED',
           'SHIPPED',
           'DELIVERED',
+          'ENVIADO',
+          'enviado',
+          'PREPARACION',
+          'preparacion',
+          'PENDIENTE',
+          'pendiente',
+          'ENTREGADO',
+          'entregado',
         ],
         message: '{VALUE} no es un estado válido de orden',
       },
@@ -326,9 +334,20 @@ orderSchema.pre('validate', function (next) {
   // Sincronizar paymentMethod en formato compatible
   this.paymentMethod = this.payment.method === 'transfer' ? 'TRANSFERENCIA' : 'MERCADO_PAGO';
 
-  // 6. Normalizar status si viene en mayúsculas
+  // 6. Normalizar status si viene en mayúsculas o en español
   if (this.status) {
-    this.status = this.status.toLowerCase();
+    const sLower = String(this.status).toLowerCase();
+    if (sLower === 'enviado') {
+      this.status = 'shipped';
+    } else if (sLower === 'entregado') {
+      this.status = 'delivered';
+    } else if (sLower === 'preparacion' || sLower === 'preparación') {
+      this.status = this.status === 'paid' ? 'paid' : 'pending';
+    } else if (sLower === 'pendiente') {
+      this.status = 'pending';
+    } else {
+      this.status = sLower;
+    }
   } else {
     this.status = 'pending';
   }

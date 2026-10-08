@@ -368,7 +368,29 @@ export const orderService = {
    * @param {Object} shippingData - { carrier, trackingNumber, status, ... }
    */
   async updateOrderShipping(orderId, shippingData) {
-    const res = await api.patch(`/api/orders/${orderId}/shipping`, shippingData);
+    const rawStatus = shippingData.shippingStatus || shippingData.status;
+    let mappedStatus = shippingData.status;
+
+    if (rawStatus) {
+      const norm = String(rawStatus).toUpperCase();
+      if (norm === 'ENVIADO') mappedStatus = 'shipped';
+      else if (norm === 'ENTREGADO') mappedStatus = 'delivered';
+      else if (norm === 'PREPARACION' || norm === 'PENDIENTE') mappedStatus = 'pending';
+    }
+
+    const payload = {
+      ...shippingData,
+      status: mappedStatus,
+      shippingStatus: rawStatus,
+      shipping: {
+        carrier: shippingData.carrier,
+        trackingNumber: shippingData.trackingNumber,
+        status: rawStatus,
+        deliveryStatus: mappedStatus,
+      },
+    };
+
+    const res = await api.patch(`/api/orders/${orderId}/shipping`, payload);
     return res.data || res;
   },
 

@@ -660,7 +660,7 @@ export const getOrderById = async (req, res, next) => {
 export const updateOrderShipping = async (req, res, next) => {
   try {
     const { orderId } = req.params;
-    const { carrier, trackingNumber, status } = req.body;
+    const { carrier, trackingNumber, status, shippingStatus } = req.body;
 
     const order = await Order.findById(orderId);
     if (!order) {
@@ -674,9 +674,26 @@ export const updateOrderShipping = async (req, res, next) => {
       order.shipping = {};
     }
 
+    const effectiveShippingStatus = shippingStatus || status;
+
     if (carrier !== undefined) order.shipping.carrier = carrier;
     if (trackingNumber !== undefined) order.shipping.trackingNumber = trackingNumber;
-    if (status !== undefined) order.shipping.status = status;
+    if (effectiveShippingStatus !== undefined) order.shipping.status = effectiveShippingStatus;
+
+    if (effectiveShippingStatus) {
+      const norm = String(effectiveShippingStatus).toUpperCase();
+      if (norm === 'ENVIADO' || norm === 'SHIPPED') {
+        order.status = 'shipped';
+        order.shipping.shippedAt = new Date();
+      } else if (norm === 'ENTREGADO' || norm === 'DELIVERED') {
+        order.status = 'delivered';
+      }
+    } else if (status) {
+      const norm = String(status).toLowerCase();
+      if (norm === 'shipped' || norm === 'delivered' || norm === 'pending') {
+        order.status = norm;
+      }
+    }
 
     await order.save();
 
