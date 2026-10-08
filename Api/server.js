@@ -28,14 +28,59 @@ connectDB();
 
 const app = express();
 
-// Configuración de CORS
-const corsOptions = {
-  origin: process.env.CLIENT_URL || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
-  credentials: true,
+// Configuración dinámica y robusta de CORS
+const explicitOrigins = [
+  'https://www.cirqa.com.ar',
+  'https://cirqa.com.ar',
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:4173',
+  ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map((u) => u.trim()) : []),
+].filter(Boolean);
+
+const isOriginAllowed = (origin) => {
+  // Permitir solicitudes sin origin (como cURL, mobile apps, server-to-server, scripts, postman)
+  if (!origin) return true;
+
+  // Coincidencia exacta con lista configurada
+  if (explicitOrigins.includes(origin)) return true;
+
+  // Permitir cualquier subdominio o dominio de CIRQA (ej: https://www.cirqa.com.ar, https://cirqa.com.ar)
+  if (/^https?:\/\/([a-z0-9-]+\.)*cirqa\.com\.ar(:\d+)?$/i.test(origin)) return true;
+
+  // Permitir desarrollo local (localhost o 127.0.0.1 con cualquier puerto)
+  if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
+
+  // Permitir previews de Vercel
+  if (/^https?:\/\/([a-z0-9-]+\.)*vercel\.app$/i.test(origin)) return true;
+
+  return false;
 };
+
+const corsOptions = {
+  origin: (origin, callback) => {
+    if (isOriginAllowed(origin)) {
+      callback(null, true);
+    } else {
+      console.warn(`[CORS Blocked] Origen no autorizado: ${origin}`);
+      callback(null, false);
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'Origin',
+  ],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  credentials: true,
+  optionsSuccessStatus: 200,
+};
+
 app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Middlewares para parseo de solicitudes
 app.use(express.json());

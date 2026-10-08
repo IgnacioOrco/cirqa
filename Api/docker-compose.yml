@@ -13,7 +13,7 @@ services:
       - NODE_ENV=production
       - MONGO_URI=mongodb://mongo:27017/cirqa
       - JWT_SECRET=cirqa_secret_jwt_key_prod_2026
-      - CLIENT_URL=https://cirqa.com.ar
+      - CLIENT_URL=https://www.cirqa.com.ar,https://cirqa.com.ar
     volumes:
       # =========================================================================
       # VOLUMEN PERSISTENTE: Mapea la carpeta ./uploads del host VPS a /app/uploads
