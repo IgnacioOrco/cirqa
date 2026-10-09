@@ -305,8 +305,17 @@ export default function CheckoutDrawer() {
     const shippingMethodTitle = selectedShippingOption
       ? selectedShippingOption.name
       : 'Envío a Domicilio - Zipnova';
+    const subtotalAmount = subtotal;
+    const discount = selectedMethod === 'transfer' ? Math.round(subtotalAmount * 0.15) : 0;
+    const shippingPrice = Number(selectedShippingOption?.cost || selectedShippingOption?.price || 0);
+    const totalCalc = (subtotalAmount - discount) + shippingPrice;
 
     return {
+      paymentMethod: selectedMethod,
+      subtotal: subtotalAmount,
+      discountAmount: discount,
+      shippingCost: shippingPrice,
+      totalAmount: totalCalc,
       customer: {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -346,17 +355,15 @@ export default function CheckoutDrawer() {
           image: item.image || '/products/_DSC8649.webp',
         };
       }),
-      shippingCost,
       shippingMethod: shippingMethodTitle,
       shipping: {
         carrier: selectedShippingOption?.carrier || 'Zipnova',
-        cost: shippingCost,
+        cost: shippingPrice,
         status: 'PENDIENTE',
         deliveryStatus: 'pending',
         trackingNumber: '',
         zipnovaShipmentId: '',
       },
-      paymentMethod: selectedMethod,
       payment: {
         method: selectedMethod,
         provider: selectedMethod === 'transfer' ? 'transfer' : 'mercadopago',

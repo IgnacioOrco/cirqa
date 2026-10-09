@@ -6,7 +6,7 @@ import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { getProductImage as getStudioProductImage } from '../data/productImages';
 import { formatMediaUrl } from '../services/api';
-import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage } from '../utils/productImages';
+import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage, matchVariantKey } from '../utils/productImages';
 
 export default function ProductShowcaseCarousel({ onSelectModel }) {
   const containerRef = useRef(null);
@@ -188,8 +188,8 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
 
               const currentSelectedKey = state.filterId || state.variantKey || product.lensDefault || (variantOptions[0]?.key || 'dia');
               const currentOptionObj =
-                variantOptions.find((o) => o.key === currentSelectedKey) ||
-                FILTERS.find((f) => f.id === currentSelectedKey) ||
+                variantOptions.find((o) => matchVariantKey(o.key, currentSelectedKey)) ||
+                FILTERS.find((f) => matchVariantKey(f.id, currentSelectedKey)) ||
                 variantOptions[0] ||
                 FILTERS[0];
               const glowColor = currentOptionObj?.color || '#F3B93A';
@@ -236,13 +236,13 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                       style={{ backgroundColor: glowColor }}
                     />
 
-                    {/* Contenedor relativo de imágenes con transición suave crossfade */}
-                    <div className="relative w-full h-full flex items-center justify-center p-4 z-10">
+                    {/* Contenedor relativo de imágenes con transición suave crossfade - Eliminación Total de Cuadro */}
+                    <div className="relative w-full h-full flex items-center justify-center bg-transparent z-10">
                       {/* Imagen Base (Portada) */}
                       <img
                         src={formatMediaUrl(primaryImg)}
                         alt={`${product.name} - CIRQA`}
-                        className={`w-full h-full object-contain p-4 select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] transition-all duration-300 ${
+                        className={`w-full h-full object-contain p-2 mix-blend-multiply select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] transition-all duration-300 ${
                           isHovered && hoverImg !== primaryImg ? 'opacity-0' : 'opacity-100'
                         }`}
                         style={{ mixBlendMode: 'multiply' }}
@@ -258,7 +258,7 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                         <img
                           src={formatMediaUrl(hoverImg)}
                           alt={`${product.name} Hover - CIRQA`}
-                          className={`absolute inset-0 m-auto w-full h-full object-contain p-4 select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] transition-all transition-opacity duration-300 pointer-events-none ${
+                          className={`absolute inset-0 m-auto w-full h-full object-contain p-2 mix-blend-multiply select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] transition-all transition-opacity duration-300 pointer-events-none ${
                             isHovered ? 'opacity-100' : 'opacity-0'
                           }`}
                           style={{ mixBlendMode: 'multiply' }}
@@ -288,7 +288,7 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
 
                     <div className="grid grid-cols-4 gap-1.5">
                       {variantOptions.map((opt) => {
-                        const isSelected = currentSelectedKey === opt.key;
+                        const isSelected = matchVariantKey(currentSelectedKey, opt.key);
                         return (
                           <button
                             key={opt.key}

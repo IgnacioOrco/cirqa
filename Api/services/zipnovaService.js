@@ -321,10 +321,11 @@ export const createShipment = async (order) => {
 
       return {
         success: true,
-        carrier,
-        trackingNumber,
+        shipmentId: zipnovaShipmentId,
         zipnovaShipmentId,
+        trackingNumber,
         labelUrl,
+        carrier,
         service: resObj.service_type || 'standard',
         isSimulated: false,
       };
@@ -349,10 +350,11 @@ export const createShipment = async (order) => {
 
   return {
     success: true,
-    carrier: order.shipping?.carrier || 'Zipnova',
-    trackingNumber: fallbackTracking,
+    shipmentId: fallbackShipmentId,
     zipnovaShipmentId: fallbackShipmentId,
+    trackingNumber: fallbackTracking,
     labelUrl,
+    carrier: order.shipping?.carrier || 'Zipnova',
     service: 'standard',
     isSimulated: true,
   };

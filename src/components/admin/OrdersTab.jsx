@@ -395,7 +395,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-xs">
           <Building2 className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" />
-          Transferencia Bancaria (15% OFF)
+          Transferencia (15% OFF)
         </span>
       );
     }
@@ -733,6 +733,38 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                             </button>
                           )}
 
+                          {/* Botón de Etiqueta o Generar Envío en la Fila */}
+                          {order.shipping?.labelUrl ? (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(order.shipping.labelUrl, '_blank', 'noopener,noreferrer');
+                              }}
+                              className="px-2.5 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-all inline-flex items-center gap-1 text-[10px] font-bold shadow-xs cursor-pointer"
+                              title="🖨️ Imprimir Etiqueta"
+                            >
+                              <span>🖨️ Etiqueta</span>
+                            </button>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleGenerateShipnovaShipping(order);
+                              }}
+                              disabled={generatingShippingId === order._id}
+                              className="px-2.5 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-cirqa-negro/80 border border-cirqa-negro/15 transition-all inline-flex items-center gap-1 text-[10px] font-medium shadow-xs cursor-pointer disabled:opacity-50"
+                              title="📦 Generar Envío Shipnova"
+                            >
+                              {generatingShippingId === order._id ? (
+                                <RefreshCw className="w-3 h-3 animate-spin" />
+                              ) : (
+                                <span>📦 Envío</span>
+                              )}
+                            </button>
+                          )}
+
                           <button
                             type="button"
                             onClick={() => handleOpenDetail(order)}
@@ -925,14 +957,14 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                     {/* Desglose Financiero Completo */}
                     <div className="pt-3 border-t border-cirqa-negro/10 space-y-1.5 text-xs">
                       <div className="flex items-center justify-between text-cirqa-negro/70">
-                        <span>Subtotal Productos:</span>
+                        <span>Subtotal:</span>
                         <span className="font-mono">
                           ${(Number(selectedOrder.subtotal || selectedOrder.items?.reduce((acc, it) => acc + (Number(it.price || 0) * (it.quantity || 1)), 0) || 0)).toLocaleString('es-AR')}
                         </span>
                       </div>
                       {Number(selectedOrder.discountAmount) > 0 && (
                         <div className="flex items-center justify-between text-emerald-700 font-medium">
-                          <span>Descuento Transferencia (15% OFF):</span>
+                          <span>Descuento 15% OFF:</span>
                           <span className="font-mono">
                             -${Number(selectedOrder.discountAmount).toLocaleString('es-AR')}
                           </span>
@@ -945,7 +977,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                         </span>
                       </div>
                       <div className="flex items-center justify-between text-sm font-bold text-cirqa-negro pt-2 border-t border-cirqa-negro/10">
-                        <span>Total de la Orden:</span>
+                        <span>Total Final:</span>
                         <span className="font-mono text-base font-extrabold text-cirqa-negro">
                           ${(Number(selectedOrder.totalAmount) || 0).toLocaleString('es-AR')} ARS
                         </span>
@@ -1044,19 +1076,16 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                             </span>
                           </div>
 
-                          {/* Botón Funcional: Imprimir Etiqueta */}
+                          {/* Botón Destacado: Imprimir Etiqueta */}
                           <button
                             type="button"
                             onClick={() => {
-                              const labelUrl =
-                                selectedOrder.shipping?.labelUrl ||
-                                `/api/shipping/label/${selectedOrder._id}`;
-                              window.open(labelUrl, '_blank', 'noopener,noreferrer');
+                              window.open(selectedOrder.shipping.labelUrl, '_blank', 'noopener,noreferrer');
                             }}
-                            className="w-full mt-2 py-2.5 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                            className="w-full mt-2 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer"
                           >
                             <Printer className="w-4 h-4" />
-                            <span>Imprimir Etiqueta (PDF / Térmica)</span>
+                            <span>🖨️ Imprimir Etiqueta</span>
                           </button>
                         </div>
                       ) : (
@@ -1068,7 +1097,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                             type="button"
                             onClick={() => handleGenerateShipnovaShipping(selectedOrder)}
                             disabled={generatingShippingId === selectedOrder._id}
-                            className="w-full py-2.5 px-3 rounded-xl bg-cirqa-negro hover:bg-cirqa-negro/85 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer disabled:opacity-50"
+                            className="w-full py-3 px-4 rounded-xl bg-cirqa-negro hover:bg-cirqa-negro/85 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50"
                           >
                             {generatingShippingId === selectedOrder._id ? (
                               <>
@@ -1077,8 +1106,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                               </>
                             ) : (
                               <>
-                                <Send className="w-3.5 h-3.5 text-indigo-400" />
-                                <span>Generar Envío Shipnova</span>
+                                <span>📦 Generar Envío Shipnova</span>
                               </>
                             )}
                           </button>

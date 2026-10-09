@@ -5,6 +5,7 @@ import { formatMediaUrl } from '../services/api';
 import {
   getPrimaryProductImage,
   getHoverProductImage,
+  matchVariantKey,
   DEFAULT_CIRCADIAN_VARIANTS,
 } from '../utils/productImages';
 import { FILTERS } from '../data/filters';
@@ -51,8 +52,8 @@ export default function ProductCard({
     'dia';
 
   const activeOptionObj =
-    variantOptions.find((o) => o.key === activeVariantKey) ||
-    FILTERS.find((f) => f.id === activeVariantKey) ||
+    variantOptions.find((o) => matchVariantKey(o.key, activeVariantKey)) ||
+    FILTERS.find((f) => matchVariantKey(f.id, activeVariantKey)) ||
     variantOptions[0] ||
     FILTERS[0];
 
@@ -98,13 +99,13 @@ export default function ProductCard({
           style={{ backgroundColor: glowColor }}
         />
 
-        {/* Escenario de Imagen con Crossfade Suave */}
-        <div className="relative w-full h-full flex items-center justify-center p-4 z-10">
+        {/* Escenario de Imagen con Crossfade Suave - Eliminación Total de Cuadro */}
+        <div className="relative w-full h-full flex items-center justify-center bg-transparent z-10">
           {/* Foto de Portada (Base) */}
           <img
             src={formatMediaUrl(primaryImg)}
             alt={`${product.name} - ${activeOptionObj?.name || 'CIRQA'}`}
-            className={`w-full h-full object-contain p-4 filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none ${
+            className={`w-full h-full object-contain p-2 mix-blend-multiply filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none ${
               isHovered && hasDistinctHover ? 'opacity-0' : 'opacity-100'
             }`}
             style={{ mixBlendMode: 'multiply' }}
@@ -120,7 +121,7 @@ export default function ProductCard({
             <img
               src={formatMediaUrl(hoverImg)}
               alt={`${product.name} - Vista lateral`}
-              className={`w-full h-full object-contain p-4 filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none absolute inset-0 m-auto ${
+              className={`w-full h-full object-contain p-2 mix-blend-multiply filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none absolute inset-0 m-auto ${
                 isHovered ? 'opacity-100' : 'opacity-0'
               }`}
               style={{ mixBlendMode: 'multiply' }}
@@ -166,7 +167,7 @@ export default function ProductCard({
             </span>
             <div className="flex items-center gap-1.5">
               {variantOptions.slice(0, 4).map((variant) => {
-                const isSelected = activeVariantKey === variant.key;
+                const isSelected = matchVariantKey(activeVariantKey, variant.key);
                 return (
                   <button
                     key={variant.key}

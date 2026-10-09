@@ -112,25 +112,38 @@ export const getSortedProductImages = (product) => {
  * Solo si no hay imágenes en BD, fallback a modelo clásico o general.
  */
 /**
- * Helper para verificar coincidencia entre variantKey de imagen y clave solicitada
+ * Normalizador universal de claves de variantes (remueve acentos, mayúsculas y espacios)
  */
-export const matchVariantKey = (vk, targetKey) => {
-  if (!vk || !targetKey) return false;
-  const v = vk.toString().toLowerCase().trim();
-  const t = targetKey.toString().toLowerCase().trim();
-  if (v === t) return true;
+export const normalizeVariantKey = (key) => {
+  if (!key) return '';
+  return key
+    .toString()
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, ''); // día -> dia, transición -> transicion
+};
+
+/**
+ * Helper para verificar coincidencia estricta y semántica entre variantKeys
+ */
+export const matchVariantKey = (keyA, keyB) => {
+  if (!keyA || !keyB) return false;
+  const a = normalizeVariantKey(keyA);
+  const b = normalizeVariantKey(keyB);
+  if (a === b) return true;
 
   const circadianMap = {
     dia: ['amarillo', 'foco', 'pantallas', 'dia'],
-    transicion: ['ambar', 'ámbar', 'atardecer', 'naranja', 'transicion', 'transición'],
-    noche: ['rojo', 'descanso', 'carmin', 'carmín', 'noche'],
+    transicion: ['ambar', 'atardecer', 'naranja', 'transicion'],
+    noche: ['rojo', 'descanso', 'carmin', 'noche'],
     clear: ['transparente', 'neutro', 'blanco', 'clear'],
   };
 
   for (const [canonical, aliases] of Object.entries(circadianMap)) {
-    if (aliases.includes(t) && (v === canonical || aliases.includes(v))) return true;
+    if ((a === canonical || aliases.includes(a)) && (b === canonical || aliases.includes(b))) return true;
   }
-  return v.includes(t) || t.includes(v);
+  return a.includes(b) || b.includes(a);
 };
 
 /**
@@ -207,53 +220,59 @@ export const getHoverProductImage = (product, primaryUrl = null, variantKey = nu
   if (!product) return FALLBACK_IMAGE;
   const resolvedPrimary = primaryUrl || getPrimaryProductImage(product, variantKey);
 
-  // 1. Prioridad absoluta a MongoDB
+  // 1. Prioridad absoluta a MongoDB: anula cualquier fallback estático a public/
   if (Array.isArray(product.images) && product.images.length > 0) {
     const validImages = product.images.filter((img) => img && (img.url || img.imageUrl));
     if (validImages.length > 0) {
-      // A. Buscar en fotos de la misma variante
+      // A. Si se especificó variante, buscar estrictamente dentro de las fotos de esa misma variante
       if (variantKey) {
         const variantImages = validImages.filter((img) => matchVariantKey(img.variantKey, variantKey));
         if (variantImages.length > 0) {
+          // 1. Busca foto de la variante con tag === 'side' o isHover
           const varSide = variantImages.find(
-            (img) => (img.tag === 'side' || img.tag === 'angle' || Boolean(img.isHover) || img.tag === 'hover') &&
-              normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary
+            (img) => (img.tag === 'side' || Boolean(img.isHover) || img.tag === 'hover')
           );
           if (varSide) return normalizeImageUrl(varSide.url || varSide.imageUrl);
 
-          const varAlt = variantImages.find((img) => normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary);
-          if (varAlt) return normalizeImageUrl(varAlt.url || varAlt.imageUrl);
+          // 2. Si no hay con tag side, toma la segunda foto de esa misma variante
+          const sortedVar = [...variantImages].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+          if (sortedVar.length > 1) {
+            return normalizeImageUrl(sortedVar[1].url || sortedVar[1].imageUrl);
+          }
+
+          // 3. Si la variante tiene solo 1 foto, devuelve la foto frontal de esa misma variante
+          const varFront = variantImages.find((img) => img.tag === 'front' || Boolean(img.isPrimary)) || sortedVar[0];
+          return normalizeImageUrl(varFront.url || varFront.imageUrl);
         }
       }
 
-      // B. Buscar foto lateral/perfil o hover general del MISMO producto
+      // B. Si no hay variante especificada o no tiene fotos propias, buscar en fotos del MISMO producto
       const sideImg = validImages.find(
-        (img) => (img.tag === 'side' || img.tag === 'angle' || Boolean(img.isHover) || img.tag === 'hover') &&
+        (img) => (img.tag === 'side' || Boolean(img.isHover) || img.tag === 'hover') &&
           normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary
       );
       if (sideImg) {
         return normalizeImageUrl(sideImg.url || sideImg.imageUrl);
       }
 
-      // C. Segunda imagen ordenada del MISMO producto
+      // Segunda foto del MISMO producto ordenada por order
       const sorted = [...validImages].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
       if (sorted.length > 1) {
-        const secondUrl = normalizeImageUrl(sorted[1].url || sorted[1].imageUrl);
-        if (secondUrl !== resolvedPrimary) {
-          return secondUrl;
-        }
-        const anyAlt = sorted.find((img) => normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary);
-        if (anyAlt) {
-          return normalizeImageUrl(anyAlt.url || anyAlt.imageUrl);
-        }
+        const secondImg = sorted.find((img) => normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary) || sorted[1];
+        return normalizeImageUrl(secondImg.url || secondImg.imageUrl);
       }
 
-      // D. Si el producto tiene una sola foto, mantener la primaria sin alterar
+      // Si el producto tiene una sola foto, mantener la primaria (jamás mezclar otro producto)
       return resolvedPrimary;
     }
   }
 
-  // 2. Fallback de estudio solo si NO tiene ninguna foto en MongoDB
+  // 2. Fallback a product.image_url plano si existe
+  if (product.image_url) {
+    return normalizeImageUrl(product.image_url);
+  }
+
+  // 3. Fallback a modelos clásicos SOLO si no hay ninguna foto en MongoDB
   const classicKey = getClassicModelKey(product);
   if (classicKey) {
     const canonicalKey = variantKey ? (['clear', 'dia', 'transicion', 'noche'].find((k) => matchVariantKey(k, variantKey)) || 'dia') : 'dia';

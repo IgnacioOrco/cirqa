@@ -761,13 +761,13 @@ export const updateOrderShipping = async (req, res, next) => {
  */
 export const generateOrderShipping = async (req, res, next) => {
   try {
-    const { orderId } = req.params;
+    const targetId = req.params.orderId || req.params.id;
 
-    const order = await Order.findById(orderId);
+    const order = await Order.findById(targetId);
     if (!order) {
       return res.status(404).json({
         success: false,
-        message: `No se encontró la orden con ID: ${orderId}`,
+        message: `No se encontró la orden con ID: ${targetId}`,
       });
     }
 
@@ -781,7 +781,7 @@ export const generateOrderShipping = async (req, res, next) => {
     order.shipping.carrier = shipmentData.carrier || order.shipping.carrier || 'Zipnova';
     order.shipping.service = shipmentData.service || order.shipping.service || 'standard';
     order.shipping.trackingNumber = shipmentData.trackingNumber;
-    order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+    order.shipping.zipnovaShipmentId = shipmentData.shipmentId || shipmentData.zipnovaShipmentId;
     order.shipping.labelUrl = shipmentData.labelUrl;
     order.shipping.status = 'PREPARACION';
 
@@ -790,6 +790,9 @@ export const generateOrderShipping = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Envío emitido correctamente mediante Shipnova / Zipnova.',
+      shipmentId: shipmentData.shipmentId || shipmentData.zipnovaShipmentId,
+      trackingNumber: shipmentData.trackingNumber,
+      labelUrl: shipmentData.labelUrl,
       data: order,
       shipping: order.shipping,
     });

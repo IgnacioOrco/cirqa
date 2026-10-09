@@ -36,11 +36,13 @@ router.get('/', protectAdmin, getOrders);
 router.get('/:orderId', getOrderById);
 
 /**
- * @route   POST /api/orders/:orderId/generate-shipping
+ * @route   POST /api/orders/:orderId/generate-shipping o /api/orders/:id/generate-shipment
  * @desc    Emitir despacho logístico mediante Shipnova/Zipnova y generar guía y etiqueta
  * @access  Privado (Admin)
  */
 router.post('/:orderId/generate-shipping', protectAdmin, generateOrderShipping);
+router.post('/:orderId/generate-shipment', protectAdmin, generateOrderShipping);
+router.post('/:id/generate-shipment', protectAdmin, generateOrderShipping);
 
 /**
  * @route   PATCH /api/orders/:orderId/shipping

@@ -62,7 +62,7 @@ export default function ConfiguratorModal({
   useEffect(() => {
     if (hasVariants && variantsList.length > 0) {
       if (initialVariantKey) {
-        const found = variantsList.find((v) => v.key === initialVariantKey);
+        const found = variantsList.find((v) => matchVariantKey(v.key, initialVariantKey));
         if (found) {
           setSelectedVariant(found);
           return;
@@ -79,43 +79,80 @@ export default function ConfiguratorModal({
     }
   }, [currentModel?._id, currentModel?.id, hasVariants, initialVariantKey, initialVariant]);
 
-  // Lista reactiva de fotos disponibles para la variante o el armazón
-  const availableImages = React.useMemo(() => {
+  // Lista reactiva de fotos disponibles estrictamente para la variante activa (currentVariantImages)
+  const currentVariantImages = React.useMemo(() => {
     const allImages = Array.isArray(currentModel.images) ? currentModel.images : [];
     const validImages = allImages.filter((img) => img && (img.url || img.imageUrl));
 
-    if (validImages.length === 0) {
-      const fallbackUrl = currentModel.image_url || getPrimaryProductImage(currentModel);
-      return [{ url: fallbackUrl, tag: 'front', isPrimary: true }];
-    }
-
-    // Filtrar fotos asociadas a la variante seleccionada
     const currentKey = selectedVariant ? selectedVariant.key : selectedFilter?.id;
-    if (currentKey) {
+    if (currentKey && validImages.length > 0) {
       const variantMatched = validImages.filter((img) => matchVariantKey(img.variantKey, currentKey));
       if (variantMatched.length > 0) {
-        return variantMatched;
+        return variantMatched.map((img, idx) => ({
+          ...img,
+          _id: img._id || `var-img-${idx}`,
+          url: normalizeImageUrl(img.url || img.imageUrl),
+        }));
       }
     }
 
-    // Si la variante no tiene fotos específicas, usar las fotos generales del armazón
-    return validImages;
+    // Si la variante no tiene fotos específicas, usar fotos neutrales o generales del producto
+    if (validImages.length > 0) {
+      const neutralImages = validImages.filter((img) => !img.variantKey);
+      const chosen = neutralImages.length > 0 ? neutralImages : validImages;
+      return chosen.map((img, idx) => ({
+        ...img,
+        _id: img._id || `gen-img-${idx}`,
+        url: normalizeImageUrl(img.url || img.imageUrl),
+      }));
+    }
+
+    const fallbackUrl = currentModel.image_url || getPrimaryProductImage(currentModel, selectedVariant?.key);
+    return [{ _id: 'fallback-0', url: fallbackUrl, tag: 'front', isPrimary: true }];
   }, [currentModel, selectedVariant, selectedFilter]);
 
-  // Sincronizar reactivamente la foto frontal/primaria al cambiar de variante
+  // Sincronizar reactivamente la foto frontal (tag === 'front' o primera) al cambiar de variante
   useEffect(() => {
-    if (availableImages.length > 0) {
-      const primaryIdx = availableImages.findIndex(
-        (img) => Boolean(img.isPrimary) || img.tag === 'front'
+    if (currentVariantImages.length > 0) {
+      const frontIdx = currentVariantImages.findIndex(
+        (img) => img.tag === 'front' || Boolean(img.isPrimary)
       );
-      setActiveImageIndex(primaryIdx >= 0 ? primaryIdx : 0);
+      setActiveImageIndex(frontIdx >= 0 ? frontIdx : 0);
     } else {
       setActiveImageIndex(0);
     }
-  }, [selectedVariant?.key, selectedFilter?.id, availableImages]);
+  }, [selectedVariant?.key, selectedFilter?.id, currentVariantImages]);
+
+  // Manejador de selección de variante con salto inmediato a la foto frontal
+  const handleSelectVariant = (variant) => {
+    setSelectedVariant(variant);
+    const allImages = Array.isArray(currentModel.images) ? currentModel.images : [];
+    const validImages = allImages.filter((img) => img && (img.url || img.imageUrl));
+    const variantMatched = validImages.filter((img) => matchVariantKey(img.variantKey, variant.key));
+    if (variantMatched.length > 0) {
+      const frontIdx = variantMatched.findIndex((img) => img.tag === 'front' || Boolean(img.isPrimary));
+      setActiveImageIndex(frontIdx >= 0 ? frontIdx : 0);
+    } else {
+      setActiveImageIndex(0);
+    }
+  };
+
+  // Manejador de selección de filtro por defecto
+  const handleSelectFilter = (filter) => {
+    setSelectedFilter(filter);
+    const allImages = Array.isArray(currentModel.images) ? currentModel.images : [];
+    const validImages = allImages.filter((img) => img && (img.url || img.imageUrl));
+    const filterMatched = validImages.filter((img) => matchVariantKey(img.variantKey, filter.id));
+    if (filterMatched.length > 0) {
+      const frontIdx = filterMatched.findIndex((img) => img.tag === 'front' || Boolean(img.isPrimary));
+      setActiveImageIndex(frontIdx >= 0 ? frontIdx : 0);
+    } else {
+      setActiveImageIndex(0);
+    }
+  };
 
   // Foto actualmente activa para el visor
-  const activeImageObj = availableImages[activeImageIndex] || availableImages[0] || {};
+  const activeImageObj = currentVariantImages[activeImageIndex] || currentVariantImages[0] || {};
   const currentPhoto = activeImageObj.url
     ? formatMediaUrl(activeImageObj.url)
     : getPrimaryProductImage(currentModel, selectedVariant?.key);
@@ -164,19 +201,18 @@ export default function ConfiguratorModal({
   const getTagLabel = (tag, idx) => {
     switch (tag) {
       case 'front':
-        return 'Frente';
+        return 'Vista Frontal';
       case 'side':
-        return 'Perfil';
+      case 'hover':
+        return 'Vista Lateral / Perfil';
       case 'angle':
         return 'Perspectiva';
       case 'model':
         return 'Puesto';
       case 'detail':
         return 'Detalle';
-      case 'hover':
-        return 'Lateral';
       default:
-        return `Ángulo ${idx + 1}`;
+        return idx === 0 ? 'Vista Frontal' : idx === 1 ? 'Vista Lateral / Perfil' : `Ángulo ${idx + 1}`;
     }
   };
 
@@ -233,8 +269,8 @@ export default function ConfiguratorModal({
                   style={{ backgroundColor: glowColor }}
                 />
 
-                {/* Visor Principal con Integración Limpia */}
-                <div className="w-full max-w-md h-56 sm:h-64 flex items-center justify-center relative z-10 p-4 bg-transparent">
+                {/* Visor Principal con Integración Limpia - Eliminación Total de Cuadro */}
+                <div className="w-full max-w-md h-56 sm:h-64 flex items-center justify-center relative z-10 bg-transparent">
                   <AnimatePresence mode="wait">
                     <motion.img
                       key={`${currentModel.id || currentModel._id}-${currentPhoto}`}
@@ -244,7 +280,7 @@ export default function ConfiguratorModal({
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.98 }}
                       transition={{ duration: 0.2, ease: 'easeOut' }}
-                      className="w-full h-full object-contain select-none filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition-all duration-300"
+                      className="w-full h-full object-contain p-2 mix-blend-multiply select-none filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition-all duration-300"
                       style={{ mixBlendMode: 'multiply' }}
                       onError={(e) => {
                         e.target.onerror = null;
@@ -254,21 +290,21 @@ export default function ConfiguratorModal({
                   </AnimatePresence>
                 </div>
 
-                {/* Navegación de Galería por Clic (NO por Hover) */}
-                {availableImages.length > 1 && (
-                  <div className="mt-4 flex items-center gap-2 z-10 overflow-x-auto max-w-full pb-1">
-                    {availableImages.map((img, idx) => {
+                {/* Selector de Ángulos debajo del Visor: Únicamente fotos de la variante activa (currentVariantImages) */}
+                {currentVariantImages.length > 1 && (
+                  <div className="mt-4 flex items-center justify-center gap-2 z-10 flex-wrap max-w-full pb-1">
+                    {currentVariantImages.map((img, idx) => {
                       const isSelected = activeImageIndex === idx;
                       const label = getTagLabel(img.tag, idx);
                       return (
                         <button
-                          key={img._id || `gal-${idx}`}
+                          key={img._id || `variant-angle-${idx}`}
                           type="button"
                           onClick={() => setActiveImageIndex(idx)}
-                          className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          className={`px-3.5 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
                             isSelected
                               ? 'bg-cirqa-negro text-white shadow-xs'
-                              : 'bg-white/80 hover:bg-white text-cirqa-negro/70 border border-cirqa-negro/10 hover:border-cirqa-negro/30'
+                              : 'bg-white/80 hover:bg-white text-cirqa-negro/70 border border-cirqa-negro/15 hover:border-cirqa-negro/40'
                           }`}
                         >
                           <span>{label}</span>
@@ -361,13 +397,13 @@ export default function ConfiguratorModal({
                   {hasVariants && variantsList.length > 0 ? (
                     <div className="grid grid-cols-2 gap-2.5">
                       {variantsList.map((variant) => {
-                        const isSelected = selectedVariant?.key === variant.key;
+                        const isSelected = matchVariantKey(selectedVariant?.key, variant.key);
                         const modifier = Number(variant.priceModifier) || 0;
                         return (
                           <button
                             key={variant.key}
                             type="button"
-                            onClick={() => setSelectedVariant(variant)}
+                            onClick={() => handleSelectVariant(variant)}
                             className={`p-3.5 rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
                               isSelected
                                 ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-sm ring-1 ring-cirqa-primario/20'
@@ -411,7 +447,7 @@ export default function ConfiguratorModal({
                           <button
                             key={filter.id}
                             type="button"
-                            onClick={() => setSelectedFilter(filter)}
+                            onClick={() => handleSelectFilter(filter)}
                             className={`p-3.5 rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
                               isSelected
                                 ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-sm ring-1 ring-cirqa-primario/20'

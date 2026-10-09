@@ -12,7 +12,7 @@ import ProductCard from '../components/ProductCard';
 import { FILTERS } from '../data/filters';
 import { getProductImage as getStudioProductImage } from '../data/productImages';
 import { formatMediaUrl } from '../services/api';
-import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage } from '../utils/productImages';
+import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage, matchVariantKey } from '../utils/productImages';
 
 export default function Catalog() {
   const { products, loading, error, refetch } = useProducts({ all: false });
