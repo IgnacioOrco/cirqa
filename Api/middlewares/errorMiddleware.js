@@ -7,11 +7,15 @@ export const notFound = (req, res, next) => {
 
 // Middleware centralizado de captura y respuesta de errores
 export const errorHandler = (err, req, res, next) => {
+  console.error('[API Error]:', err);
+
   // Asegurar que el error mantenga cabeceras CORS para evitar bloqueo en el navegador
   const origin = req.headers.origin;
   if (origin) {
     res.setHeader('Access-Control-Allow-Origin', origin);
     res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
   }
 
   // Manejo de errores específicos de Multer (subida de archivos pesados)
@@ -28,16 +32,19 @@ export const errorHandler = (err, req, res, next) => {
     });
   }
 
-  const statusCode = res.statusCode === 200 ? 500 : res.statusCode;
+  let statusCode = res.statusCode && res.statusCode !== 200 ? res.statusCode : 500;
 
-  // Manejo de errores específicos de Mongoose (CastError y duplicados)
+  // Manejo de errores específicos de Mongoose (CastError, duplicados y validación)
   let message = err.message;
   if (err.name === 'CastError') {
+    statusCode = 404;
     message = `Recurso no encontrado. Formato de ID inválido: ${err.value}`;
   } else if (err.code === 11000) {
+    statusCode = 400;
     const field = err.keyValue ? Object.keys(err.keyValue)[0] : 'desconocido';
     message = `Ya existe un registro con ese valor en el campo '${field}'. Debe ser único.`;
   } else if (err.name === 'ValidationError') {
+    statusCode = 400;
     message = Object.values(err.errors)
       .map((val) => val.message)
       .join(', ');

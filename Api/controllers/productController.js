@@ -492,24 +492,40 @@ export const updateProductImage = async (req, res, next) => {
     const relativePath = `/uploads/${req.file.filename}`;
     const fullImageUrl = `${protocol}://${host}${relativePath}`;
 
+    if (!Array.isArray(product.images)) {
+      product.images = [];
+    }
+
     const hasPrimary = product.images.some((img) => img.isPrimary);
     const newImageObj = {
+      _id: new mongoose.Types.ObjectId(),
       url: fullImageUrl,
-      tag: ['front', 'side', 'angle', 'model', 'detail', 'gallery'].includes(tag) ? tag : 'front',
+      tag: ['front', 'side', 'angle', 'model', 'detail', 'gallery', 'hover'].includes(tag) ? tag : 'front',
       variantKey: variantKey && variantKey !== 'null' ? variantKey.trim().toLowerCase() : null,
       isPrimary: !hasPrimary,
+      isHover: tag === 'hover',
       order: product.images.length,
     };
 
     product.images.push(newImageObj);
-    product.image_url = product.images.find((img) => img.isPrimary)?.url || fullImageUrl;
+    const primaryImg = product.images.find((img) => img.isPrimary) || product.images[0];
+    product.image_url = primaryImg ? primaryImg.url : fullImageUrl;
 
-    await product.save();
+    const updatedProduct = await Product.findByIdAndUpdate(
+      product._id,
+      {
+        $set: {
+          images: product.images,
+          image_url: product.image_url,
+        },
+      },
+      { new: true, runValidators: false }
+    );
 
     return res.status(200).json({
       success: true,
       message: 'Imagen del producto cargada y vinculada exitosamente.',
-      data: product,
+      data: updatedProduct || product,
       image_url: fullImageUrl,
     });
   } catch (error) {
@@ -548,13 +564,17 @@ export const uploadProductImagesController = async (req, res, next) => {
       });
     }
 
+    if (!Array.isArray(product.images)) {
+      product.images = [];
+    }
+
     const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
     const host = req.get('host');
 
     let currentMaxOrder = product.images.reduce((max, img) => Math.max(max, img.order || 0), -1);
     const hasPrimary = product.images.some((img) => img.isPrimary);
 
-    const validTag = ['front', 'side', 'angle', 'model', 'detail', 'gallery'].includes(tag)
+    const validTag = ['front', 'side', 'angle', 'model', 'detail', 'gallery', 'hover'].includes(tag)
       ? tag
       : 'gallery';
 
@@ -566,10 +586,12 @@ export const uploadProductImagesController = async (req, res, next) => {
       currentMaxOrder += 1;
 
       return {
+        _id: new mongoose.Types.ObjectId(),
         url: fullImageUrl,
         tag: validTag,
         variantKey: normalizedVariantKey,
         isPrimary: !hasPrimary && idx === 0,
+        isHover: validTag === 'hover',
         order: currentMaxOrder,
       };
     });
@@ -582,12 +604,21 @@ export const uploadProductImagesController = async (req, res, next) => {
       product.image_url = primaryImg.url;
     }
 
-    await product.save();
+    const updatedProduct = await Product.findByIdAndUpdate(
+      product._id,
+      {
+        $set: {
+          images: product.images,
+          image_url: product.image_url,
+        },
+      },
+      { new: true, runValidators: false }
+    );
 
     return res.status(200).json({
       success: true,
       message: `${req.files.length} foto(s) cargada(s) y asociadas exitosamente.`,
-      data: product,
+      data: updatedProduct || product,
       addedImages: newImageSubdocs,
     });
   } catch (error) {
@@ -618,7 +649,28 @@ export const deleteProductImage = async (req, res, next) => {
       });
     }
 
-    const targetImage = product.images.id(imageId);
+    if (!Array.isArray(product.images)) {
+      product.images = [];
+    }
+
+    const targetIdStr = String(imageId);
+
+    // Búsqueda resiliente de la imagen
+    let targetImage = null;
+    if (typeof product.images.id === 'function') {
+      try {
+        targetImage = product.images.id(imageId);
+      } catch (err) {
+        targetImage = null;
+      }
+    }
+    if (!targetImage) {
+      targetImage = product.images.find((img) => {
+        const idVal = img?._id ? String(img._id) : String(img?.id || '');
+        return idVal === targetIdStr;
+      });
+    }
+
     if (!targetImage) {
       return res.status(404).json({
         success: false,
@@ -639,8 +691,13 @@ export const deleteProductImage = async (req, res, next) => {
       }
     }
 
-    const wasPrimary = targetImage.isPrimary;
-    product.images.pull(imageId);
+    const wasPrimary = Boolean(targetImage.isPrimary);
+
+    // Filtrar la imagen eliminada de manera segura
+    product.images = product.images.filter((img) => {
+      const idVal = img?._id ? String(img._id) : String(img?.id || '');
+      return idVal !== targetIdStr;
+    });
 
     // Si eliminamos la foto principal y aún quedan fotos, reasignar la primera como principal
     if (wasPrimary && product.images.length > 0) {
@@ -649,14 +706,24 @@ export const deleteProductImage = async (req, res, next) => {
 
     // Sincronizar foto principal
     const currentPrimary = product.images.find((img) => img.isPrimary) || product.images[0];
-    product.image_url = currentPrimary ? currentPrimary.url : '';
+    const newImageUrl = currentPrimary ? currentPrimary.url : '';
+    product.image_url = newImageUrl;
 
-    await product.save();
+    const updatedProduct = await Product.findByIdAndUpdate(
+      product._id,
+      {
+        $set: {
+          images: product.images,
+          image_url: newImageUrl,
+        },
+      },
+      { new: true, runValidators: false }
+    );
 
     return res.status(200).json({
       success: true,
       message: 'Imagen eliminada exitosamente del producto y del almacenamiento.',
-      data: product,
+      data: updatedProduct || product,
     });
   } catch (error) {
     next(error);
@@ -687,7 +754,35 @@ export const updateProductImageMetadata = async (req, res, next) => {
       });
     }
 
-    const targetImage = product.images.id(imageId);
+    if (!Array.isArray(product.images)) {
+      product.images = [];
+    }
+
+    // Asegurar que cada imagen tenga _id para evitar errores con fotos legacy
+    product.images.forEach((img) => {
+      if (!img._id) {
+        img._id = new mongoose.Types.ObjectId();
+      }
+    });
+
+    const targetIdStr = String(imageId);
+
+    // Búsqueda resiliente de la imagen objetivo
+    let targetImage = null;
+    if (typeof product.images.id === 'function') {
+      try {
+        targetImage = product.images.id(imageId);
+      } catch (err) {
+        targetImage = null;
+      }
+    }
+    if (!targetImage) {
+      targetImage = product.images.find((img) => {
+        const idVal = img?._id ? String(img._id) : String(img?.id || '');
+        return idVal === targetIdStr;
+      });
+    }
+
     if (!targetImage) {
       return res.status(404).json({
         success: false,
@@ -709,12 +804,16 @@ export const updateProductImageMetadata = async (req, res, next) => {
 
     if (isPrimary === true) {
       product.images.forEach((img) => {
-        img.isPrimary = img._id.toString() === imageId.toString();
+        const idVal = img?._id ? String(img._id) : String(img?.id || '');
+        img.isPrimary = idVal === targetIdStr;
       });
       product.image_url = targetImage.url;
     } else if (isPrimary === false && targetImage.isPrimary) {
       targetImage.isPrimary = false;
-      const fallback = product.images.find((img) => img._id.toString() !== imageId.toString());
+      const fallback = product.images.find((img) => {
+        const idVal = img?._id ? String(img._id) : String(img?.id || '');
+        return idVal !== targetIdStr;
+      });
       if (fallback) {
         fallback.isPrimary = true;
         product.image_url = fallback.url;
@@ -723,7 +822,8 @@ export const updateProductImageMetadata = async (req, res, next) => {
 
     if (isHover === true) {
       product.images.forEach((img) => {
-        img.isHover = img._id.toString() === imageId.toString();
+        const idVal = img?._id ? String(img._id) : String(img?.id || '');
+        img.isHover = idVal === targetIdStr;
       });
     } else if (isHover === false && targetImage.isHover) {
       targetImage.isHover = false;
@@ -731,19 +831,30 @@ export const updateProductImageMetadata = async (req, res, next) => {
 
     if (tag === 'hover') {
       product.images.forEach((img) => {
-        img.isHover = img._id.toString() === imageId.toString();
+        const idVal = img?._id ? String(img._id) : String(img?.id || '');
+        img.isHover = idVal === targetIdStr;
       });
     }
 
-    // Reordenar array según order
+    // Reordenar array según order si tienen definido
     product.images.sort((a, b) => (a.order || 0) - (b.order || 0));
 
-    await product.save();
+    // Actualización atómica en MongoDB evitando validaciones de campos ajenos
+    const updatedProduct = await Product.findByIdAndUpdate(
+      product._id,
+      {
+        $set: {
+          images: product.images,
+          image_url: product.image_url || targetImage.url,
+        },
+      },
+      { new: true, runValidators: false }
+    );
 
     return res.status(200).json({
       success: true,
       message: 'Metadatos de la imagen actualizados exitosamente.',
-      data: product,
+      data: updatedProduct || product,
     });
   } catch (error) {
     next(error);
