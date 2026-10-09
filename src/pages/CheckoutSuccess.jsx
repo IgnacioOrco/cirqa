@@ -158,8 +158,9 @@ export default function CheckoutSuccess() {
               </div>
 
               {loading ? (
-                <div className="py-8 text-center text-xs text-cirqa-negro/50">
-                  Cargando detalle de los productos...
+                <div className="py-8 flex flex-col items-center justify-center gap-2.5 text-xs text-cirqa-negro/50 font-light">
+                  <div className="w-5 h-5 border-2 border-cirqa-negro/20 border-t-cirqa-negro rounded-full animate-spin" />
+                  <span>Cargando detalle de los productos...</span>
                 </div>
               ) : items.length > 0 ? (
                 <div className="space-y-4">

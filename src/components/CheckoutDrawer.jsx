@@ -135,6 +135,7 @@ export default function CheckoutDrawer() {
     removeFromCart,
     updateQuantity,
     clearCart,
+    openReceipt,
   } = useCart();
 
   // Si hay compra directa desde configurador, se usa ese item; si no, todos los items del carrito
@@ -401,8 +402,8 @@ export default function CheckoutDrawer() {
         // Abrir WhatsApp en nueva pestaña
         window.open(waUrl, '_blank', 'noopener,noreferrer');
 
-        // Mostrar pantalla de confirmación con desglose transparente
-        setTransferSuccessOrder({
+        // Desacople completo: cerrar Drawer y abrir OrderReceiptModal independiente
+        openReceipt({
           orderNumber: orderNum,
           orderId: createdOrderId,
           customerName: formData.name.trim(),
@@ -1249,119 +1250,6 @@ export default function CheckoutDrawer() {
             </div>
           </div>
         </motion.div>
-
-        {/* MODAL / PANTALLA DE CONFIRMACIÓN DE TRANSFERENCIA */}
-        <AnimatePresence>
-          {transferSuccessOrder && (
-            <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={handleCloseSuccessModal}
-                className="fixed inset-0 bg-black/70 backdrop-blur-md"
-              />
-
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
-                transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-                className="relative w-full max-w-lg bg-white rounded-3xl p-6 sm:p-8 shadow-2xl z-10 border border-cirqa-negro/10 text-center font-montserrat space-y-5"
-              >
-                <div className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto shadow-sm">
-                  <CheckCircle2 className="w-9 h-9" />
-                </div>
-
-                <div className="space-y-1.5">
-                  <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-700 font-bold bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200">
-                    Pedido Registrado con Éxito · 15% OFF Aplicado
-                  </span>
-                  <h3 className="text-xl sm:text-2xl font-light text-cirqa-negro pt-1">
-                    ¡Gracias, {transferSuccessOrder.customerName}!
-                  </h3>
-                  <p className="text-xs sm:text-sm text-cirqa-negro/60 font-light max-w-sm mx-auto">
-                    Tu orden quedó registrada. Para confirmarla, completá la transferencia bancaria y envianos el comprobante por WhatsApp.
-                  </p>
-                </div>
-
-                {/* Tarjeta del Número de Orden y Desglose Completo */}
-                <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-3">
-                  <div className="flex items-center justify-between border-b border-cirqa-negro/10 pb-2">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-cirqa-negro/50 block">
-                      Número de Orden
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg font-mono font-bold text-cirqa-negro tracking-wider">
-                        #{transferSuccessOrder.orderNumber}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(transferSuccessOrder.orderNumber, 'orderNumber')}
-                        className="p-1 px-2 rounded-lg bg-white border border-cirqa-negro/10 hover:border-cirqa-negro/30 text-cirqa-negro/70 text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer shadow-2xs"
-                        title="Copiar número de orden"
-                      >
-                        {copiedField === 'orderNumber' ? (
-                          <>
-                            <Check className="w-3 h-3 text-emerald-600" />
-                            <span className="text-emerald-600">Copiado</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3" />
-                            <span>Copiar</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Desglose transparente */}
-                  <div className="space-y-1.5 text-xs text-left pt-1">
-                    <div className="flex justify-between text-cirqa-negro/70">
-                      <span>Subtotal productos:</span>
-                      <span className="font-mono">$ {transferSuccessOrder.subtotal?.toLocaleString('es-AR')}</span>
-                    </div>
-                    <div className="flex justify-between text-emerald-700 font-semibold">
-                      <span>Descuento Transferencia (15%):</span>
-                      <span className="font-mono">-$ {transferSuccessOrder.discountAmount?.toLocaleString('es-AR')}</span>
-                    </div>
-                    <div className="flex justify-between text-cirqa-negro/70">
-                      <span>Envío Zipnova ({transferSuccessOrder.shippingMethod}):</span>
-                      <span className="font-mono">+$ {transferSuccessOrder.shippingCost?.toLocaleString('es-AR')}</span>
-                    </div>
-                    <div className="flex justify-between text-base font-bold text-cirqa-negro pt-2 border-t border-cirqa-negro/10">
-                      <span>Total a Transferir:</span>
-                      <span className="font-mono text-emerald-700">$ {transferSuccessOrder.totalAmount?.toLocaleString('es-AR')} ARS</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Acciones */}
-                <div className="space-y-2.5 pt-2">
-                  <a
-                    href={transferSuccessOrder.waUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-3.5 px-6 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs tracking-wider uppercase shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all"
-                  >
-                    <MessageCircle className="w-4 h-4" />
-                    <span>Reabrir WhatsApp Oficial</span>
-                    <ExternalLink className="w-3.5 h-3.5 ml-0.5" />
-                  </a>
-
-                  <button
-                    type="button"
-                    onClick={handleCloseSuccessModal}
-                    className="w-full py-3 rounded-xl border border-cirqa-negro/15 text-xs text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/5 transition-colors font-medium"
-                  >
-                    Volver a la Tienda
-                  </button>
-                </div>
-              </motion.div>
-            </div>
-          )}
-        </AnimatePresence>
       </div>
     </AnimatePresence>
   );

@@ -171,9 +171,9 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
               const state = cardStates[product.id] || {};
               const isHovered = hoveredCardId === product.id;
 
-              // Imagen base determinista (portada o variante elegida) y foto hover
-              const primaryImg = (state.filterId || state.variantKey ? resolveProductCardImage(product, state.filterId || state.variantKey, 'perspectiva', false) : null) || getPrimaryProductImage(product);
-              const hoverImg = getHoverProductImage(product, primaryImg);
+              // Imagen base determinista (portada o variante elegida) y foto lateral hover del MISMO modelo
+              const primaryImg = getPrimaryProductImage(product, currentSelectedKey);
+              const hoverImg = getHoverProductImage(product, primaryImg, currentSelectedKey);
 
               // Determinar opciones de variantes o filtros circadianos
               const variantOptions = (product.hasVariants && product.variants?.length > 0)
@@ -205,16 +205,16 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                   transition={{ type: 'spring', stiffness: 350, damping: 25 }}
                   onMouseEnter={() => setHoveredCardId(product.id)}
                   onMouseLeave={() => setHoveredCardId(null)}
-                  className="w-[300px] sm:w-[360px] md:w-[380px] flex-shrink-0 snap-start bg-white rounded-3xl p-6 sm:p-7 border border-cirqa-negro/10 hover:border-cirqa-negro/30 flex flex-col justify-between transition-all duration-300 shadow-sm hover:shadow-2xl relative group z-10 hover:z-20 cursor-pointer"
+                  className="w-[300px] sm:w-[360px] md:w-[380px] flex-shrink-0 snap-start bg-[#FAF9F5] rounded-3xl p-6 sm:p-7 border border-cirqa-negro/10 hover:border-cirqa-negro/30 flex flex-col justify-between transition-all duration-300 shadow-sm hover:shadow-2xl relative group z-10 hover:z-20 cursor-pointer"
                   onClick={() => onSelectModel && onSelectModel(product, currentSelectedKey)}
                 >
                   {/* Etiqueta Superior & Código de Modelo */}
                   <div>
                     <div className="flex items-center justify-between text-xs text-cirqa-negro/50 font-light mb-3">
-                      <span className="font-mono text-[11px] bg-cirqa-surface px-2.5 py-1 rounded-full font-medium text-cirqa-negro/70">
+                      <span className="font-mono text-[11px] bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full font-medium text-cirqa-negro/70 shadow-2xs border border-cirqa-negro/10">
                         {product.modelCode || product.code}
                       </span>
-                      <span className="text-[10px] tracking-wider text-cirqa-primario font-semibold uppercase">
+                      <span className="text-[10px] tracking-wider text-cirqa-primario font-semibold uppercase bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-full border border-cirqa-negro/10">
                         {product.frameShape}
                       </span>
                     </div>
@@ -228,21 +228,21 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                     </p>
                   </div>
 
-                  {/* Escenario de Imagen con Fusión y Transición Suave */}
-                  <div className="h-52 sm:h-56 flex flex-col items-center justify-center my-3 relative overflow-hidden rounded-2xl bg-[#FBFBFA]">
+                  {/* Escenario de Imagen Limpio con Integración Visual sin Cuadro */}
+                  <div className="h-52 sm:h-56 flex flex-col items-center justify-center my-3 relative overflow-hidden bg-transparent">
                     {/* Resplandor ambiental adaptativo */}
                     <div
-                      className="absolute inset-0 m-auto w-40 h-40 rounded-full blur-3xl opacity-25 pointer-events-none transition-colors duration-500"
+                      className="absolute inset-0 m-auto w-40 h-40 rounded-full blur-3xl opacity-20 pointer-events-none transition-colors duration-500"
                       style={{ backgroundColor: glowColor }}
                     />
 
                     {/* Contenedor relativo de imágenes con transición suave crossfade */}
-                    <div className="relative w-full h-full flex items-center justify-center p-2 z-10">
+                    <div className="relative w-full h-full flex items-center justify-center p-4 z-10">
                       {/* Imagen Base (Portada) */}
                       <img
                         src={formatMediaUrl(primaryImg)}
                         alt={`${product.name} - CIRQA`}
-                        className={`max-h-44 sm:max-h-48 w-full object-contain select-none filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.06)] transition-all duration-300 ${
+                        className={`w-full h-full object-contain p-4 select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] transition-all duration-300 ${
                           isHovered && hoverImg !== primaryImg ? 'opacity-0' : 'opacity-100'
                         }`}
                         style={{ mixBlendMode: 'multiply' }}
@@ -258,7 +258,7 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                         <img
                           src={formatMediaUrl(hoverImg)}
                           alt={`${product.name} Hover - CIRQA`}
-                          className={`absolute inset-0 m-auto max-h-44 sm:max-h-48 w-full object-contain select-none filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.06)] transition-all transition-opacity duration-300 pointer-events-none ${
+                          className={`absolute inset-0 m-auto w-full h-full object-contain p-4 select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] transition-all transition-opacity duration-300 pointer-events-none ${
                             isHovered ? 'opacity-100' : 'opacity-0'
                           }`}
                           style={{ mixBlendMode: 'multiply' }}

@@ -17,6 +17,7 @@ export function CartProvider({ children }) {
 
   const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
   const [checkoutTargetItem, setCheckoutTargetItem] = useState(null); // Direct buy item override if any
+  const [receiptOrder, setReceiptOrder] = useState(null); // Order receipt modal state
 
   // Persistir carrito en localStorage
   useEffect(() => {
@@ -117,6 +118,16 @@ export function CartProvider({ children }) {
     setCheckoutTargetItem(null);
   };
 
+  const openReceipt = (order) => {
+    setReceiptOrder(order);
+    setIsCheckoutOpen(false);
+    setCheckoutTargetItem(null);
+  };
+
+  const closeReceipt = () => {
+    setReceiptOrder(null);
+  };
+
   // Totales
   const cartCount = items.reduce((acc, it) => acc + (it.quantity || 1), 0);
   const cartTotal = items.reduce((acc, it) => acc + (it.price * (it.quantity || 1)), 0);
@@ -135,6 +146,9 @@ export function CartProvider({ children }) {
         checkoutTargetItem,
         openCheckout,
         closeCheckout,
+        receiptOrder,
+        openReceipt,
+        closeReceipt,
       }}
     >
       {children}

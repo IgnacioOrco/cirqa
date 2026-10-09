@@ -110,7 +110,7 @@ export function useProduct(slugOrId) {
  */
 export function ProductCardSkeleton() {
   return (
-    <div className="w-[300px] sm:w-[360px] md:w-[380px] flex-shrink-0 snap-start bg-white rounded-3xl p-6 sm:p-7 border border-cirqa-negro/10 flex flex-col justify-between shadow-sm animate-pulse select-none">
+    <div className="w-[300px] sm:w-[360px] md:w-[380px] flex-shrink-0 snap-start bg-[#FAF9F5] rounded-3xl p-6 sm:p-7 border border-cirqa-negro/10 flex flex-col justify-between shadow-xs animate-pulse select-none">
       {/* Top badges */}
       <div>
         <div className="flex items-center justify-between mb-4">

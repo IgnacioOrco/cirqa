@@ -1,10 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertTriangle, ShieldCheck, Check, Sparkles } from 'lucide-react';
+import { X, AlertTriangle, ShieldCheck, Check, Sparkles, Layers } from 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
-import { getProductImage as getStudioProductImage } from '../data/productImages';
-import { normalizeImageUrl, resolveProductCardImage } from '../utils/productImages';
+import { formatMediaUrl } from '../services/api';
+import {
+  normalizeImageUrl,
+  getPrimaryProductImage,
+  getHoverProductImage,
+  matchVariantKey,
+} from '../utils/productImages';
 import { useCart } from '../context/CartContext';
 
 export default function ConfiguratorModal({
@@ -20,8 +25,9 @@ export default function ConfiguratorModal({
   const { openCheckout } = useCart();
 
   const [selectedModel, setSelectedModel] = useState(initialModel || null);
-  const [selectedFilter, setSelectedFilter] = useState(initialFilter || FILTERS[1]); // Default Día (84%)
+  const [selectedFilter, setSelectedFilter] = useState(initialFilter || FILTERS[1]);
   const [selectedVariant, setSelectedVariant] = useState(null);
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
 
   // Sincronizar modelo inicial recibido como prop
   useEffect(() => {
@@ -32,7 +38,7 @@ export default function ConfiguratorModal({
     }
   }, [initialModel, products]);
 
-  // Sincronizar filtro inicial o key de variante para modelos clásicos
+  // Sincronizar filtro inicial o key de variante
   useEffect(() => {
     if (initialFilter) {
       setSelectedFilter(initialFilter);
@@ -43,10 +49,6 @@ export default function ConfiguratorModal({
       }
     }
   }, [initialFilter, initialVariantKey]);
-
-  if (!selectedModel && products.length > 0) {
-    setSelectedModel(products[0]);
-  }
 
   const currentModel = selectedModel || products[0] || {};
   const hasVariants = Boolean(
@@ -77,13 +79,46 @@ export default function ConfiguratorModal({
     }
   }, [currentModel?._id, currentModel?.id, hasVariants, initialVariantKey, initialVariant]);
 
-  // Determinar la foto actual a mostrar con reactividad por variante o cristal circadiano
-  const getCurrentPhoto = () => {
-    const targetKey = selectedVariant ? selectedVariant.key : selectedFilter?.id;
-    return resolveProductCardImage(currentModel, targetKey, 'frente');
-  };
+  // Lista reactiva de fotos disponibles para la variante o el armazón
+  const availableImages = React.useMemo(() => {
+    const allImages = Array.isArray(currentModel.images) ? currentModel.images : [];
+    const validImages = allImages.filter((img) => img && (img.url || img.imageUrl));
 
-  const currentPhoto = getCurrentPhoto();
+    if (validImages.length === 0) {
+      const fallbackUrl = currentModel.image_url || getPrimaryProductImage(currentModel);
+      return [{ url: fallbackUrl, tag: 'front', isPrimary: true }];
+    }
+
+    // Filtrar fotos asociadas a la variante seleccionada
+    const currentKey = selectedVariant ? selectedVariant.key : selectedFilter?.id;
+    if (currentKey) {
+      const variantMatched = validImages.filter((img) => matchVariantKey(img.variantKey, currentKey));
+      if (variantMatched.length > 0) {
+        return variantMatched;
+      }
+    }
+
+    // Si la variante no tiene fotos específicas, usar las fotos generales del armazón
+    return validImages;
+  }, [currentModel, selectedVariant, selectedFilter]);
+
+  // Sincronizar reactivamente la foto frontal/primaria al cambiar de variante
+  useEffect(() => {
+    if (availableImages.length > 0) {
+      const primaryIdx = availableImages.findIndex(
+        (img) => Boolean(img.isPrimary) || img.tag === 'front'
+      );
+      setActiveImageIndex(primaryIdx >= 0 ? primaryIdx : 0);
+    } else {
+      setActiveImageIndex(0);
+    }
+  }, [selectedVariant?.key, selectedFilter?.id, availableImages]);
+
+  // Foto actualmente activa para el visor
+  const activeImageObj = availableImages[activeImageIndex] || availableImages[0] || {};
+  const currentPhoto = activeImageObj.url
+    ? formatMediaUrl(activeImageObj.url)
+    : getPrimaryProductImage(currentModel, selectedVariant?.key);
 
   // Cálculo de precio reactivo
   const basePrice = Number(currentModel.price) || 0;
@@ -99,7 +134,7 @@ export default function ConfiguratorModal({
     selectedFilter?.hexCode ||
     '#F3B93A';
 
-  // Acción de compra directa: Abre el Checkout Pro de CIRQA con el armazón y variante configurados
+  // Acción de compra directa: Abre el Checkout Pro de CIRQA
   const handleDirectBuy = () => {
     if (isModelOutOfStock) return;
     onClose();
@@ -126,11 +161,29 @@ export default function ConfiguratorModal({
     });
   };
 
+  const getTagLabel = (tag, idx) => {
+    switch (tag) {
+      case 'front':
+        return 'Frente';
+      case 'side':
+        return 'Perfil';
+      case 'angle':
+        return 'Perspectiva';
+      case 'model':
+        return 'Puesto';
+      case 'detail':
+        return 'Detalle';
+      case 'hover':
+        return 'Lateral';
+      default:
+        return `Ángulo ${idx + 1}`;
+    }
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
         <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 md:p-10">
-          
           {/* Backdrop con blur delicado */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -171,8 +224,8 @@ export default function ConfiguratorModal({
             {/* Cuerpo del Modal: 2 Columnas */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 sm:p-8 lg:p-10 items-center overflow-y-auto">
               
-              {/* Columna Izquierda: Escenario Visual del Producto */}
-              <div className="lg:col-span-6 flex flex-col items-center justify-center bg-gradient-to-b from-[#FBFBFA] to-[#F3F1ED] rounded-3xl p-6 sm:p-8 border border-cirqa-negro/10 relative shadow-inner">
+              {/* Columna Izquierda: Escenario Visual Limpio sin Cuadro */}
+              <div className="lg:col-span-6 flex flex-col items-center justify-center bg-[#FAF9F5] rounded-3xl p-6 sm:p-8 border border-cirqa-negro/10 relative">
                 
                 {/* Resplandor ambiental adaptativo */}
                 <div
@@ -180,18 +233,18 @@ export default function ConfiguratorModal({
                   style={{ backgroundColor: glowColor }}
                 />
 
-                {/* Imagen del Producto con Crossfade */}
-                <div className="w-full max-w-md h-52 sm:h-64 flex items-center justify-center relative z-10 p-2">
+                {/* Visor Principal con Integración Limpia */}
+                <div className="w-full max-w-md h-56 sm:h-64 flex items-center justify-center relative z-10 p-4 bg-transparent">
                   <AnimatePresence mode="wait">
                     <motion.img
-                      key={`${currentModel.id}-${currentPhoto}-${selectedVariant?.key || selectedFilter.id}`}
+                      key={`${currentModel.id || currentModel._id}-${currentPhoto}`}
                       src={currentPhoto}
-                      alt={`${currentModel.name} ${selectedVariant ? selectedVariant.name : selectedFilter.name}`}
-                      initial={{ opacity: 0, scale: 0.94 }}
+                      alt={`${currentModel.name} - ${activeImageObj.tag || 'Vista'}`}
+                      initial={{ opacity: 0, scale: 0.96 }}
                       animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.96 }}
-                      transition={{ duration: 0.22, ease: 'easeOut' }}
-                      className="w-full h-full object-contain select-none filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.08)]"
+                      exit={{ opacity: 0, scale: 0.98 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                      className="w-full h-full object-contain select-none filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition-all duration-300"
                       style={{ mixBlendMode: 'multiply' }}
                       onError={(e) => {
                         e.target.onerror = null;
@@ -200,6 +253,30 @@ export default function ConfiguratorModal({
                     />
                   </AnimatePresence>
                 </div>
+
+                {/* Navegación de Galería por Clic (NO por Hover) */}
+                {availableImages.length > 1 && (
+                  <div className="mt-4 flex items-center gap-2 z-10 overflow-x-auto max-w-full pb-1">
+                    {availableImages.map((img, idx) => {
+                      const isSelected = activeImageIndex === idx;
+                      const label = getTagLabel(img.tag, idx);
+                      return (
+                        <button
+                          key={img._id || `gal-${idx}`}
+                          type="button"
+                          onClick={() => setActiveImageIndex(idx)}
+                          className={`px-3 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                            isSelected
+                              ? 'bg-cirqa-negro text-white shadow-xs'
+                              : 'bg-white/80 hover:bg-white text-cirqa-negro/70 border border-cirqa-negro/10 hover:border-cirqa-negro/30'
+                          }`}
+                        >
+                          <span>{label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
 
                 {/* Dimensiones e información de confección */}
                 <div className="mt-4 pt-4 border-t border-cirqa-negro/10 w-full flex items-center justify-between text-[11px] text-cirqa-negro/70 font-normal">
@@ -213,54 +290,75 @@ export default function ConfiguratorModal({
               {/* Columna Derecha: Controles de Configuración */}
               <div className="lg:col-span-6 space-y-6">
                 
-                {/* 1. Selector de Armazones */}
+                {/* 1. Paso 1 Simplificado: Enfoque en el Modelo Actual o Selector de Modelos */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
                     <label className="text-[11px] font-bold uppercase tracking-wider text-cirqa-negro/70">
-                      1. Seleccionar Armazón
+                      1. Armazón Seleccionado
                     </label>
                   </div>
                   
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
-                    {products.map((model) => {
-                      const isOutOfStock = model.stock === 0;
-                      const isSelected = currentModel.id === model.id;
-                      return (
-                        <button
-                          key={model.id}
-                          disabled={isOutOfStock}
-                          onClick={() => {
-                            if (isOutOfStock) return;
-                            setSelectedModel(model);
-                            setSelectedCustomImageIndex(0);
-                          }}
-                          className={`py-2.5 px-1.5 text-center rounded-2xl border transition-all text-xs relative ${
-                            isOutOfStock
-                              ? 'border-cirqa-negro/10 bg-gray-50 text-cirqa-negro/40 cursor-not-allowed opacity-60'
-                              : isSelected
-                              ? 'border-cirqa-negro bg-cirqa-negro text-white font-semibold shadow-sm cursor-pointer'
-                              : 'border-cirqa-negro/15 bg-white text-cirqa-negro hover:border-cirqa-negro/40 cursor-pointer'
-                          }`}
-                        >
-                          <span className="block text-[10px] opacity-75 truncate">{model.modelCode || model.code}</span>
-                          <span className="block font-medium truncate">{model.name.replace('Modelo ', '')}</span>
-                          {isOutOfStock && (
-                            <span className="block text-[9px] font-semibold text-cirqa-carmin mt-0.5">
-                              Sin stock
-                            </span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {initialModel ? (
+                    /* Vista limpia y directa cuando se abrió para un modelo específico */
+                    <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#FAF9F5] border border-cirqa-negro/10">
+                      <div className="flex items-center gap-3">
+                        <span className="font-mono text-xs font-bold bg-white px-3 py-1 rounded-full border border-cirqa-negro/10 text-cirqa-negro shadow-2xs">
+                          {currentModel.modelCode || currentModel.code}
+                        </span>
+                        <div>
+                          <h4 className="text-xs font-semibold text-cirqa-negro">{currentModel.name}</h4>
+                          <span className="text-[10px] text-cirqa-negro/50 uppercase tracking-wider">
+                            {currentModel.frameShape} · {currentModel.material || 'Acetato Bio'}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold font-mono text-cirqa-negro">
+                        ${Number(currentModel.price || 0).toLocaleString('es-AR')}
+                      </span>
+                    </div>
+                  ) : (
+                    /* Selector de modelos solo si se abrió el modal de forma genérica */
+                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
+                      {products.map((model) => {
+                        const isOutOfStock = model.stock === 0;
+                        const isSelected = currentModel.id === model.id;
+                        return (
+                          <button
+                            key={model.id}
+                            disabled={isOutOfStock}
+                            onClick={() => {
+                              if (isOutOfStock) return;
+                              setSelectedModel(model);
+                            }}
+                            className={`py-2.5 px-1.5 text-center rounded-2xl border transition-all text-xs relative ${
+                              isOutOfStock
+                                ? 'border-cirqa-negro/10 bg-gray-50 text-cirqa-negro/40 cursor-not-allowed opacity-60'
+                                : isSelected
+                                ? 'border-cirqa-negro bg-cirqa-negro text-white font-semibold shadow-sm cursor-pointer'
+                                : 'border-cirqa-negro/15 bg-white text-cirqa-negro hover:border-cirqa-negro/40 cursor-pointer'
+                            }`}
+                          >
+                            <span className="block text-[10px] opacity-75 truncate">{model.modelCode || model.code}</span>
+                            <span className="block font-medium truncate">{model.name.replace('Modelo ', '')}</span>
+                            {isOutOfStock && (
+                              <span className="block text-[9px] font-semibold text-cirqa-carmin mt-0.5">
+                                Sin stock
+                              </span>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
-                {/* 2. Selector Dinámico de Variantes (Solo si hasVariants es true y hay opciones) */}
-                {hasVariants && variantsList.length > 0 && (
-                  <div>
-                    <label className="text-[11px] font-bold uppercase tracking-wider text-cirqa-negro/70 block mb-2">
-                      {currentModel.variantAxisTitle || '2. Seleccionar Variante'}
-                    </label>
+                {/* 2. Selector Dinámico de Cristales Circadianos / Variantes */}
+                <div>
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-cirqa-negro/70 block mb-2">
+                    {currentModel.variantAxisTitle || '2. Configurar Cristal Circadiano'}
+                  </label>
+                  
+                  {hasVariants && variantsList.length > 0 ? (
                     <div className="grid grid-cols-2 gap-2.5">
                       {variantsList.map((variant) => {
                         const isSelected = selectedVariant?.key === variant.key;
@@ -304,8 +402,47 @@ export default function ConfiguratorModal({
                         );
                       })}
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    /* Filtros Circadianos por defecto */
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {FILTERS.map((filter) => {
+                        const isSelected = selectedFilter?.id === filter.id;
+                        return (
+                          <button
+                            key={filter.id}
+                            type="button"
+                            onClick={() => setSelectedFilter(filter)}
+                            className={`p-3.5 rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
+                              isSelected
+                                ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-sm ring-1 ring-cirqa-primario/20'
+                                : 'border-cirqa-negro/15 bg-white hover:border-cirqa-negro/30'
+                            }`}
+                          >
+                            <div
+                              className="w-3.5 h-3.5 rounded-full mt-0.5 flex-shrink-0 border"
+                              style={{
+                                backgroundColor: filter.hexCode || '#FFFFFF',
+                                borderColor: `${filter.hexCode || '#000000'}88`,
+                              }}
+                            />
+                            <div className="flex-grow min-w-0">
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="text-xs font-semibold text-cirqa-negro truncate">
+                                  {filter.name}
+                                </span>
+                              </div>
+                              {filter.tag && (
+                                <span className="text-[10px] text-cirqa-negro/60 block mt-0.5 truncate uppercase">
+                                  {filter.tag}
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
 
                 {/* Especificaciones y Advertencia Nocturna */}
                 <div className="p-4 bg-cirqa-surface rounded-2xl border border-cirqa-negro/10 text-xs">
@@ -321,33 +458,17 @@ export default function ConfiguratorModal({
                   )}
                 </div>
 
-                {/* Acciones de Compra y Receta */}
-                <div className="pt-2 space-y-2">
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      disabled={isModelOutOfStock}
-                      onClick={() => {
-                        if (isModelOutOfStock) return;
-                        onClose();
-                        if (onOpenPrescription) {
-                          onOpenPrescription(currentModel, selectedVariant || selectedFilter);
-                        }
-                      }}
-                      className="w-1/2 border border-cirqa-negro/20 hover:border-cirqa-negro text-cirqa-negro font-bold text-xs tracking-wider uppercase py-3.5 rounded-full transition-all text-center disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
-                    >
-                      Tengo Receta
-                    </button>
-                    
-                    <button
-                      type="button"
-                      disabled={isModelOutOfStock}
-                      onClick={handleDirectBuy}
-                      className="w-1/2 bg-cirqa-negro text-white hover:bg-cirqa-negro/85 disabled:bg-gray-300 disabled:cursor-not-allowed font-bold text-xs tracking-wider uppercase py-3.5 rounded-full transition-all text-center shadow-sm cursor-pointer"
-                    >
-                      {isModelOutOfStock ? 'Sin stock' : calculatedPrice > 0 ? `Comprar ${formattedPrice}` : 'Consultar'}
-                    </button>
-                  </div>
+                {/* Acción Única Principal de Compra Directa (Removido 'Tengo Receta') */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    disabled={isModelOutOfStock}
+                    onClick={handleDirectBuy}
+                    className="w-full bg-cirqa-negro hover:bg-cirqa-primario text-white disabled:bg-gray-300 disabled:cursor-not-allowed font-bold text-xs sm:text-sm tracking-wider uppercase py-4 rounded-full transition-all text-center shadow-lg hover:shadow-xl cursor-pointer flex items-center justify-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    <span>{isModelOutOfStock ? 'Sin stock' : `Comprar · ${formattedPrice}`}</span>
+                  </button>
                 </div>
 
               </div>
