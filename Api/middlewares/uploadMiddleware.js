@@ -77,13 +77,16 @@ const imageFileFilter = (req, file, cb) => {
 // Subida individual (retrocompatibilidad)
 export const uploadProductImage = multer({
   storage: productStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
   fileFilter: imageFileFilter,
 }).single('image');
 
-// Subida múltiple para galería (hasta 5 fotos simultáneas)
+// Subida múltiple para galería (soporte para archivos pesados y lotes de hasta 20 fotos simultáneas)
 export const uploadProductImages = multer({
   storage: productStorage,
-  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB por archivo
+  limits: {
+    fileSize: 25 * 1024 * 1024, // 25 MB por archivo
+    files: 20, // hasta 20 fotos simultáneas
+  },
   fileFilter: imageFileFilter,
-}).array('images', 5);
+}).array('images', 20);
