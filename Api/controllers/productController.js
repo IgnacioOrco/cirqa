@@ -340,10 +340,12 @@ export const updateProduct = async (req, res, next) => {
       }));
     }
 
-    // Si viene actualización del array de imágenes, asegurar unicidad de isPrimary y preservar variantKey
+    // Si viene actualización del array de imágenes, asegurar unicidad de isPrimary, isHover y preservar variantKey
     if (Array.isArray(req.body.images)) {
       req.body.images = req.body.images.map((img) => ({
         ...img,
+        isPrimary: Boolean(img.isPrimary),
+        isHover: Boolean(img.isHover || img.tag === 'hover'),
         variantKey: img.variantKey && img.variantKey !== 'null' ? img.variantKey.trim().toLowerCase() : null,
       }));
 
@@ -362,6 +364,22 @@ export const updateProduct = async (req, res, next) => {
           }
         });
       }
+
+      // Asegurar como máximo una imagen con isHover: true
+      const hoverCount = req.body.images.filter((img) => img.isHover).length;
+      if (hoverCount > 1) {
+        let firstHoverFound = false;
+        req.body.images.forEach((img) => {
+          if (img.isHover) {
+            if (!firstHoverFound) {
+              firstHoverFound = true;
+            } else {
+              img.isHover = false;
+            }
+          }
+        });
+      }
+
       const primary = req.body.images.find((img) => img.isPrimary) || req.body.images[0];
       if (primary) {
         req.body.image_url = primary.url;
@@ -653,7 +671,7 @@ export const deleteProductImage = async (req, res, next) => {
 export const updateProductImageMetadata = async (req, res, next) => {
   try {
     const { id, imageId } = req.params;
-    const { tag, isPrimary, order, variantKey } = req.body;
+    const { tag, isPrimary, isHover, order, variantKey } = req.body;
 
     let product;
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -677,7 +695,7 @@ export const updateProductImageMetadata = async (req, res, next) => {
       });
     }
 
-    if (tag && ['front', 'side', 'angle', 'model', 'detail', 'gallery'].includes(tag)) {
+    if (tag && ['front', 'side', 'angle', 'model', 'detail', 'gallery', 'hover'].includes(tag)) {
       targetImage.tag = tag;
     }
 
@@ -701,6 +719,20 @@ export const updateProductImageMetadata = async (req, res, next) => {
         fallback.isPrimary = true;
         product.image_url = fallback.url;
       }
+    }
+
+    if (isHover === true) {
+      product.images.forEach((img) => {
+        img.isHover = img._id.toString() === imageId.toString();
+      });
+    } else if (isHover === false && targetImage.isHover) {
+      targetImage.isHover = false;
+    }
+
+    if (tag === 'hover') {
+      product.images.forEach((img) => {
+        img.isHover = img._id.toString() === imageId.toString();
+      });
     }
 
     // Reordenar array según order

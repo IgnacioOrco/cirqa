@@ -28,6 +28,7 @@ import {
   Trash2,
   Plus,
   Star,
+  MousePointer,
   ChevronUp,
   ChevronDown,
   Layers,
@@ -53,6 +54,7 @@ const MODEL_SORT_ORDER = {
 // Etiquetas legibles para los roles o ubicaciones de fotos
 export const IMAGE_TAG_OPTIONS = [
   { value: 'front', label: 'Frontal (Cara)' },
+  { value: 'hover', label: 'Hover (Al pasar cursor)' },
   { value: 'side', label: 'Perfil / Lateral' },
   { value: 'angle', label: 'Ángulo 45°' },
   { value: 'model', label: 'Puesta en Modelo' },
@@ -679,6 +681,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         tag: img.tag || 'gallery',
         variantKey: img.variantKey || null,
         isPrimary: Boolean(img.isPrimary),
+        isHover: Boolean(img.isHover || img.tag === 'hover'),
         order: img.order !== undefined ? img.order : idx,
       }));
 
@@ -718,7 +721,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     if (!selectedProduct) return;
 
     try {
-      await productService.updateProductImageMetadata(selectedProduct._id, imageId, {
+      await productService.updateImageMetadata(selectedProduct._id, imageId, {
         isPrimary: true,
       });
 
@@ -752,6 +755,51 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         return;
       }
       showToast('Error al actualizar la foto de portada.', 'error');
+    }
+  };
+
+  // Marcar una imagen puntual como foto de hover (al pasar el cursor)
+  const handleSetHoverImage = async (imageId) => {
+    if (!selectedProduct) return;
+
+    try {
+      const targetImg = selectedProduct.images.find((img) => img._id === imageId);
+      const isCurrentlyHover = Boolean(targetImg?.isHover || targetImg?.tag === 'hover');
+      const nextIsHover = !isCurrentlyHover;
+
+      await productService.updateImageMetadata(selectedProduct._id, imageId, {
+        isHover: nextIsHover,
+        tag: nextIsHover ? (targetImg?.tag === 'gallery' ? 'hover' : targetImg?.tag) : (targetImg?.tag === 'hover' ? 'gallery' : targetImg?.tag),
+      });
+
+      const updatedImages = selectedProduct.images.map((img) => ({
+        ...img,
+        isHover: nextIsHover ? img._id === imageId : false,
+        tag: img._id === imageId
+          ? (nextIsHover ? (img.tag === 'gallery' ? 'hover' : img.tag) : (img.tag === 'hover' ? 'gallery' : img.tag))
+          : (nextIsHover && img.tag === 'hover' ? 'gallery' : img.tag),
+      }));
+
+      setSelectedProduct((prev) => ({
+        ...prev,
+        images: updatedImages,
+      }));
+
+      setProducts((prev) =>
+        prev.map((p) =>
+          p._id === selectedProduct._id
+            ? { ...p, images: updatedImages }
+            : p
+        )
+      );
+
+      showToast(nextIsHover ? 'Foto de hover configurada exitosamente.' : 'Foto de hover desmarcada.');
+    } catch (err) {
+      if (err.status === 401 || err.status === 403) {
+        handleSessionExpired(true);
+        return;
+      }
+      showToast('Error al actualizar la foto de hover.', 'error');
     }
   };
 
@@ -802,6 +850,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         tag: img.tag || 'gallery',
         variantKey: img.variantKey || null,
         isPrimary: Boolean(img.isPrimary),
+        isHover: Boolean(img.isHover || img.tag === 'hover'),
         order: img.order !== undefined ? img.order : idx,
       }));
 
@@ -2107,63 +2156,105 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                                     </span>
                                   </div>
                                 ) : (
-                                  colImages.map((img, idx) => (
-                                    <div
-                                      key={img._id || idx}
-                                      draggable={true}
-                                      onDragStart={() => setDraggedImageId(img._id)}
-                                      className={`p-2.5 rounded-xl border transition-all cursor-grab active:cursor-grabbing flex flex-col gap-2 ${
-                                        img.isPrimary
-                                          ? 'bg-amber-500/5 border-amber-500/30 shadow-2xs'
-                                          : 'bg-[#FBFBFA] border-cirqa-negro/10 hover:border-cirqa-negro/25 hover:shadow-2xs'
-                                      }`}
-                                    >
-                                      {/* Fila 1: Miniatura + Botón Portada + Botón Eliminar Foto */}
-                                      <div className="flex items-center justify-between gap-2">
-                                        <div className="flex items-center gap-2 min-w-0">
-                                          <div className="relative w-12 h-12 rounded-lg bg-white border border-cirqa-negro/10 overflow-hidden flex-shrink-0">
-                                            <img
-                                              src={formatMediaUrl(img.url)}
-                                              alt={`Foto ${idx + 1}`}
-                                              className="w-full h-full object-contain"
-                                            />
-                                            {img.isPrimary && (
-                                              <span
-                                                className="absolute top-0.5 left-0.5 bg-amber-500 text-white p-0.5 rounded-full shadow-2xs"
-                                                title="Foto de Portada"
+                                  colImages.map((img, idx) => {
+                                    const isImgPrimary = Boolean(img.isPrimary);
+                                    const isImgHover = Boolean(img.isHover || img.tag === 'hover');
+
+                                    return (
+                                      <div
+                                        key={img._id || idx}
+                                        draggable={true}
+                                        onDragStart={() => setDraggedImageId(img._id)}
+                                        className={`p-2.5 rounded-xl border transition-all cursor-grab active:cursor-grabbing flex flex-col gap-2 ${
+                                          isImgPrimary
+                                            ? 'bg-amber-500/5 border-amber-500/40 shadow-xs'
+                                            : isImgHover
+                                            ? 'bg-indigo-500/5 border-indigo-500/40 shadow-xs'
+                                            : 'bg-[#FBFBFA] border-cirqa-negro/10 hover:border-cirqa-negro/25 hover:shadow-2xs'
+                                        }`}
+                                      >
+                                        {/* Fila 1: Miniatura + Badges Visuales + Doble Selector (Portada & Hover) + Botón Eliminar */}
+                                        <div className="flex items-center justify-between gap-2">
+                                          <div className="flex items-center gap-2.5 min-w-0">
+                                            {/* Miniatura con Badges Visuales Superpuestos */}
+                                            <div className="relative w-14 h-14 rounded-lg bg-white border border-cirqa-negro/10 overflow-hidden flex-shrink-0 flex items-center justify-center">
+                                              <img
+                                                src={formatMediaUrl(img.url)}
+                                                alt={`Foto ${idx + 1}`}
+                                                className="w-full h-full object-contain select-none"
+                                              />
+                                              {/* Badges Visuales: Dorado para PORTADA, Azul/Violeta para HOVER */}
+                                              <div className="absolute top-1 left-1 flex flex-col gap-0.5 pointer-events-none z-10">
+                                                {isImgPrimary && (
+                                                  <span
+                                                    className="bg-amber-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded shadow-sm leading-none uppercase tracking-wider flex items-center gap-0.5"
+                                                    title="Foto de Portada Principal"
+                                                  >
+                                                    <Star className="w-2 h-2 fill-current" />
+                                                    PORTADA
+                                                  </span>
+                                                )}
+                                                {isImgHover && (
+                                                  <span
+                                                    className="bg-indigo-600 text-white text-[7px] font-black px-1.5 py-0.5 rounded shadow-sm leading-none uppercase tracking-wider flex items-center gap-0.5"
+                                                    title="Foto mostrada al pasar el cursor (Hover)"
+                                                  >
+                                                    <Eye className="w-2 h-2" />
+                                                    HOVER
+                                                  </span>
+                                                )}
+                                              </div>
+                                            </div>
+
+                                            {/* Doble Selector Visual en Miniaturas */}
+                                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
+                                              {/* Botón Estrella (★ Portada) */}
+                                              <button
+                                                type="button"
+                                                onClick={() => handleSetPrimaryImage(img._id)}
+                                                title={isImgPrimary ? 'Esta es la foto de portada actual' : 'Marcar como foto de portada principal'}
+                                                className={`px-2 py-1 text-[10px] rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                                                  isImgPrimary
+                                                    ? 'text-amber-900 bg-amber-100 border border-amber-400 font-bold shadow-2xs'
+                                                    : 'text-cirqa-negro/60 hover:text-amber-700 hover:bg-amber-50 bg-white border border-cirqa-negro/10'
+                                                }`}
                                               >
-                                                <Star className="w-2.5 h-2.5 fill-current" />
-                                              </span>
-                                            )}
+                                                <Star className={`w-3 h-3 ${isImgPrimary ? 'fill-current text-amber-500' : ''}`} />
+                                                <span>{isImgPrimary ? '★ Portada' : 'Portada'}</span>
+                                              </button>
+
+                                              {/* Botón Puntero / Ojo (👆 / 👁️ Foto Hover) */}
+                                              <button
+                                                type="button"
+                                                onClick={() => handleSetHoverImage(img._id)}
+                                                title={
+                                                  isImgHover
+                                                    ? 'Foto actual de hover (clic para desmarcar)'
+                                                    : 'Marcar como foto mostrada al pasar el mouse (hover)'
+                                                }
+                                                className={`px-2 py-1 text-[10px] rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
+                                                  isImgHover
+                                                    ? 'text-indigo-900 bg-indigo-100 border border-indigo-400 font-bold shadow-2xs'
+                                                    : 'text-cirqa-negro/60 hover:text-indigo-700 hover:bg-indigo-50 bg-white border border-cirqa-negro/10'
+                                                }`}
+                                              >
+                                                <MousePointer className={`w-3 h-3 ${isImgHover ? 'text-indigo-600' : ''}`} />
+                                                <span>{isImgHover ? '👆 Hover' : 'Hover'}</span>
+                                              </button>
+                                            </div>
                                           </div>
 
-                                          {/* Portada Toggle */}
+                                          {/* Botón Eliminar Foto */}
                                           <button
                                             type="button"
-                                            onClick={() => handleSetPrimaryImage(img._id)}
-                                            title={img.isPrimary ? 'Esta es la foto de portada' : 'Convertir en foto de portada principal'}
-                                            className={`px-2 py-1 text-[10px] font-medium rounded-lg flex items-center gap-1 transition-all cursor-pointer ${
-                                              img.isPrimary
-                                                ? 'text-amber-700 bg-amber-100/80 border border-amber-300 font-semibold'
-                                                : 'text-cirqa-negro/60 hover:text-amber-700 hover:bg-amber-50 bg-white border border-cirqa-negro/10'
-                                            }`}
+                                            onClick={() => handleDeleteImage(img._id)}
+                                            className="px-2 py-1 text-[10px] font-medium text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 hover:border-red-600 rounded-lg transition-all flex items-center gap-1 flex-shrink-0 cursor-pointer shadow-2xs active:scale-95"
+                                            title="Eliminar esta foto permanentemente"
                                           >
-                                            <Star className={`w-3 h-3 ${img.isPrimary ? 'fill-current text-amber-500' : ''}`} />
-                                            <span>{img.isPrimary ? 'Portada' : 'Principal'}</span>
+                                            <Trash2 className="w-3 h-3" />
+                                            <span className="hidden sm:inline">Borrar</span>
                                           </button>
                                         </div>
-
-                                        {/* Botón Eliminar Foto */}
-                                        <button
-                                          type="button"
-                                          onClick={() => handleDeleteImage(img._id)}
-                                          className="px-2 py-1 text-[10px] font-medium text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 hover:border-red-600 rounded-lg transition-all flex items-center gap-1 flex-shrink-0 cursor-pointer shadow-2xs active:scale-95"
-                                          title="Eliminar esta foto permanentemente"
-                                        >
-                                          <Trash2 className="w-3 h-3" />
-                                          <span>Borrar</span>
-                                        </button>
-                                      </div>
 
                                       {/* Fila 2: Selectores de Clasificación y Ubicación */}
                                       <div className="space-y-1.5 pt-1.5 border-t border-cirqa-negro/5 text-[10px]">
@@ -2199,7 +2290,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                                         </div>
                                       </div>
                                     </div>
-                                  ))
+                                  );
+                                })
                                 )}
                               </div>
                             </div>

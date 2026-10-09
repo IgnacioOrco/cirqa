@@ -5,7 +5,8 @@ import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle, ArrowRight } from 'l
 import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { getProductImage as getStudioProductImage } from '../data/productImages';
-import { resolveProductCardImage } from '../utils/productImages';
+import { formatMediaUrl } from '../services/api';
+import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage } from '../utils/productImages';
 
 export default function ProductShowcaseCarousel({ onSelectModel }) {
   const containerRef = useRef(null);
@@ -70,16 +71,6 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
         variantKey: filterId,
       },
     }));
-  };
-
-  /**
-   * Resuelve la imagen a renderizar según el cristal o variante seleccionada.
-   */
-  const resolveDisplayImage = (product) => {
-    const state = cardStates[product.id] || {};
-    const isHovered = hoveredCardId === product.id;
-    const currentKey = state.filterId || state.variantKey || product.lensDefault || 'dia';
-    return resolveProductCardImage(product, currentKey, isHovered ? 'frente' : 'perspectiva', isHovered);
   };
 
   return (
@@ -178,7 +169,11 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
             {/* Mapeo de Productos Dinámicos */}
             {products.map((product) => {
               const state = cardStates[product.id] || {};
-              const displayImg = resolveDisplayImage(product);
+              const isHovered = hoveredCardId === product.id;
+
+              // Imagen base determinista (portada o variante elegida) y foto hover
+              const primaryImg = (state.filterId || state.variantKey ? resolveProductCardImage(product, state.filterId || state.variantKey, 'perspectiva', false) : null) || getPrimaryProductImage(product);
+              const hoverImg = getHoverProductImage(product, primaryImg);
 
               // Determinar opciones de variantes o filtros circadianos
               const variantOptions = (product.hasVariants && product.variants?.length > 0)
@@ -241,26 +236,40 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                       style={{ backgroundColor: glowColor }}
                     />
 
-                    {/* Renderizado de la Imagen con AnimatePresence para Crossfade suave */}
-                    <AnimatePresence mode="wait">
-                      <motion.img
-                        key={displayImg}
-                        src={displayImg}
+                    {/* Contenedor relativo de imágenes con transición suave crossfade */}
+                    <div className="relative w-full h-full flex items-center justify-center p-2 z-10">
+                      {/* Imagen Base (Portada) */}
+                      <img
+                        src={formatMediaUrl(primaryImg)}
                         alt={`${product.name} - CIRQA`}
-                        initial={{ opacity: 0.4, scale: 0.96 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0.3, scale: 0.98 }}
-                        transition={{ duration: 0.22, ease: 'easeOut' }}
-                        className="max-h-44 sm:max-h-48 w-full object-contain select-none filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.06)] relative z-10 p-2"
+                        className={`max-h-44 sm:max-h-48 w-full object-contain select-none filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.06)] transition-all duration-300 ${
+                          isHovered && hoverImg !== primaryImg ? 'opacity-0' : 'opacity-100'
+                        }`}
                         style={{ mixBlendMode: 'multiply' }}
                         loading="lazy"
                         onError={(e) => {
-                          // Fallback si la imagen no carga
                           e.target.onerror = null;
                           e.target.src = '/products/_DSC8649.webp';
                         }}
                       />
-                    </AnimatePresence>
+
+                      {/* Imagen Hover Alternativa (al pasar el cursor) */}
+                      {hoverImg !== primaryImg && (
+                        <img
+                          src={formatMediaUrl(hoverImg)}
+                          alt={`${product.name} Hover - CIRQA`}
+                          className={`absolute inset-0 m-auto max-h-44 sm:max-h-48 w-full object-contain select-none filter drop-shadow-[0_8px_20px_rgba(0,0,0,0.06)] transition-all transition-opacity duration-300 pointer-events-none ${
+                            isHovered ? 'opacity-100' : 'opacity-0'
+                          }`}
+                          style={{ mixBlendMode: 'multiply' }}
+                          loading="lazy"
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = '/products/_DSC8649.webp';
+                          }}
+                        />
+                      )}
+                    </div>
                   </div>
 
                   {/* Selector interactivo de Filtros Circadianos o Variantes */}

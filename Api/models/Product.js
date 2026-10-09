@@ -12,7 +12,7 @@ const productImageSchema = new mongoose.Schema(
     },
     tag: {
       type: String,
-      enum: ['front', 'side', 'angle', 'model', 'detail', 'gallery'],
+      enum: ['front', 'side', 'angle', 'model', 'detail', 'gallery', 'hover'],
       default: 'gallery',
       required: true,
     },
@@ -22,6 +22,10 @@ const productImageSchema = new mongoose.Schema(
       trim: true,
     },
     isPrimary: {
+      type: Boolean,
+      default: false,
+    },
+    isHover: {
       type: Boolean,
       default: false,
     },

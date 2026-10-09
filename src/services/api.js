@@ -314,13 +314,17 @@ export const productService = {
   },
 
   /**
-   * Actualizar rol (tag), foto primaria o posición (order): PATCH /api/products/:id/images/:imageId
+   * Actualizar rol (tag), foto primaria (isPrimary), foto hover (isHover) o posición (order): PATCH /api/products/:id/images/:imageId
    * @param {string} id - ID del producto
    * @param {string} imageId - ID de la imagen en el subdocumento
-   * @param {Object} metadata - { tag, isPrimary, order }
+   * @param {Object} metadata - { tag, isPrimary, isHover, order, variantKey }
    */
-  async updateProductImageMetadata(id, imageId, metadata) {
+  async updateImageMetadata(id, imageId, metadata) {
     return api.patch(`/api/products/${id}/images/${imageId}`, metadata);
+  },
+
+  async updateProductImageMetadata(id, imageId, metadata) {
+    return this.updateImageMetadata(id, imageId, metadata);
   },
 };
 

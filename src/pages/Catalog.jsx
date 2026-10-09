@@ -11,7 +11,7 @@ import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { getProductImage as getStudioProductImage } from '../data/productImages';
 import { formatMediaUrl } from '../services/api';
-import { resolveProductCardImage } from '../utils/productImages';
+import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage } from '../utils/productImages';
 
 export default function Catalog() {
   const { products, loading, error, refetch } = useProducts({ all: false });
@@ -215,8 +215,9 @@ export default function Catalog() {
                     variantOptions[0] ||
                     FILTERS[0];
 
-                  // Resolver imagen reactivamente para el cristal o variante seleccionada
-                  const displayImage = resolveProductCardImage(product, activeVarKey, 'frente', isHovered);
+                  // Imagen base determinista (portada o variante elegida) y foto hover
+                  const primaryImg = (cardSelectedVariant[product.id] && resolveProductCardImage(product, activeVarKey, 'perspectiva', false)) || getPrimaryProductImage(product);
+                  const hoverImg = getHoverProductImage(product, primaryImg);
 
                   return (
                     <motion.div
@@ -239,17 +240,38 @@ export default function Catalog() {
                           style={{ backgroundColor: activeOptionObj?.color || '#F3B93A' }}
                         />
 
-                        <img
-                          key={displayImage}
-                          src={formatMediaUrl(displayImage)}
-                          alt={product.name}
-                          className="w-full h-full object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none relative z-10"
-                          style={{ mixBlendMode: 'multiply' }}
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = '/products/_DSC8649.webp';
-                          }}
-                        />
+                        {/* Contenedor relativo de imágenes con Crossfade suave */}
+                        <div className="relative w-full h-full flex items-center justify-center z-10">
+                          {/* Foto de Portada (Base) */}
+                          <img
+                            src={formatMediaUrl(primaryImg)}
+                            alt={product.name}
+                            className={`w-full h-full object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none ${
+                              isHovered && hoverImg !== primaryImg ? 'opacity-0' : 'opacity-100'
+                            }`}
+                            style={{ mixBlendMode: 'multiply' }}
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/products/_DSC8649.webp';
+                            }}
+                          />
+
+                          {/* Foto de Hover Alternativa (al pasar el mouse) */}
+                          {hoverImg !== primaryImg && (
+                            <img
+                              src={formatMediaUrl(hoverImg)}
+                              alt={`${product.name} Hover`}
+                              className={`absolute inset-0 w-full h-full object-contain filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all transition-opacity duration-300 select-none pointer-events-none ${
+                                isHovered ? 'opacity-100' : 'opacity-0'
+                              }`}
+                              style={{ mixBlendMode: 'multiply' }}
+                              onError={(e) => {
+                                e.target.onerror = null;
+                                e.target.src = '/products/_DSC8649.webp';
+                              }}
+                            />
+                          )}
+                        </div>
 
                         {/* Código de Modelo Flotante */}
                         <div className="absolute top-3.5 left-3.5 bg-white/90 backdrop-blur-md px-2.5 py-1 rounded-full border border-cirqa-negro/10 text-[10px] font-mono text-cirqa-negro font-semibold z-20">

@@ -34,7 +34,7 @@ export const getClassicModelKey = (product) => {
  * Normaliza URLs y estructura.
  */
 export const getSortedProductImages = (product) => {
-  if (!product) return [{ url: FALLBACK_IMAGE, tag: 'front', isPrimary: true, order: 0, variantKey: null }];
+  if (!product) return [{ url: FALLBACK_IMAGE, tag: 'front', isPrimary: true, isHover: false, order: 0, variantKey: null }];
 
   if (Array.isArray(product.images) && product.images.length > 0) {
     const sorted = [...product.images]
@@ -48,6 +48,7 @@ export const getSortedProductImages = (product) => {
         tag: img.tag || 'gallery',
         variantKey: img.variantKey || null,
         isPrimary: Boolean(img.isPrimary),
+        isHover: Boolean(img.isHover || img.tag === 'hover'),
         order: Number(img.order) || index,
       }));
     }
@@ -62,12 +63,13 @@ export const getSortedProductImages = (product) => {
         tag: 'front',
         variantKey: null,
         isPrimary: true,
+        isHover: false,
         order: 0,
       },
     ];
   }
 
-  // Fallback si es un modelo clásico con fotos de estudio
+  // Fallback si es un modelo clásico con fotos de estudio (solo si NO tiene fotos en BD)
   const classicKey = getClassicModelKey(product);
   if (classicKey) {
     return [
@@ -76,6 +78,7 @@ export const getSortedProductImages = (product) => {
         url: getStudioProductImage(classicKey, 'dia', 'perspectiva'),
         tag: 'angle',
         isPrimary: true,
+        isHover: false,
         order: 0,
       },
       {
@@ -83,6 +86,7 @@ export const getSortedProductImages = (product) => {
         url: getStudioProductImage(classicKey, 'dia', 'frente'),
         tag: 'front',
         isPrimary: false,
+        isHover: true,
         order: 1,
       },
       {
@@ -90,43 +94,48 @@ export const getSortedProductImages = (product) => {
         url: getStudioProductImage(classicKey, 'dia', 'cenital'),
         tag: 'detail',
         isPrimary: false,
+        isHover: false,
         order: 2,
       },
     ];
   }
 
-  return [{ _id: 'fallback', url: FALLBACK_IMAGE, tag: 'front', isPrimary: true, order: 0 }];
+  return [{ _id: 'fallback', url: FALLBACK_IMAGE, tag: 'front', isPrimary: true, isHover: false, order: 0 }];
 };
 
 /**
- * Regla 1: Foto de Portada / Card Principal
- * 1. isPrimary === true
- * 2. o primera de images ordenada por order
- * 3. o image_url
- * 4. o fallback visual elegante
+ * Regla 1: Selección Determinista de Portada
+ * Prioridad Absoluta a MongoDB:
+ * 1°: Imagen con isPrimary === true.
+ * 2°: Si ninguna tiene estrella, la primera imagen del array ordenado por order ascendente (Pos #1).
+ * 3°: Fallback a product.image_url.
+ * Solo si no hay imágenes en BD, fallback a modelo clásico o general.
  */
 export const getPrimaryProductImage = (product) => {
   if (!product) return FALLBACK_IMAGE;
 
+  // 1. Prioridad absoluta a MongoDB: si product.images contiene al menos una imagen
   if (Array.isArray(product.images) && product.images.length > 0) {
-    const primaryImg = product.images.find((img) => img.isPrimary && img.url);
-    if (primaryImg) {
-      return normalizeImageUrl(primaryImg.url);
-    }
+    const validImages = product.images.filter((img) => img && (img.url || img.imageUrl));
+    if (validImages.length > 0) {
+      // 1°: Imagen con isPrimary === true
+      const primaryImg = validImages.find((img) => Boolean(img.isPrimary));
+      if (primaryImg) {
+        return normalizeImageUrl(primaryImg.url || primaryImg.imageUrl);
+      }
 
-    const sorted = [...product.images]
-      .filter((img) => img && img.url)
-      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-
-    if (sorted.length > 0) {
-      return normalizeImageUrl(sorted[0].url);
+      // 2°: Primera imagen del array ordenado por order ascendente (Pos #1)
+      const sorted = [...validImages].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+      return normalizeImageUrl(sorted[0].url || sorted[0].imageUrl);
     }
   }
 
+  // 3°: Fallback a product.image_url
   if (product.image_url) {
     return normalizeImageUrl(product.image_url);
   }
 
+  // Fallback si no tiene fotos en MongoDB y coincide con modelo clásico
   const classicKey = getClassicModelKey(product);
   if (classicKey) {
     return getStudioProductImage(classicKey, 'dia', 'perspectiva');
@@ -136,41 +145,49 @@ export const getPrimaryProductImage = (product) => {
 };
 
 /**
- * Regla 2: Foto Alternativa para Hover en Card
- * 1. Foto con tag === 'front' (o 'angle'/'side' si la principal ya es front) distinta a la principal
- * 2. O la segunda foto de images
- * 3. O vista frontal de estudio si aplica
- * 4. O la misma foto principal como fallback
+ * Regla 2: Selección Determinista de Hover
+ * Prioridad Absoluta a MongoDB:
+ * 1°: Imagen con isHover === true (o tag === 'hover').
+ * 2°: En su defecto, la segunda imagen de la lista ordenada (images[1]), siempre que sea distinta a la primaria.
+ * 3°: Si el producto tiene una sola foto (o no hay otra distinta), mantener la foto primaria (sin cambio al hover).
+ * Anula cualquier fallback estático o a modelos clásicos cuando existen fotos en MongoDB.
  */
 export const getHoverProductImage = (product, primaryUrl = null) => {
   if (!product) return FALLBACK_IMAGE;
   const resolvedPrimary = primaryUrl || getPrimaryProductImage(product);
 
-  if (Array.isArray(product.images) && product.images.length > 1) {
-    // Buscar foto con tag 'front' distinta a la principal
-    const frontImg = product.images.find(
-      (img) => img.url && img.tag === 'front' && normalizeImageUrl(img.url) !== resolvedPrimary
-    );
-    if (frontImg) return normalizeImageUrl(frontImg.url);
+  // 1. Prioridad absoluta a MongoDB
+  if (Array.isArray(product.images) && product.images.length > 0) {
+    const validImages = product.images.filter((img) => img && (img.url || img.imageUrl));
+    if (validImages.length > 0) {
+      // 1°: Imagen con isHover === true (o tag === 'hover')
+      const hoverImg = validImages.find((img) => Boolean(img.isHover) || img.tag === 'hover');
+      if (hoverImg) {
+        return normalizeImageUrl(hoverImg.url || hoverImg.imageUrl);
+      }
 
-    // Buscar foto con tag 'angle' o 'side' distinta a la principal
-    const alternateTagImg = product.images.find(
-      (img) =>
-        img.url &&
-        (img.tag === 'angle' || img.tag === 'side' || img.tag === 'model') &&
-        normalizeImageUrl(img.url) !== resolvedPrimary
-    );
-    if (alternateTagImg) return normalizeImageUrl(alternateTagImg.url);
+      // Ordenar por orden ascendente
+      const sorted = [...validImages].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 
-    // Si no, tomar la 2da foto ordenada por order
-    const sorted = [...product.images]
-      .filter((img) => img && img.url)
-      .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+      // 2°: En su defecto, la segunda imagen de la lista ordenada (images[1]), siempre que sea distinta a la primaria
+      if (sorted.length > 1) {
+        const secondUrl = normalizeImageUrl(sorted[1].url || sorted[1].imageUrl);
+        if (secondUrl !== resolvedPrimary) {
+          return secondUrl;
+        }
+        // Si la segunda coincide con la primaria, buscar cualquier otra alternativa distinta
+        const altImg = sorted.find((img) => normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary);
+        if (altImg) {
+          return normalizeImageUrl(altImg.url || altImg.imageUrl);
+        }
+      }
 
-    const secondImg = sorted.find((img) => normalizeImageUrl(img.url) !== resolvedPrimary);
-    if (secondImg) return normalizeImageUrl(secondImg.url);
+      // 3°: Si el producto tiene una sola foto, mantener la foto primaria (sin cambio al hover)
+      return resolvedPrimary;
+    }
   }
 
+  // Fallback si no tiene fotos en MongoDB y coincide con modelo clásico
   const classicKey = getClassicModelKey(product);
   if (classicKey) {
     const frente = getStudioProductImage(classicKey, 'dia', 'frente');
@@ -186,10 +203,11 @@ export const getHoverProductImage = (product, primaryUrl = null) => {
  * o variante seleccionada (tanto en Catálogo como en Pasarela/Carrusel).
  *
  * Prioridad de resolución:
- * 1. Imagen subida en MongoDB con `variantKey` coincidente
- * 2. Si es modelo clásico (q001..q005, qkids), fotografía real de estudio para ese cristal
- * 3. Si está en hover y existe hoverImage, retornar hoverImage
- * 4. Imagen primaria del producto o fallback general
+ * 1. Prioridad Absoluta a MongoDB: si el producto tiene fotos cargadas, se busca por
+ *    variantKey coincidente. Si no hay variante con foto propia, se devuelve
+ *    determinísticamente la imagen de Hover (si isHovered) o la Portada.
+ * 2. Si no hay fotos en MongoDB y es modelo clásico: fotografía de estudio.
+ * 3. Fallback general elegante.
  */
 export const resolveProductCardImage = (
   product,
@@ -199,38 +217,59 @@ export const resolveProductCardImage = (
 ) => {
   if (!product) return FALLBACK_IMAGE;
 
-  const rawKey = (selectedKey || product.lensDefault || 'dia').toString().toLowerCase().trim();
-
-  // Mapeo canónico de cristales circadianos
-  let circadianKey = rawKey;
-  if (['amarillo', 'foco', 'pantallas', 'dia'].includes(rawKey)) circadianKey = 'dia';
-  else if (['ambar', 'ámbar', 'atardecer', 'naranja', 'transicion', 'transición'].includes(rawKey)) circadianKey = 'transicion';
-  else if (['rojo', 'descanso', 'carmin', 'carmín', 'noche'].includes(rawKey)) circadianKey = 'noche';
-  else if (['transparente', 'neutro', 'blanco', 'clear'].includes(rawKey)) circadianKey = 'clear';
-
-  // 1. Buscar en imágenes personalizadas por variantKey
+  // 1. Prioridad absoluta a MongoDB: anular cualquier fallback estático si hay fotos cargadas
   if (Array.isArray(product.images) && product.images.length > 0) {
-    const matchedCustom = product.images.find((img) => {
-      if (!img || (!img.url && !img.imageUrl) || !img.variantKey) return false;
-      const vk = img.variantKey.toString().toLowerCase().trim();
-      return (
-        vk === rawKey ||
-        vk === circadianKey ||
-        vk.includes(rawKey) ||
-        rawKey.includes(vk) ||
-        vk.includes(circadianKey) ||
-        circadianKey.includes(vk)
-      );
-    });
+    const validImages = product.images.filter((img) => img && (img.url || img.imageUrl));
+    if (validImages.length > 0) {
+      if (selectedKey) {
+        const rawKey = selectedKey.toString().toLowerCase().trim();
+        let circadianKey = rawKey;
+        if (['amarillo', 'foco', 'pantallas', 'dia'].includes(rawKey)) circadianKey = 'dia';
+        else if (['ambar', 'ámbar', 'atardecer', 'naranja', 'transicion', 'transición'].includes(rawKey)) circadianKey = 'transicion';
+        else if (['rojo', 'descanso', 'carmin', 'carmín', 'noche'].includes(rawKey)) circadianKey = 'noche';
+        else if (['transparente', 'neutro', 'blanco', 'clear'].includes(rawKey)) circadianKey = 'clear';
 
-    if (matchedCustom) {
-      return normalizeImageUrl(matchedCustom.url || matchedCustom.imageUrl);
+        const matchedCustom = validImages.find((img) => {
+          if (!img.variantKey) return false;
+          const vk = img.variantKey.toString().toLowerCase().trim();
+          return (
+            vk === rawKey ||
+            vk === circadianKey ||
+            vk.includes(rawKey) ||
+            rawKey.includes(vk) ||
+            vk.includes(circadianKey) ||
+            circadianKey.includes(vk)
+          );
+        });
+
+        if (matchedCustom) {
+          return normalizeImageUrl(matchedCustom.url || matchedCustom.imageUrl);
+        }
+      }
+
+      // Si no hay variante específica asignada, retornar determinísticamente Hover o Portada de MongoDB
+      if (isHovered) {
+        return getHoverProductImage(product);
+      }
+      return getPrimaryProductImage(product);
     }
   }
 
-  // 2. Modelo clásico con fotografía de estudio circadiana
+  // 2. Retrocompatibilidad con image_url plano
+  if (product.image_url) {
+    return normalizeImageUrl(product.image_url);
+  }
+
+  // 3. Modelo clásico con fotografía de estudio circadiana (solo si NO tiene fotos en BD)
   const classicKey = product.classicKey || getClassicModelKey(product);
   if (classicKey) {
+    const rawKey = (selectedKey || product.lensDefault || 'dia').toString().toLowerCase().trim();
+    let circadianKey = rawKey;
+    if (['amarillo', 'foco', 'pantallas', 'dia'].includes(rawKey)) circadianKey = 'dia';
+    else if (['ambar', 'ámbar', 'atardecer', 'naranja', 'transicion', 'transición'].includes(rawKey)) circadianKey = 'transicion';
+    else if (['rojo', 'descanso', 'carmin', 'carmín', 'noche'].includes(rawKey)) circadianKey = 'noche';
+    else if (['transparente', 'neutro', 'blanco', 'clear'].includes(rawKey)) circadianKey = 'clear';
+
     const validCircadian = ['clear', 'dia', 'transicion', 'noche'].includes(circadianKey)
       ? circadianKey
       : (product.lensDefault || 'dia');
@@ -238,13 +277,7 @@ export const resolveProductCardImage = (
     return getStudioProductImage(classicKey, validCircadian, resolvedAngle);
   }
 
-  // 3. Hover alternativo si aplica
-  if (isHovered && product.hoverImage && product.hoverImage !== product.primaryImage) {
-    return product.hoverImage;
-  }
-
-  // 4. Fallback primario
-  return product.primaryImage || FALLBACK_IMAGE;
+  return FALLBACK_IMAGE;
 };
 
 export const DEFAULT_CIRCADIAN_VARIANTS = [
