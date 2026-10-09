@@ -573,6 +573,104 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setSaveSuccess(false);
   };
 
+  // Compresión y optimización previa en el cliente usando HTML5 Canvas
+  const compressImageFile = async (file) => {
+    // Si no es imagen procesable o es SVG/GIF, retornar archivo original
+    if (!file || !file.type.startsWith('image/') || file.type === 'image/svg+xml' || file.type === 'image/gif') {
+      return file;
+    }
+
+    return new Promise((resolve) => {
+      try {
+        const reader = new FileReader();
+
+        reader.onerror = () => {
+          console.warn(`[Client Compression] Fallo al leer "${file.name}". Usando archivo original.`);
+          resolve(file);
+        };
+
+        reader.onload = (e) => {
+          const img = new Image();
+
+          img.onerror = () => {
+            console.warn(`[Client Compression] Fallo al decodificar "${file.name}". Usando archivo original.`);
+            resolve(file);
+          };
+
+          img.onload = () => {
+            try {
+              let width = img.naturalWidth || img.width;
+              let height = img.naturalHeight || img.height;
+
+              // Redimensionar si supera los 2000px de ancho a un máximo de 1920px manteniendo aspect ratio
+              const MAX_WIDTH = 1920;
+              if (width > 2000) {
+                const ratio = MAX_WIDTH / width;
+                width = MAX_WIDTH;
+                height = Math.round(height * ratio);
+              }
+
+              const canvas = document.createElement('canvas');
+              canvas.width = width;
+              canvas.height = height;
+
+              const ctx = canvas.getContext('2d');
+              if (!ctx) {
+                resolve(file);
+                return;
+              }
+
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
+              ctx.drawImage(img, 0, 0, width, height);
+
+              // Exportar a WebP (o JPEG como fallback) con calidad 0.85
+              const outputMime = 'image/webp';
+              const quality = 0.85;
+
+              canvas.toBlob(
+                (blob) => {
+                  if (!blob) {
+                    console.warn(`[Client Compression] No se pudo generar Blob para "${file.name}". Usando archivo original.`);
+                    resolve(file);
+                    return;
+                  }
+
+                  const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+                  const newFileName = `${baseName}.webp`;
+
+                  const compressedFile = new File([blob], newFileName, {
+                    type: outputMime,
+                    lastModified: Date.now(),
+                  });
+
+                  // Si el comprimido es más pesado que el original, preservar el original
+                  if (compressedFile.size > file.size) {
+                    resolve(file);
+                  } else {
+                    resolve(compressedFile);
+                  }
+                },
+                outputMime,
+                quality
+              );
+            } catch (err) {
+              console.warn(`[Client Compression Error] Error procesando "${file.name}":`, err);
+              resolve(file);
+            }
+          };
+
+          img.src = e.target.result;
+        };
+
+        reader.readAsDataURL(file);
+      } catch (err) {
+        console.warn(`[Client Compression] Error general:`, err);
+        resolve(file);
+      }
+    });
+  };
+
   // Selección de múltiples archivos para la galería con soporte de clasificación automática
   const handleGalleryFilesChange = (e, forcedVariantKey = undefined) => {
     const files = Array.from(e.target.files || []);
@@ -583,14 +681,14 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
       return;
     }
 
-    // Validar formato y tamaño
+    // Validar formato y tamaño (hasta 25 MB gracias a la compresión en cliente)
     for (const f of files) {
       if (!f.type.startsWith('image/')) {
         setModalError(`El archivo "${f.name}" no es una imagen válida.`);
         return;
       }
-      if (f.size > 10 * 1024 * 1024) {
-        setModalError(`"${f.name}" supera el límite de 10 MB.`);
+      if (f.size > 25 * 1024 * 1024) {
+        setModalError(`"${f.name}" supera el límite de 25 MB.`);
         return;
       }
     }
@@ -647,9 +745,20 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setModalError(null);
 
     try {
+      // Compresión previa en el cliente (<canvas>, max 1920px, calidad 0.85, fallback a original)
+      const processedPreviews = await Promise.all(
+        galleryPreviews.map(async (prevItem) => {
+          const compressed = await compressImageFile(prevItem.file);
+          return {
+            ...prevItem,
+            file: compressed,
+          };
+        })
+      );
+
       // Agrupar previews por (tag, variantKey) para enviar cada lote con sus metadatos exactos
       const groups = {};
-      galleryPreviews.forEach((prevItem) => {
+      processedPreviews.forEach((prevItem) => {
         const groupKey = `${prevItem.tag || 'gallery'}__${prevItem.variantKey || 'null'}`;
         if (!groups[groupKey]) {
           groups[groupKey] = {

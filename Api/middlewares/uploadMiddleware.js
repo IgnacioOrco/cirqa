@@ -74,15 +74,28 @@ const imageFileFilter = (req, file, cb) => {
   }
 };
 
-// Subida individual (retrocompatibilidad)
-export const uploadProductImage = multer({
+/**
+ * Inyecta cabeceras CORS en respuestas de error de Multer para evitar
+ * que el navegador enmascare el error como un fallo de CORS huérfano.
+ */
+const setCorsHeaders = (req, res) => {
+  const origin = req.headers.origin;
+  if (origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Accept, Origin');
+  }
+};
+
+// Instancias base de Multer configuradas a 25 MB
+const multerSingleImage = multer({
   storage: productStorage,
   limits: { fileSize: 25 * 1024 * 1024 }, // 25 MB
   fileFilter: imageFileFilter,
 }).single('image');
 
-// Subida múltiple para galería (soporte para archivos pesados y lotes de hasta 20 fotos simultáneas)
-export const uploadProductImages = multer({
+const multerMultipleImages = multer({
   storage: productStorage,
   limits: {
     fileSize: 25 * 1024 * 1024, // 25 MB por archivo
@@ -90,3 +103,65 @@ export const uploadProductImages = multer({
   },
   fileFilter: imageFileFilter,
 }).array('images', 20);
+
+/**
+ * Middleware robusto para subida individual de imagen (retrocompatibilidad).
+ * Captura errores de Multer (tamaño, tipo) con JSON 400 y cabeceras CORS activas.
+ */
+export const uploadProductImage = (req, res, next) => {
+  multerSingleImage(req, res, (err) => {
+    if (err) {
+      setCorsHeaders(req, res);
+      if (err instanceof multer.MulterError) {
+        let message = `Error de carga: ${err.message}`;
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          message = 'El archivo supera el tamaño máximo permitido de 25 MB.';
+        }
+        return res.status(400).json({
+          success: false,
+          error: err.code,
+          message,
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        error: 'INVALID_FILE',
+        message: err.message || 'Formato de imagen no soportado.',
+      });
+    }
+    next();
+  });
+};
+
+/**
+ * Middleware robusto para subida múltiple a la galería de productos.
+ * Captura errores de Multer (tamaño, cantidad, campo) con JSON 400 y cabeceras CORS activas.
+ */
+export const uploadProductImages = (req, res, next) => {
+  multerMultipleImages(req, res, (err) => {
+    if (err) {
+      setCorsHeaders(req, res);
+      if (err instanceof multer.MulterError) {
+        let message = `Error de carga: ${err.message}`;
+        if (err.code === 'LIMIT_FILE_SIZE') {
+          message = 'Uno o más archivos superan el tamaño máximo permitido de 25 MB.';
+        } else if (err.code === 'LIMIT_FILE_COUNT') {
+          message = 'Se superó el límite máximo de 20 imágenes por lote.';
+        } else if (err.code === 'LIMIT_UNEXPECTED_FILE') {
+          message = 'Campo de archivo inesperado. Los archivos deben enviarse en el campo "images".';
+        }
+        return res.status(400).json({
+          success: false,
+          error: err.code,
+          message,
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        error: 'INVALID_FILE',
+        message: err.message || 'Formato de archivo no soportado. Formatos válidos: JPG, PNG, WEBP, AVIF.',
+      });
+    }
+    next();
+  });
+};
