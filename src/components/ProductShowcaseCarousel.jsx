@@ -171,10 +171,6 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
               const state = cardStates[product.id] || {};
               const isHovered = hoveredCardId === product.id;
 
-              // Imagen base determinista (portada o variante elegida) y foto lateral hover del MISMO modelo
-              const primaryImg = getPrimaryProductImage(product, currentSelectedKey);
-              const hoverImg = getHoverProductImage(product, primaryImg, currentSelectedKey);
-
               // Determinar opciones de variantes o filtros circadianos
               const variantOptions = (product.hasVariants && product.variants?.length > 0)
                 ? product.variants.map((v) => ({
@@ -197,6 +193,10 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                 variantOptions[0] ||
                 FILTERS[0];
               const glowColor = currentOptionObj?.color || '#F3B93A';
+
+              // Imagen base determinista (portada o variante elegida) y foto lateral hover del MISMO modelo
+              const primaryImg = getPrimaryProductImage(product, currentSelectedKey);
+              const hoverImg = getHoverProductImage(product, primaryImg, currentSelectedKey);
 
               return (
                 <motion.div
