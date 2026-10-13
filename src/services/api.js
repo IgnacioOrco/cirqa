@@ -545,7 +545,7 @@ export const shippingService = {
  * o entorno local, resolviendo rutas relativas como /uploads/... hacia la API en producción.
  */
 export const formatMediaUrl = (url) => {
-  if (!url) return '/products/_DSC8649.webp';
+  if (!url) return '/placeholder-glass.svg';
   if (
     url.startsWith('http://') ||
     url.startsWith('https://') ||

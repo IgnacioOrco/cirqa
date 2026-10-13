@@ -88,21 +88,21 @@ const QUESTIONS = [
         label: 'Clásico / Redondeado',
         desc: 'Silueta atemporal y equilibrada. Ideal para rostros cuadrados u ovalados.',
         badge: 'Atemporal',
-        codeHint: 'Q-001 / Q-002',
+        codeHint: 'Q-001',
       },
       {
         value: 'modern',
         label: 'Moderno / Estructurado',
         desc: 'Líneas arquitectónicas y presencia marcada. Carácter y definición visual.',
         badge: 'Estructurado',
-        codeHint: 'Q-003 / Q-004',
+        codeHint: 'Q-003',
       },
       {
         value: 'minimal',
-        label: 'Minimalista / Sutil',
-        desc: 'Perfil liviano, máxima ligereza y elegancia sin distracciones.',
-        badge: 'Ultraligero',
-        codeHint: 'Q-005',
+        label: 'Orgánico / Carey',
+        desc: 'Silueta depurada y orgánica con terminación artesanal de alta distinción.',
+        badge: 'Vintage Europeo',
+        codeHint: 'Q-004',
       },
     ],
   },
@@ -183,24 +183,24 @@ export default function CircadianQuizModal({
           products.find(
             (p) =>
               p.frameShape?.toLowerCase().includes('redond') ||
-              p.modelCode?.includes('001') ||
-              p.modelCode?.includes('002')
+              p.frameShape?.toLowerCase().includes('cuadrad') ||
+              p.modelCode?.includes('001')
           ) || products[0];
       } else if (answers.style === 'modern') {
         matchedProduct =
           products.find(
             (p) =>
+              p.frameShape?.toLowerCase().includes('aviad') ||
               p.frameShape?.toLowerCase().includes('rectang') ||
-              p.frameShape?.toLowerCase().includes('cuadrad') ||
-              p.modelCode?.includes('003') ||
-              p.modelCode?.includes('004')
+              p.modelCode?.includes('003')
           ) || products[0];
       } else if (answers.style === 'minimal') {
         matchedProduct =
           products.find(
             (p) =>
-              p.frameShape?.toLowerCase().includes('geom') ||
-              p.modelCode?.includes('005')
+              p.frameShape?.toLowerCase().includes('oval') ||
+              p.frameShape?.toLowerCase().includes('carey') ||
+              p.modelCode?.includes('004')
           ) || products[products.length - 1] || products[0];
       }
     }

@@ -9,6 +9,8 @@ import {
   getPrimaryProductImage,
   getHoverProductImage,
   matchVariantKey,
+  inferImageVariantKey,
+  inferImageTag,
 } from '../utils/productImages';
 import { useCart } from '../context/CartContext';
 
@@ -98,22 +100,35 @@ export default function ConfiguratorModal({
 
     const currentKey = selectedVariant ? selectedVariant.key : selectedFilter?.id;
     if (currentKey && validImages.length > 0) {
-      const variantMatched = validImages.filter((img) => matchVariantKey(img.variantKey, currentKey));
+      const variantMatched = validImages.filter((img) => {
+        const vKey = img.variantKey || inferImageVariantKey(img);
+        return matchVariantKey(vKey, currentKey);
+      });
+
       if (variantMatched.length > 0) {
-        return variantMatched.map((img, idx) => ({
+        // Ordenar fotos de la variante: primero frontal (front), luego ángulo (angle)
+        const sortedMatched = [...variantMatched].sort((a, b) => {
+          const tagA = a.tag || inferImageTag(a);
+          const tagB = b.tag || inferImageTag(b);
+          if (tagA === 'front' && tagB !== 'front') return -1;
+          if (tagB === 'front' && tagA !== 'front') return 1;
+          return (Number(a.order) || 0) - (Number(b.order) || 0);
+        });
+
+        return sortedMatched.map((img, idx) => ({
           ...img,
+          tag: img.tag || inferImageTag(img, idx),
           _id: img._id || `var-img-${idx}`,
           url: normalizeImageUrl(img.url || img.imageUrl),
         }));
       }
     }
 
-    // Si la variante no tiene fotos específicas, usar fotos neutrales o generales del producto
+    // Si la variante no tiene fotos específicas, usar fotos del producto
     if (validImages.length > 0) {
-      const neutralImages = validImages.filter((img) => !img.variantKey);
-      const chosen = neutralImages.length > 0 ? neutralImages : validImages;
-      return chosen.map((img, idx) => ({
+      return validImages.map((img, idx) => ({
         ...img,
+        tag: img.tag || inferImageTag(img, idx),
         _id: img._id || `gen-img-${idx}`,
         url: normalizeImageUrl(img.url || img.imageUrl),
       }));
@@ -123,44 +138,21 @@ export default function ConfiguratorModal({
     return [{ _id: 'fallback-0', url: fallbackUrl, tag: 'front', isPrimary: true }];
   }, [currentModel, selectedVariant, selectedFilter]);
 
-  // Sincronizar reactivamente la foto frontal (tag === 'front' o primera) al cambiar de variante
+  // Sincronizar reactivamente la foto frontal al cambiar de variante o filtro
   useEffect(() => {
-    if (currentVariantImages.length > 0) {
-      const frontIdx = currentVariantImages.findIndex(
-        (img) => img.tag === 'front' || Boolean(img.isPrimary)
-      );
-      setActiveImageIndex(frontIdx >= 0 ? frontIdx : 0);
-    } else {
-      setActiveImageIndex(0);
-    }
-  }, [selectedVariant?.key, selectedFilter?.id, currentVariantImages]);
+    setActiveImageIndex(0);
+  }, [selectedVariant?.key, selectedFilter?.id]);
 
   // Manejador de selección de variante con salto inmediato a la foto frontal
   const handleSelectVariant = (variant) => {
     setSelectedVariant(variant);
-    const allImages = Array.isArray(currentModel.images) ? currentModel.images : [];
-    const validImages = allImages.filter((img) => img && (img.url || img.imageUrl));
-    const variantMatched = validImages.filter((img) => matchVariantKey(img.variantKey, variant.key));
-    if (variantMatched.length > 0) {
-      const frontIdx = variantMatched.findIndex((img) => img.tag === 'front' || Boolean(img.isPrimary));
-      setActiveImageIndex(frontIdx >= 0 ? frontIdx : 0);
-    } else {
-      setActiveImageIndex(0);
-    }
+    setActiveImageIndex(0);
   };
 
   // Manejador de selección de filtro por defecto
   const handleSelectFilter = (filter) => {
     setSelectedFilter(filter);
-    const allImages = Array.isArray(currentModel.images) ? currentModel.images : [];
-    const validImages = allImages.filter((img) => img && (img.url || img.imageUrl));
-    const filterMatched = validImages.filter((img) => matchVariantKey(img.variantKey, filter.id));
-    if (filterMatched.length > 0) {
-      const frontIdx = filterMatched.findIndex((img) => img.tag === 'front' || Boolean(img.isPrimary));
-      setActiveImageIndex(frontIdx >= 0 ? frontIdx : 0);
-    } else {
-      setActiveImageIndex(0);
-    }
+    setActiveImageIndex(0);
   };
 
   // Foto actualmente activa para el visor
@@ -269,41 +261,47 @@ export default function ConfiguratorModal({
               </button>
             </div>
 
-            {/* Cuerpo del Modal: 2 Columnas */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 sm:p-8 lg:p-10 items-center overflow-y-auto">
+            {/* Cuerpo del Modal: 2 Columnas + Bloque Inferior Extendido */}
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 sm:p-8 lg:p-10 items-start overflow-y-auto">
               
-              {/* Columna Izquierda: Escenario Visual Limpio con Zoom */}
-              <div className="lg:col-span-6 flex flex-col items-center justify-center bg-[#FAF9F5] rounded-3xl p-6 sm:p-8 border border-cirqa-negro/10 relative">
+              {/* Columna Izquierda: Escenario Visual Limpio con Efecto Flotante 3D */}
+              <div className="lg:col-span-6 flex flex-col items-center justify-center bg-white rounded-3xl p-6 sm:p-8 border border-cirqa-negro/10 relative overflow-hidden group">
                 
                 {/* Resplandor ambiental adaptativo */}
                 <div
-                  className="absolute w-56 h-56 rounded-full blur-3xl opacity-20 transition-colors duration-500 pointer-events-none"
+                  className="absolute w-56 h-56 rounded-full blur-3xl opacity-15 transition-colors duration-500 pointer-events-none"
                   style={{ backgroundColor: glowColor }}
                 />
 
-                {/* Visor Principal con Integración Limpia e Interacción de Zoom */}
+                {/* Visor Principal con Integración Flotante 3D Realista */}
                 <div
                   onClick={() => setIsZoomOpen(true)}
-                  className="w-full max-w-md h-56 sm:h-64 flex items-center justify-center relative z-10 bg-transparent cursor-zoom-in group select-none"
+                  className="w-full max-w-md h-56 sm:h-64 flex flex-col items-center justify-center relative z-10 bg-transparent cursor-zoom-in select-none"
                   title="Hacé clic para ampliar en alta resolución"
                 >
-                  <AnimatePresence mode="wait">
-                    <motion.img
-                      key={`${currentModel.id || currentModel._id}-${currentPhoto}`}
-                      src={currentPhoto}
-                      alt={`${currentModel.name} - ${activeImageObj.tag || 'Vista'}`}
-                      initial={{ opacity: 0, scale: 0.96 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.98 }}
-                      transition={{ duration: 0.2, ease: 'easeOut' }}
-                      className="w-full h-full object-contain p-2 mix-blend-multiply filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300"
-                      style={{ mixBlendMode: 'multiply' }}
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = '/products/_DSC8649.webp';
-                      }}
-                    />
-                  </AnimatePresence>
+                  <div className="relative w-full h-full flex items-center justify-center">
+                    <AnimatePresence mode="wait">
+                      <motion.img
+                        key={`${currentModel.id || currentModel._id}-${currentPhoto}`}
+                        src={currentPhoto}
+                        alt={`${currentModel.name} - ${activeImageObj.tag || 'Vista'}`}
+                        initial={{ opacity: 0, scale: 0.96 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        transition={{ duration: 0.2, ease: 'easeOut' }}
+                        className="w-full h-full object-contain p-2 mix-blend-multiply select-none transform transition-transform duration-500 ease-out group-hover:-translate-y-2 group-hover:scale-[1.03]"
+                        style={{ mixBlendMode: 'multiply' }}
+                        onError={(e) => {
+                          e.target.onerror = null;
+                          e.target.src = '/placeholder-glass.svg';
+                        }}
+                      />
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Sombra de contacto orgánica realista para efecto de producto flotando en 3D */}
+                  <div className="w-52 sm:w-64 h-3.5 bg-black/10 rounded-[100%] blur-md pointer-events-none -mt-4 transition-all duration-500 group-hover:w-56 group-hover:bg-black/15 group-hover:blur-lg" />
+                  <div className="w-28 sm:w-36 h-1.5 bg-black/18 rounded-[100%] blur-xs pointer-events-none -mt-2 transition-all duration-500 group-hover:w-32 group-hover:opacity-75" />
 
                   {/* Indicador sutil de Zoom en hover */}
                   <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-[10px] px-2.5 py-1 rounded-full backdrop-blur-sm pointer-events-none flex items-center gap-1 font-mono shadow-xs">
@@ -312,10 +310,10 @@ export default function ConfiguratorModal({
                   </div>
                 </div>
 
-                {/* 6. Miniaturas Visuales de Galería: 2 o 3 fotos de la variante activa con borde interactivo */}
+                {/* Miniaturas Visuales de Galería: Fotos de la variante activa */}
                 {currentVariantImages.length > 1 && (
                   <div className="mt-4 flex items-center justify-center gap-3 z-10 flex-wrap max-w-full pb-1">
-                    {currentVariantImages.slice(0, 3).map((img, idx) => {
+                    {currentVariantImages.map((img, idx) => {
                       const isSelected = activeImageIndex === idx;
                       return (
                         <button
@@ -341,9 +339,9 @@ export default function ConfiguratorModal({
                   </div>
                 )}
 
-                {/* Dimensiones Ópticas Limpias (Sin texto redundante repetido) */}
+                {/* Dimensiones Ópticas Limpias */}
                 <div className="mt-4 pt-4 border-t border-cirqa-negro/10 w-full flex items-center justify-around text-[11px] text-cirqa-negro/70 font-normal">
-                  <span>Lente: <strong className="text-cirqa-negro">{currentModel.lensWidth || 50}mm</strong></span>
+                  <span>Lente: <strong className="text-cirqa-negro">{currentModel.lensWidth || 53}mm</strong></span>
                   <span>Puente: <strong className="text-cirqa-negro">{currentModel.bridgeWidth || 19}mm</strong></span>
                   <span>Patilla: <strong className="text-cirqa-negro">{currentModel.templeLength || 142}mm</strong></span>
                 </div>
@@ -352,25 +350,6 @@ export default function ConfiguratorModal({
               {/* Columna Derecha: Controles de Configuración Limpios */}
               <div className="lg:col-span-6 space-y-5">
                 
-                {/* 3. Bloque de Descripción Elegante del Armazón (MongoDB description) */}
-                {(currentModel.description || currentModel.frameShape) && (
-                  <div className="p-4 bg-[#FAF9F5] rounded-2xl border border-cirqa-negro/10">
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="text-[10px] uppercase tracking-widest text-cirqa-negro/50 font-bold block">
-                        Detalles del Diseño & Calce
-                      </span>
-                      {currentModel.modelCode && (
-                        <span className="font-mono text-[10px] font-bold text-cirqa-primario">
-                          {currentModel.modelCode}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-cirqa-negro/80 font-light leading-relaxed">
-                      {currentModel.description || 'Armazón ergonómico de perfil depurado con balance óptico ideal para uso prolongado.'}
-                    </p>
-                  </div>
-                )}
-
                 {/* 2. Selector Dinámico de Cristales Circadianos / Variantes */}
                 <div>
                   <label className="text-[11px] font-bold uppercase tracking-wider text-cirqa-negro/70 block mb-2">
@@ -514,6 +493,55 @@ export default function ConfiguratorModal({
                 </div>
 
               </div>
+
+              {/* Bloque Inferior: Detalles del Diseño & Calce Extendido a lo largo del detalle */}
+              {(currentModel.description || currentModel.frameShape) && (
+                <div className="lg:col-span-12 w-full pt-6 mt-2 border-t border-cirqa-negro/10">
+                  <div className="p-5 sm:p-7 bg-[#FAF9F5] rounded-3xl border border-cirqa-negro/10 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cirqa-negro/10 pb-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <span className="text-[11px] uppercase tracking-[0.2em] text-cirqa-negro/60 font-bold block">
+                          Detalles del Diseño & Calce
+                        </span>
+                        {currentModel.modelCode && (
+                          <span className="font-mono text-[10px] font-bold text-cirqa-primario bg-cirqa-primario/10 px-2.5 py-0.5 rounded-full border border-cirqa-primario/20">
+                            {currentModel.modelCode}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-[11px] text-cirqa-negro/50 font-mono">
+                        Edición Limitada · Calibración Óptica CIRQA
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
+                      <div className="md:col-span-8">
+                        <p className="text-xs sm:text-sm text-cirqa-negro/80 font-light leading-relaxed whitespace-pre-line">
+                          {currentModel.description || 'Armazón ergonómico de perfil depurado con balance óptico ideal para uso prolongado.'}
+                        </p>
+                      </div>
+                      <div className="md:col-span-4 bg-white/90 p-4 rounded-2xl border border-cirqa-negro/10 space-y-2.5 text-xs text-cirqa-negro/80 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-cirqa-negro/60 text-[11px]">Material</span>
+                          <span className="font-semibold text-cirqa-negro text-right">Acetato de celulosa</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-cirqa-negro/60 text-[11px]">Ancho del ojo</span>
+                          <span className="font-semibold text-cirqa-negro">{currentModel.lensWidth || 53} mm</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-cirqa-negro/60 text-[11px]">Puente</span>
+                          <span className="font-semibold text-cirqa-negro">{currentModel.bridgeWidth || 19} mm</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-cirqa-negro/60 text-[11px]">Ancho total</span>
+                          <span className="font-semibold text-cirqa-negro">125 mm</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
 
             </div>
 

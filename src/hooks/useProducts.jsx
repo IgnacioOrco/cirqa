@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { productService } from '../services/api';
-import { normalizeProduct } from '../utils/productImages';
+import { normalizeProduct, hasAdminImages } from '../utils/productImages';
 import { MODELS } from '../data/models';
 
 /**
  * Hook para obtener la lista de productos dinámica desde MongoDB (/api/products).
- * Soporta modo público (solo activos) y admin (all=true), manejo de estados de carga,
- * error y refetch para invalidación de caché reactiva.
+ * Filtra estrictamente solo aquellos productos que cuentan con imágenes reales
+ * subidas por la administradora en el panel admin, eliminando los productos que
+ * utilizaban mockups internos (Q-002, Q-005, Q-Kids).
  *
  * @param {Object} options
  * @param {boolean} options.all - Si es true consulta ?all=true
@@ -23,18 +24,22 @@ export function useProducts({ all = false, autoFetch = true } = {}) {
     try {
       const data = await productService.getProducts({ all });
       if (Array.isArray(data) && data.length > 0) {
-        const normalized = data.map(normalizeProduct);
+        // Filtrar estrictamente productos con fotos subidas por la administradora
+        const validProducts = data.filter((p) => {
+          if (!all && p.isActive === false) return false;
+          return hasAdminImages(p);
+        });
+        const normalized = validProducts.map(normalizeProduct);
         setProducts(normalized);
       } else {
-        // Fallback seguro a modelos base si MongoDB no tiene productos aún
-        const fallback = MODELS.map(normalizeProduct);
+        // Fallback seguro a modelos que cuentan con fotos de administración
+        const fallback = MODELS.filter(hasAdminImages).map(normalizeProduct);
         setProducts(fallback);
       }
     } catch (err) {
       console.warn('[useProducts] Error al conectar con API CIRQA, usando fallback local:', err.message);
       setError(err);
-      // Fallback a modelos estáticos para resiliencia total
-      setProducts(MODELS.map(normalizeProduct));
+      setProducts(MODELS.filter(hasAdminImages).map(normalizeProduct));
     } finally {
       setLoading(false);
     }
@@ -75,17 +80,17 @@ export function useProduct(slugOrId) {
     setError(null);
     try {
       const data = await productService.getProductById(slugOrId);
-      if (data) {
+      if (data && hasAdminImages(data)) {
         setProduct(normalizeProduct(data));
       } else {
-        // Buscar en MODELS como fallback
-        const local = MODELS.find((m) => m.id === slugOrId || m.code === slugOrId);
+        // Buscar en MODELS como fallback solo si cuenta con fotos de admin
+        const local = MODELS.find((m) => (m.id === slugOrId || m.code === slugOrId) && hasAdminImages(m));
         setProduct(local ? normalizeProduct(local) : null);
       }
     } catch (err) {
       console.warn(`[useProduct] Error al obtener producto '${slugOrId}':`, err.message);
       setError(err);
-      const local = MODELS.find((m) => m.id === slugOrId || m.code === slugOrId);
+      const local = MODELS.find((m) => (m.id === slugOrId || m.code === slugOrId) && hasAdminImages(m));
       setProduct(local ? normalizeProduct(local) : null);
     } finally {
       setLoading(false);

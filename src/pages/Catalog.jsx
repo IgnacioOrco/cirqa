@@ -10,7 +10,6 @@ import CircadianQuizModal from '../components/CircadianQuizModal';
 import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import ProductCard from '../components/ProductCard';
 import { FILTERS } from '../data/filters';
-import { getProductImage as getStudioProductImage } from '../data/productImages';
 import { formatMediaUrl } from '../services/api';
 import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage, matchVariantKey } from '../utils/productImages';
 

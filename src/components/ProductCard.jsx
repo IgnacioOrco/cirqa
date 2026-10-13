@@ -100,32 +100,38 @@ export default function ProductCard({
         />
 
         {/* Escenario de Imagen con Crossfade Suave - Fondo Blanco Unificado */}
-        <div className="relative w-full h-full flex items-center justify-center bg-white z-10">
+        <div className="relative w-full h-full flex flex-col items-center justify-center bg-white z-10">
           {/* Foto de Portada (Base) */}
-          <img
-            src={formatMediaUrl(primaryImg)}
-            alt={`${product.name} - ${activeOptionObj?.name || 'CIRQA'}`}
-            className={`w-full h-full object-contain p-2 filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none ${
-              isHovered && hasDistinctHover ? 'opacity-0' : 'opacity-100'
-            }`}
-            loading="lazy"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = '/products/_DSC8649.webp';
-            }}
-          />
-
-          {/* Foto Lateral / Perfil al Hover (Mismo Modelo y Variante) */}
-          {hasDistinctHover && (
+          <div className="relative w-full h-full flex items-center justify-center">
             <img
-              src={formatMediaUrl(hoverImg)}
-              alt={`${product.name} - Vista lateral`}
-              className={`w-full h-full object-contain p-2 filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none absolute inset-0 m-auto ${
-                isHovered ? 'opacity-100' : 'opacity-0'
+              src={formatMediaUrl(primaryImg)}
+              alt={`${product.name} - ${activeOptionObj?.name || 'CIRQA'}`}
+              className={`w-full h-full object-contain p-2 mix-blend-multiply transform transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-105 select-none ${
+                isHovered && hasDistinctHover ? 'opacity-0' : 'opacity-100'
               }`}
               loading="lazy"
+              onError={(e) => {
+                e.target.onerror = null;
+                e.target.src = '/placeholder-glass.svg';
+              }}
             />
-          )}
+
+            {/* Foto Lateral / Perfil al Hover (Mismo Modelo y Variante) */}
+            {hasDistinctHover && (
+              <img
+                src={formatMediaUrl(hoverImg)}
+                alt={`${product.name} - Vista lateral`}
+                className={`w-full h-full object-contain p-2 mix-blend-multiply transform transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-105 select-none absolute inset-0 m-auto ${
+                  isHovered ? 'opacity-100' : 'opacity-0'
+                }`}
+                loading="lazy"
+              />
+            )}
+          </div>
+
+          {/* Sombra de contacto orgánica para sensación de producto flotando */}
+          <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-40 h-2.5 bg-black/10 rounded-[100%] blur-sm pointer-events-none transition-all duration-500 group-hover:w-44 group-hover:bg-black/12 group-hover:blur-md" />
+          <div className="absolute bottom-3.5 left-1/2 -translate-x-1/2 w-24 h-1 bg-black/18 rounded-[100%] blur-xs pointer-events-none transition-all duration-500 group-hover:w-20 group-hover:opacity-60" />
         </div>
 
         {/* Badge Flotante Superior: Código de Modelo */}

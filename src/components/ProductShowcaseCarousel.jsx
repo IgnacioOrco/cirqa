@@ -4,7 +4,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle, ArrowRight } from 'lucide-react';
 import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
-import { getProductImage as getStudioProductImage } from '../data/productImages';
 import { formatMediaUrl } from '../services/api';
 import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage, matchVariantKey } from '../utils/productImages';
 
@@ -234,38 +233,44 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                     />
 
                     {/* Contenedor relativo de imágenes con transición suave crossfade - Eliminación Total de Cuadro */}
-                    <div className="relative w-full h-full flex items-center justify-center bg-transparent z-10">
+                    <div className="relative w-full h-full flex flex-col items-center justify-center bg-transparent z-10">
                       {/* Imagen Base (Portada) */}
-                      <img
-                        src={formatMediaUrl(primaryImg)}
-                        alt={`${product.name} - CIRQA`}
-                        className={`w-full h-full object-contain p-2 mix-blend-multiply select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] transition-all duration-300 ${
-                          isHovered && hoverImg !== primaryImg ? 'opacity-0' : 'opacity-100'
-                        }`}
-                        style={{ mixBlendMode: 'multiply' }}
-                        loading="lazy"
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = '/products/_DSC8649.webp';
-                        }}
-                      />
-
-                      {/* Imagen Hover Alternativa (al pasar el cursor) */}
-                      {hoverImg !== primaryImg && (
+                      <div className="relative w-full h-full flex items-center justify-center">
                         <img
-                          src={formatMediaUrl(hoverImg)}
-                          alt={`${product.name} Hover - CIRQA`}
-                          className={`absolute inset-0 m-auto w-full h-full object-contain p-2 mix-blend-multiply select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] transition-all transition-opacity duration-300 pointer-events-none ${
-                            isHovered ? 'opacity-100' : 'opacity-0'
+                          src={formatMediaUrl(primaryImg)}
+                          alt={`${product.name} - CIRQA`}
+                          className={`w-full h-full object-contain p-2 mix-blend-multiply select-none transform transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-105 ${
+                            isHovered && hoverImg !== primaryImg ? 'opacity-0' : 'opacity-100'
                           }`}
                           style={{ mixBlendMode: 'multiply' }}
                           loading="lazy"
                           onError={(e) => {
                             e.target.onerror = null;
-                            e.target.src = '/products/_DSC8649.webp';
+                            e.target.src = '/placeholder-glass.svg';
                           }}
                         />
-                      )}
+
+                        {/* Imagen Hover Alternativa (al pasar el cursor) */}
+                        {hoverImg !== primaryImg && (
+                          <img
+                            src={formatMediaUrl(hoverImg)}
+                            alt={`${product.name} Hover - CIRQA`}
+                            className={`absolute inset-0 m-auto w-full h-full object-contain p-2 mix-blend-multiply select-none transform transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-105 pointer-events-none ${
+                              isHovered ? 'opacity-100' : 'opacity-0'
+                            }`}
+                            style={{ mixBlendMode: 'multiply' }}
+                            loading="lazy"
+                            onError={(e) => {
+                              e.target.onerror = null;
+                              e.target.src = '/placeholder-glass.svg';
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Sombra de contacto orgánica para sensación de producto flotando */}
+                      <div className="absolute bottom-2 left-1/2 -translate-x-1/2 w-40 h-2.5 bg-black/10 rounded-[100%] blur-sm pointer-events-none transition-all duration-500 group-hover:w-44 group-hover:bg-black/12 group-hover:blur-md" />
+                      <div className="absolute bottom-2.5 left-1/2 -translate-x-1/2 w-24 h-1 bg-black/18 rounded-[100%] blur-xs pointer-events-none transition-all duration-500 group-hover:w-20 group-hover:opacity-60" />
                     </div>
                   </div>
 
