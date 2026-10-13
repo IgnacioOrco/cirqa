@@ -205,23 +205,20 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                   transition={{ type: 'spring', stiffness: 350, damping: 25 }}
                   onMouseEnter={() => setHoveredCardId(product.id)}
                   onMouseLeave={() => setHoveredCardId(null)}
-                  className="w-[300px] sm:w-[360px] md:w-[380px] flex-shrink-0 snap-start bg-[#FAF9F5] rounded-3xl p-6 sm:p-7 border border-cirqa-negro/10 hover:border-cirqa-negro/30 flex flex-col justify-between transition-all duration-300 shadow-sm hover:shadow-2xl relative group z-10 hover:z-20 cursor-pointer"
+                  className="w-[300px] sm:w-[360px] md:w-[380px] flex-shrink-0 snap-start bg-white rounded-2xl p-6 sm:p-7 border border-cirqa-negro/10 hover:border-cirqa-negro/30 flex flex-col justify-between transition-all duration-300 shadow-sm hover:shadow-2xl relative group z-10 hover:z-20 cursor-pointer"
                   onClick={() => onSelectModel && onSelectModel(product, currentSelectedKey)}
                 >
                   {/* Etiqueta Superior & Código de Modelo */}
                   <div>
                     <div className="flex items-center justify-between text-xs text-cirqa-negro/50 font-light mb-3">
-                      <span className="font-mono text-[11px] bg-white/90 backdrop-blur-xs px-2.5 py-1 rounded-full font-medium text-cirqa-negro/70 shadow-2xs border border-cirqa-negro/10">
+                      <span className="font-mono text-[11px] bg-white/95 px-2.5 py-1 rounded-full font-medium text-cirqa-negro/70 shadow-2xs border border-cirqa-negro/10">
                         {product.modelCode || product.code}
-                      </span>
-                      <span className="text-[10px] tracking-wider text-cirqa-primario font-semibold uppercase bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-full border border-cirqa-negro/10">
-                        {product.frameShape}
                       </span>
                     </div>
 
                     {/* Título & Descripción Dinámicos */}
                     <h3 className="text-lg font-medium text-cirqa-negro tracking-tight">
-                      {product.name} <span className="font-light text-cirqa-negro/60 text-sm">· {product.title}</span>
+                      {product.name}
                     </h3>
                     <p className="text-[11px] text-cirqa-negro/60 font-light line-clamp-1 mt-0.5">
                       {product.description}
@@ -320,14 +317,14 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                       <span>Patilla: {product.templeLength}mm</span>
                     </div>
 
-                    {/* Pie de Tarjeta: Privacidad de Precio & CTA de Personalización */}
+                    {/* Pie de Tarjeta: Precio y CTA de Personalización */}
                     <div className="flex items-center justify-between pt-2.5 border-t border-cirqa-negro/5">
                       <div>
-                        <span className="text-[10px] uppercase tracking-wider font-semibold text-cirqa-primario block">
-                          Ingeniería Óptica
+                        <span className="font-mono text-sm font-bold text-cirqa-negro block">
+                          ${Number(product.price || 0).toLocaleString('es-AR')}
                         </span>
-                        <span className="text-[10px] text-cirqa-negro/50 block font-light">
-                          {product.frameShape || 'Diseño Ergonómico'}
+                        <span className="text-[10px] text-emerald-700 font-medium block">
+                          6 cuotas sin interés
                         </span>
                       </div>
 

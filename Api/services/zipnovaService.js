@@ -60,12 +60,33 @@ export const getFallbackQuotesByZone = (postalCode) => {
   let pickupDays = '2 a 4 días hábiles';
 
   if (num >= 1000 && num <= 1499) {
-    // CABA
-    zoneName = 'Ciudad Autónoma de Buenos Aires';
-    homeCost = 3800;
-    pickupCost = 2900;
-    homeDays = '1 a 2 días hábiles';
-    pickupDays = '24 a 48 hs hábiles';
+    // CABA: Envío Gratis por Motomensajería Express
+    return [
+      {
+        id: 'caba_express_free',
+        name: 'Envío Gratis CABA · Motomensajería Express',
+        description: 'Entrega en 24 a 48 hs hábiles',
+        carrier: 'Motomensajería',
+        serviceType: 'express_caba_24h',
+        cost: 0,
+        estimatedDays: '24 a 48 hs hábiles',
+        type: 'home',
+        isFallback: true,
+        isFree: true,
+      },
+      {
+        id: 'caba_andreani_pickup',
+        name: 'Retiro en Sucursal · Correo Andreani / OCA',
+        description: `Sucursal cercana a CP ${cleanZip || postalCode}`,
+        carrier: 'Correo Andreani / OCA',
+        serviceType: 'pickup_point',
+        cost: 0,
+        estimatedDays: '24 a 48 hs hábiles',
+        type: 'pickup',
+        isFallback: true,
+        isFree: true,
+      },
+    ];
   } else if (
     (num >= 1600 && num <= 1999) ||
     (num >= 2700 && num <= 2999) ||
@@ -102,10 +123,10 @@ export const getFallbackQuotesByZone = (postalCode) => {
 
   return [
     {
-      id: 'zipnova_home',
-      name: 'Envío a Domicilio - Zipnova',
+      id: 'andreani_home',
+      name: 'Envío a Domicilio · Correo Andreani / OCA',
       description: `Entrega puerta a puerta en ${zoneName}`,
-      carrier: 'Zipnova Logistics',
+      carrier: 'Correo Andreani / OCA',
       serviceType: 'standard_home',
       cost: homeCost,
       estimatedDays: homeDays,
@@ -113,10 +134,10 @@ export const getFallbackQuotesByZone = (postalCode) => {
       isFallback: true,
     },
     {
-      id: 'zipnova_pickup',
-      name: 'Retiro en Punto / Sucursal - Zipnova',
+      id: 'andreani_pickup',
+      name: 'Retiro en Punto / Sucursal Andreani / OCA',
       description: `Punto cercano a CP ${cleanZip || postalCode}`,
-      carrier: 'Zipnova Puntos',
+      carrier: 'Correo Andreani / OCA',
       serviceType: 'pickup_point',
       cost: pickupCost,
       estimatedDays: pickupDays,
@@ -240,7 +261,26 @@ export const createShipment = async (order) => {
   const pkg = calculatePackageSpecs(order.items || []);
 
   const originPostal = DEFAULT_ORIGIN_POSTAL_CODE;
-  const orderRef = order.orderNumber || `CQ-${Date.now()}`;
+  const orderRef = order.orderNumber || `CQ-${order._id?.toString().slice(-6).toUpperCase() || Date.now()}`;
+
+  // Si es Motomensajería local CABA, no emitir en Zipnova
+  if (
+    order.shipping?.carrier === 'Motomensajería' ||
+    (order.shipping?.service || '').includes('express_caba')
+  ) {
+    const cleanRef = orderRef.replace(/^CQ-/, '');
+    const trackingNumber = `MOTO-CQ-${cleanRef}`;
+    return {
+      success: true,
+      shipmentId: `moto_${order._id || Date.now()}`,
+      zipnovaShipmentId: '',
+      trackingNumber,
+      labelUrl: '',
+      carrier: 'Motomensajería',
+      service: 'express_caba_24h',
+      isSimulated: false,
+    };
+  }
 
   const payload = {
     account_id: ZIPNOVA_ACCOUNT_ID,

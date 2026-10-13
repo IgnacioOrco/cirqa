@@ -14,11 +14,20 @@ import { getProductImage as getStudioProductImage } from '../data/productImages'
 import { formatMediaUrl } from '../services/api';
 import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage, matchVariantKey } from '../utils/productImages';
 
+const CIRCADIAN_FILTER_TABS = [
+  { id: 'ALL', label: 'Todos', color: '#111111' },
+  { id: 'clear', label: 'Clear', color: '#94a3b8' },
+  { id: 'dia', label: 'Día', color: '#F3B93A' },
+  { id: 'transicion', label: 'Transición', color: '#E84A0F' },
+  { id: 'noche', label: 'Noche', color: '#AC1917' },
+];
+
 export default function Catalog() {
   const { products, loading, error, refetch } = useProducts({ all: false });
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedShape, setSelectedShape] = useState('ALL');
+  const [selectedFilterTab, setSelectedFilterTab] = useState('ALL');
 
   // Configurator Modal state
   const [configuratorOpen, setConfiguratorOpen] = useState(false);
@@ -38,7 +47,7 @@ export default function Catalog() {
 
   const handleOpenConfigurator = (model, variantKey = null) => {
     setActiveModel(model);
-    setActiveVariantKey(variantKey || cardSelectedVariant[model.id] || null);
+    setActiveVariantKey(variantKey || (selectedFilterTab !== 'ALL' ? selectedFilterTab : cardSelectedVariant[model.id]) || null);
     setConfiguratorOpen(true);
   };
 
@@ -97,13 +106,13 @@ export default function Catalog() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
               <div>
                 <span className="text-[11px] uppercase tracking-[0.25em] text-cirqa-primario font-semibold block mb-2">
-                  Colección Oficial · CIRQA Biomimetic
+                  Catálogo Oficial · CIRQA Biomimetic
                 </span>
                 <h1 className="text-3xl sm:text-4xl md:text-5xl font-light tracking-tight text-cirqa-negro">
-                  Catálogo de Armazones
+                  Colección Oficial
                 </h1>
-                <p className="text-sm text-cirqa-negro/60 font-light max-w-xl mt-2 leading-relaxed">
-                  Ingeniería óptica, protección frente a radiación azul y armazones en acetato aeroespacial. Seleccioná un modelo para personalizar sus cristales circadianos y graduación.
+                <p className="text-xs sm:text-sm text-cirqa-negro/80 font-medium max-w-2xl mt-2 tracking-wide uppercase leading-relaxed">
+                  INGENIERÍA ÓPTICA, 4 NIVELES DE BLOQUEO. SELECCIONÁ EL MODELO Y PERSONALIZÁ SUS CRISTALES CIRCADIANOS.
                 </p>
               </div>
 
@@ -122,12 +131,42 @@ export default function Catalog() {
               </div>
             </div>
 
+            {/* Filtros Rápidos por Cristal Circadiano */}
+            <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-1">
+              <span className="text-[11px] uppercase tracking-wider text-cirqa-negro/50 font-semibold mr-1 flex items-center gap-1.5 flex-shrink-0">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>Cristal Circadiano:</span>
+              </span>
+              {CIRCADIAN_FILTER_TABS.map((tab) => {
+                const isSelected = selectedFilterTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setSelectedFilterTab(tab.id)}
+                    className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
+                      isSelected
+                        ? 'bg-cirqa-negro text-white shadow-sm'
+                        : 'bg-black/5 text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/10'
+                    }`}
+                  >
+                    {tab.id !== 'ALL' && (
+                      <span
+                        className="w-2.5 h-2.5 rounded-full border border-black/20"
+                        style={{ backgroundColor: tab.color }}
+                      />
+                    )}
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Filtros por Silueta / Forma */}
             {uniqueShapes.length > 2 && (
-              <div className="flex items-center gap-2 mt-6 overflow-x-auto pb-1">
-                <span className="text-[11px] uppercase tracking-wider text-cirqa-negro/40 font-semibold mr-1 flex items-center gap-1">
+              <div className="flex items-center gap-2 mt-3 overflow-x-auto pb-1">
+                <span className="text-[11px] uppercase tracking-wider text-cirqa-negro/40 font-semibold mr-1 flex items-center gap-1 flex-shrink-0">
                   <SlidersHorizontal className="w-3 h-3" />
-                  <span>Forma:</span>
+                  <span>Silueta:</span>
                 </span>
                 {uniqueShapes.map((shape) => (
                   <button
@@ -179,6 +218,7 @@ export default function Catalog() {
                   onClick={() => {
                     setSearchQuery('');
                     setSelectedShape('ALL');
+                    setSelectedFilterTab('ALL');
                   }}
                   className="px-4 py-2 border border-cirqa-negro/20 rounded-full text-xs font-semibold text-cirqa-negro hover:bg-black/5 transition-all"
                 >
@@ -195,7 +235,7 @@ export default function Catalog() {
                     <ProductCard
                       key={pId}
                       product={product}
-                      selectedVariantKey={activeVarKey}
+                      selectedVariantKey={selectedFilterTab !== 'ALL' ? selectedFilterTab : activeVarKey}
                       onVariantChange={(id, vKey) => {
                         setCardSelectedVariant((prev) => ({
                           ...prev,

@@ -24,73 +24,73 @@ const PILLARS = [
     id: 'metabolismo',
     name: 'METABOLISMO',
     icon: Flame,
-    desc: 'Regulación del balance energético y sensibilidad a la insulina.',
+    desc: 'Regulación del reloj biológico, funcionamiento metabólico y control del azúcar en sangre.',
     scientificDetail:
-      'La sincronización de los fotorreceptores ipRGC con la luz natural modula la sensibilidad periférica a la insulina y el gasto metabólico basal. La exposición errática a la luz azul nocturna interrumpe la termogénesis adiposa y desregula el balance glucémico. Lorem ipsum dolor sit amet, photobiological circadian entrainment optimizes mitochondrial ATP efficiency and metabolic homeostasis.',
-    highlight: 'Sensibilidad a la insulina',
+      'La luz natural ayuda a regular nuestro reloj biológico y favorece el buen funcionamiento del metabolismo, incluyendo el control del azúcar en sangre.\n\nLa exposición excesiva a la luz azul durante la noche puede alterar este equilibrio, afectando el descanso y la forma en que el cuerpo regula y utiliza la energía.',
+    highlight: 'Control de azúcar y metabolismo',
   },
   {
     id: 'sistema-inmune',
     name: 'SISTEMA INMUNE',
     icon: Shield,
-    desc: 'Modulación de defensas y citoquinas inflamatorias nocturnas.',
+    desc: 'Producción nocturna de melatonina y preservación de defensas saludables.',
     scientificDetail:
-      'Durante las fases de oscuridad total y pico de melatonina, el sistema inmunitario orquesta la redistribución de linfocitos T y modula la cascada de citoquinas proinflamatorias (IL-6, TNF-alfa). La mitigación de la luz azul en la noche preserva esta respuesta citotóxica natural. Lorem ipsum immune modulation through dark phase recovery.',
-    highlight: 'Modulación de defensas',
+      'Durante la noche, la oscuridad favorece la producción de melatonina, una hormona que ayuda a regular el sueño y participa en el funcionamiento del sistema inmunológico.\n\nLa exposición excesiva a la luz azul durante la noche puede alterar este proceso y afectar el descanso, que es fundamental para mantener nuestras defensas saludables.',
+    highlight: 'Defensas y respuesta inmunológica',
   },
   {
     id: 'salud-mental',
-    name: 'SALUD MENTAL',
+    name: 'SALUD MENTAL (BIENESTAR EMOCIONAL)',
     icon: Heart,
-    desc: 'Estabilidad anímica y resistencia al estrés cotidiano.',
+    desc: 'Equilibrio anímico, energía y bienestar emocional mediante luz natural.',
     scientificDetail:
-      'El eje retina-núcleo supraquiasmático regula la síntesis de serotonina diurna y dopamina. Mantener un contraste circadiano óptimo entre el día luminoso y la noche cálida estabiliza la variabilidad anímica y previene el agotamiento neurocognitivo. Lorem ipsum psychological resilience and circadian neurotransmitter balance.',
-    highlight: 'Estabilidad anímica',
+      'La luz influye en cómo nos sentimos. Recibir luz natural durante el día y reducir la exposición a la luz azul por la noche ayuda a mantener nuestro reloj biológico en equilibrio, favoreciendo el descanso, la energía y el bienestar emocional.',
+    highlight: 'Equilibrio del estado de ánimo',
   },
   {
     id: 'funcion-hormonal',
     name: 'FUNCIÓN HORMONAL',
     icon: Activity,
-    desc: 'Picos de cortisol diurno y control de leptina/grelina.',
+    desc: 'Regulación de cortisol matutino y producción natural de melatonina.',
     scientificDetail:
-      'La luz matutina precisa estimula la curva de respuesta del cortisol (CAR), mientras que el bloqueo del espectro 450-480nm al anochecer previene la supresión de melatonina y equilibra las hormonas de saciedad y apetito (leptina y grelina). Lorem ipsum neuroendocrine alignment.',
-    highlight: 'Cortisol & Melatonina',
+      'La luz natural de la mañana ayuda a regular el cortisol, una hormona relacionada con la energía y el estado de alerta. Por la noche, reducir la exposición a la luz azul favorece la producción natural de melatonina, la hormona que prepara al cuerpo para dormir.',
+    highlight: 'Cortisol y melatonina',
   },
   {
     id: 'rendimiento-cognitivo',
     name: 'RENDIMIENTO COGNITIVO',
     icon: Brain,
-    desc: 'Capacidad de concentración, foco y agudeza mental.',
+    desc: 'Alerta, concentración y comodidad visual frente a pantallas.',
     scientificDetail:
-      'La reducción del deslumbramiento digital y la optimización espectral diurna mejoran la velocidad de procesamiento prefrontal, disminuyendo el tiempo de reacción y la fatiga visual subjetiva tras horas de pantalla. Lorem ipsum cognitive focus, visual acuity, and neural processing enhancement.',
-    highlight: 'Foco y velocidad neural',
+      'La luz influye en nuestra capacidad de mantenernos despiertos, atentos y concentrados. Una iluminación adecuada durante el día favorece el estado de alerta y el rendimiento mental.\n\nReducir el deslumbramiento de las pantallas puede mejorar la comodidad visual durante las actividades digitales prolongadas.',
+    highlight: 'Concentración y agilidad mental',
   },
   {
     id: 'recuperacion-muscular',
     name: 'RECUPERACIÓN MUSCULAR',
     icon: Dumbbell,
-    desc: 'Secreción de hormona de crecimiento durante el sueño.',
+    desc: 'Liberación de hormona de crecimiento (HGH) y regeneración de tejidos.',
     scientificDetail:
-      'El sueño de ondas lentas (NREM etapa 3/4), facilitado por una noche biológicamente oscura, es el desencadenante exclusivo de los pulsos de la hormona somatotrópica (HGH), esencial para la síntesis proteica miofibrilar y la reparación de tejidos. Lorem ipsum myofibrillar repair and anabolic hormonal peaks.',
-    highlight: 'Pulsos de HGH y síntesis proteica',
+      'Durante el sueño profundo, el cuerpo libera hormona del crecimiento (HGH), que participa en la reparación de tejidos y la recuperación muscular.\n\nMantener un ritmo de sueño saludable y reducir la exposición a la luz intensa durante la noche favorece el descanso y los procesos naturales de recuperación del organismo.',
+    highlight: 'Reparación muscular y hormona del crecimiento',
   },
   {
     id: 'longevidad-celular',
     name: 'LONGEVIDAD CELULAR',
     icon: Hourglass,
-    desc: 'Procesos de autofagia y mitigación del daño oxidativo.',
+    desc: 'Propiedades antioxidantes de la melatonina y protección celular.',
     scientificDetail:
-      'La melatonina actúa como el antioxidante mitocondrial más potente del organismo, neutralizando radicales libres intramitocondriales y activando genes SIRT1 de longevidad celular y autofagia nocturna. Lorem ipsum mitochondrial biogenesis and cellular autophagy promotion.',
-    highlight: 'Autofagia y antioxidación',
+      'La melatonina, hormona que nuestro cuerpo produce principalmente durante la noche, también tiene propiedades antioxidantes que ayudan a proteger las células del daño causado por los radicales libres.\n\nMantener un buen descanso y respetar los ciclos naturales de luz y oscuridad contribuye al funcionamiento saludable del organismo.',
+    highlight: 'Protección y renovación celular',
   },
   {
     id: 'sueno-reparador',
     name: 'SUEÑO REPARADOR',
     icon: BedDouble,
-    desc: 'Fases REM profundas sin interferencia lumínica artificial.',
+    desc: 'Ciclos naturales de sueño y vigilia para un descanso profundo y reparador.',
     scientificDetail:
-      'Bloquear las longitudes de onda supresoras 2 a 3 horas antes de dormir adelanta el inicio del sueño en hasta 45 minutos y amplía la densidad de fases REM profundas para la consolidación de la memoria. Lorem ipsum architecture of restorative sleep and architecture preservation.',
-    highlight: 'Arquitectura del sueño REM',
+      'La exposición a la luz azul durante la noche puede interferir con la producción de melatonina, la hormona que ayuda a preparar nuestro cuerpo para dormir.\n\nReducir la exposición a esta luz antes de acostarnos favorece el ritmo natural de sueño y vigilia, contribuyendo a un descanso más saludable.',
+    highlight: 'Calidad y ciclos del sueño',
   },
 ];
 
@@ -672,7 +672,7 @@ export default function CircadianInfographic() {
                       Eje biológico: <span className="text-white font-normal">{selectedPillar.highlight}</span>
                     </div>
 
-                    <p className="text-xs sm:text-sm text-white/80 font-light leading-relaxed">
+                    <p className="text-xs sm:text-sm text-white/80 font-light leading-relaxed whitespace-pre-line">
                       {selectedPillar.scientificDetail}
                     </p>
                   </div>

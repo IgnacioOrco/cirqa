@@ -89,26 +89,25 @@ export default function ProductCard({
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onOpenConfigurator && onOpenConfigurator(product, activeVariantKey)}
-      className="bg-[#FAF9F5] rounded-3xl border border-cirqa-negro/10 overflow-hidden shadow-xs hover:shadow-xl hover:border-cirqa-negro/20 transition-all flex flex-col group cursor-pointer relative"
+      className="bg-white rounded-2xl border border-cirqa-negro/10 overflow-hidden shadow-sm hover:shadow-xl hover:border-cirqa-negro/20 transition-all flex flex-col group cursor-pointer relative"
     >
-      {/* Contenedor Visual de la Foto - Integración Limpia sin Cuadro */}
-      <div className="aspect-[4/3] bg-transparent relative flex items-center justify-center overflow-hidden">
+      {/* Contenedor Visual de la Foto - Integración Limpia con Fondo Blanco */}
+      <div className="aspect-[4/3] bg-white relative flex items-center justify-center overflow-hidden">
         {/* Resplandor ambiental adaptativo según cristal */}
         <div
           className="absolute inset-0 m-auto w-36 h-36 rounded-full blur-2xl opacity-20 pointer-events-none transition-colors duration-500"
           style={{ backgroundColor: glowColor }}
         />
 
-        {/* Escenario de Imagen con Crossfade Suave - Eliminación Total de Cuadro */}
-        <div className="relative w-full h-full flex items-center justify-center bg-transparent z-10">
+        {/* Escenario de Imagen con Crossfade Suave - Fondo Blanco Unificado */}
+        <div className="relative w-full h-full flex items-center justify-center bg-white z-10">
           {/* Foto de Portada (Base) */}
           <img
             src={formatMediaUrl(primaryImg)}
             alt={`${product.name} - ${activeOptionObj?.name || 'CIRQA'}`}
-            className={`w-full h-full object-contain p-2 mix-blend-multiply filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none ${
+            className={`w-full h-full object-contain p-2 filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none ${
               isHovered && hasDistinctHover ? 'opacity-0' : 'opacity-100'
             }`}
-            style={{ mixBlendMode: 'multiply' }}
             loading="lazy"
             onError={(e) => {
               e.target.onerror = null;
@@ -121,25 +120,19 @@ export default function ProductCard({
             <img
               src={formatMediaUrl(hoverImg)}
               alt={`${product.name} - Vista lateral`}
-              className={`w-full h-full object-contain p-2 mix-blend-multiply filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none absolute inset-0 m-auto ${
+              className={`w-full h-full object-contain p-2 filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300 select-none absolute inset-0 m-auto ${
                 isHovered ? 'opacity-100' : 'opacity-0'
               }`}
-              style={{ mixBlendMode: 'multiply' }}
               loading="lazy"
             />
           )}
         </div>
 
-        {/* Badge Flotante Superior: Modelo & Forma */}
+        {/* Badge Flotante Superior: Código de Modelo */}
         <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5">
-          <span className="font-mono text-[10px] bg-white/90 backdrop-blur-xs px-2.5 py-0.5 rounded-full font-semibold text-cirqa-negro/80 shadow-2xs border border-cirqa-negro/10">
+          <span className="font-mono text-[10px] bg-white/95 backdrop-blur-xs px-2.5 py-0.5 rounded-full font-semibold text-cirqa-negro/80 shadow-2xs border border-cirqa-negro/10">
             {product.modelCode || product.code}
           </span>
-          {product.frameShape && (
-            <span className="text-[9px] uppercase tracking-wider font-semibold text-cirqa-primario bg-white/90 backdrop-blur-xs px-2 py-0.5 rounded-full border border-cirqa-negro/10">
-              {product.frameShape}
-            </span>
-          )}
         </div>
       </div>
 
@@ -155,7 +148,7 @@ export default function ProductCard({
             </span>
           </div>
           <p className="text-[11px] text-cirqa-negro/60 font-light line-clamp-1 mt-0.5">
-            {product.description || 'Ingeniería óptica y acetato bio aeroespacial.'}
+            {product.description || 'Acetato de celulosa de alta densidad y protección 100% UV400.'}
           </p>
         </div>
 

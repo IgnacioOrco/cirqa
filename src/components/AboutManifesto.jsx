@@ -1,8 +1,61 @@
-import React from 'react';
-import { motion } from 'framer-motion';
-import { Sun, Moon, ShieldCheck, ArrowRight } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Sun, Moon, ShieldCheck, ArrowRight, ChevronLeft, ChevronRight } from 'lucide-react';
+
+const MANIFESTO_IMAGES = [
+  {
+    src: '/assets/MANIFIESTO 1.jpg',
+    alt: 'Campaña CIRQA — Bienestar y Sincronización Circadiana',
+    title: 'Campaña CIRQA 2026',
+    subtitle: 'Enfoque Diurno · Sincronía Nocturna',
+    badge: 'Edición Oficial',
+  },
+  {
+    src: '/assets/MANIFIESTO 2.jpg',
+    alt: 'Modelo CIRQA — Calibración Espectral y Luz Solar',
+    title: 'Biología Visual',
+    subtitle: 'Sincronización con el Ciclo Solar Natural',
+    badge: 'Laboratorio Óptico',
+  },
+  {
+    src: '/assets/MANIFIESTO 3.jpg',
+    alt: 'Filtro Óptico CIRQA — Arquitectura del Descanso',
+    title: 'Arquitectura del Descanso',
+    subtitle: '99% Bloqueo Luz Azul · Melatonina Natural',
+    badge: 'ISO 12312-1',
+  },
+  {
+    src: '/assets/MANIFIESTO 4.jpg',
+    alt: 'Filtro Día Amarillo frente a monitores',
+    title: 'Foco y Claridad Mental',
+    subtitle: '84% Bloqueo Digital sin Distorsión de Color',
+    badge: 'TR-90 Ultraliviano',
+  },
+];
 
 export default function AboutManifesto({ onExploreModels }) {
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+
+  // Autoplay sutil cada 4.5 segundos
+  useEffect(() => {
+    if (isPaused) return;
+    const timer = setInterval(() => {
+      setCurrentSlide((prev) => (prev + 1) % MANIFESTO_IMAGES.length);
+    }, 4500);
+    return () => clearInterval(timer);
+  }, [isPaused]);
+
+  const handlePrev = () => {
+    setCurrentSlide((prev) => (prev - 1 + MANIFESTO_IMAGES.length) % MANIFESTO_IMAGES.length);
+  };
+
+  const handleNext = () => {
+    setCurrentSlide((prev) => (prev + 1) % MANIFESTO_IMAGES.length);
+  };
+
+  const activePhoto = MANIFESTO_IMAGES[currentSlide];
+
   return (
     <section id="nosotros" className="py-28 bg-cirqa-negro text-white relative overflow-hidden">
       {/* Background Subtle Gradient Accents */}
@@ -28,7 +81,7 @@ export default function AboutManifesto({ onExploreModels }) {
           </h2>
         </motion.div>
 
-        {/* 2-Column Grid: Text Manifesto + Campaign Photography */}
+        {/* 2-Column Grid: Text Manifesto + Campaign Photography Carousel */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 lg:gap-16 items-center">
           
           {/* Left Column: Descriptive Text Manifesto */}
@@ -82,7 +135,7 @@ export default function AboutManifesto({ onExploreModels }) {
             <div className="pt-4">
               <button
                 onClick={onExploreModels}
-                className="inline-flex items-center gap-2 border border-cirqa-arena text-cirqa-arena hover:bg-cirqa-arena hover:text-cirqa-negro active:scale-95 text-xs font-bold tracking-widest uppercase px-8 py-4 rounded-full transition-all duration-300 shadow-md group"
+                className="inline-flex items-center gap-2 border border-cirqa-arena text-cirqa-arena hover:bg-cirqa-arena hover:text-cirqa-negro active:scale-95 text-xs font-bold tracking-widest uppercase px-8 py-4 rounded-full transition-all duration-300 shadow-md group cursor-pointer"
               >
                 <span>Explorar Colección de Modelos</span>
                 <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -90,35 +143,83 @@ export default function AboutManifesto({ onExploreModels }) {
             </div>
           </div>
 
-          {/* Right Column: Campaign Photography */}
-          <div className="lg:col-span-6 relative">
+          {/* Right Column: Carrusel Slider de Fotos de Manifiesto */}
+          <div 
+            className="lg:col-span-6 relative"
+            onMouseEnter={() => setIsPaused(true)}
+            onMouseLeave={() => setIsPaused(false)}
+          >
             <div className="relative rounded-3xl overflow-hidden bg-cirqa-darkSurface border border-white/10 shadow-2xl group">
               
-              {/* Campaign Image */}
+              {/* Campaign Image Slider */}
               <div className="aspect-[4/5] w-full relative overflow-hidden bg-gradient-to-b from-[#201610] to-[#120B07] flex items-center justify-center">
-                <img
-                  src="/assets/modelo.png"
-                  alt="Campaña CIRQA — Bienestar y Sincronización Circadiana"
-                  className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 opacity-90"
-                  onError={(e) => {
-                    // Fallback to hero-model if modelo.png has issues
-                    e.currentTarget.src = '/assets/hero-model.png';
-                  }}
-                />
+                <AnimatePresence mode="wait">
+                  <motion.img
+                    key={activePhoto.src}
+                    src={activePhoto.src}
+                    alt={activePhoto.alt}
+                    initial={{ opacity: 0, scale: 1.02 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.98 }}
+                    transition={{ duration: 0.5, ease: 'easeOut' }}
+                    className="w-full h-full object-cover object-center"
+                    onError={(e) => {
+                      e.currentTarget.src = '/assets/hero-model.png';
+                    }}
+                  />
+                </AnimatePresence>
                 
                 {/* Subtle vignette overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-cirqa-negro/80 via-transparent to-transparent" />
-              </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-cirqa-negro/85 via-transparent to-transparent pointer-events-none" />
 
-              {/* Editorial Caption Badge */}
-              <div className="absolute bottom-6 left-6 right-6 p-4 bg-cirqa-negro/85 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center justify-between text-xs font-light shadow-xl">
-                <div>
-                  <span className="text-white font-medium block">Campaña CIRQA 2026</span>
-                  <span className="text-white/60 text-[11px]">Enfoque Diurno · Sincronía Nocturna</span>
+                {/* Controles de avance / retroceso */}
+                <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handlePrev}
+                    className="w-9 h-9 rounded-full bg-cirqa-negro/60 hover:bg-cirqa-negro border border-white/20 text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-lg"
+                    aria-label="Foto anterior del manifiesto"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleNext}
+                    className="w-9 h-9 rounded-full bg-cirqa-negro/60 hover:bg-cirqa-negro border border-white/20 text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-lg"
+                    aria-label="Foto siguiente del manifiesto"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
                 </div>
-                <span className="text-cirqa-arena text-[10px] uppercase tracking-widest font-semibold border border-cirqa-arena/30 px-3 py-1 rounded-full">
-                  Edición Limitada
-                </span>
+
+                {/* Indicador de Dots */}
+                <div className="absolute top-6 left-6 z-20 flex items-center gap-1.5">
+                  {MANIFESTO_IMAGES.map((_, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setCurrentSlide(idx)}
+                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                        currentSlide === idx
+                          ? 'w-6 bg-cirqa-arena'
+                          : 'w-2 bg-white/30 hover:bg-white/60'
+                      }`}
+                      aria-label={`Ver diapositiva ${idx + 1}`}
+                    />
+                  ))}
+                </div>
+
+                {/* Editorial Caption Badge */}
+                <div className="absolute bottom-6 left-6 right-6 p-4 bg-cirqa-negro/90 backdrop-blur-xl border border-white/10 rounded-2xl flex items-center justify-between text-xs font-light shadow-xl z-20">
+                  <div>
+                    <span className="text-white font-medium block">{activePhoto.title}</span>
+                    <span className="text-white/60 text-[11px]">{activePhoto.subtitle}</span>
+                  </div>
+                  <span className="text-cirqa-arena text-[10px] uppercase tracking-widest font-semibold border border-cirqa-arena/30 px-3 py-1 rounded-full">
+                    {activePhoto.badge}
+                  </span>
+                </div>
+
               </div>
 
             </div>

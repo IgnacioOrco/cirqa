@@ -2,6 +2,7 @@ import React from 'react';
 import { ShoppingBag, Sparkles } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
+import AnnouncementBar from './AnnouncementBar';
 
 export default function Navbar({ isDark = false, onOpenQuiz }) {
   const { cartCount, openCheckout } = useCart();
@@ -20,13 +21,22 @@ export default function Navbar({ isDark = false, onOpenQuiz }) {
 
   return (
     <header
-      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 backdrop-blur-md ${
-        isDark
-          ? 'bg-[#201610]/70 border-b border-white/10 text-white'
-          : 'bg-white/70 border-b border-cirqa-negro/5 text-cirqa-negro'
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
+        isDark ? 'text-white' : 'text-cirqa-negro'
       }`}
     >
-      <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+      {/* 1. Banner Superior Global (Marquesina Promocional) */}
+      <AnnouncementBar />
+
+      {/* 2. Barra Principal de Navegación */}
+      <div
+        className={`backdrop-blur-md transition-all duration-500 ${
+          isDark
+            ? 'bg-[#201610]/70 border-b border-white/10'
+            : 'bg-white/75 border-b border-cirqa-negro/5'
+        }`}
+      >
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
         
         {/* Brand Logo (Left) */}
         <Link to="/" className="flex items-center gap-2 group focus:outline-none" aria-label="CIRQA Home">
@@ -98,6 +108,7 @@ export default function Navbar({ isDark = false, onOpenQuiz }) {
           </button>
         </div>
 
+        </div>
       </div>
     </header>
   );

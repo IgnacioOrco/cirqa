@@ -39,7 +39,7 @@ export const MODELS = [
     price: 39500,
     formattedPrice: '$ 39.500',
     description: 'Diseño arquitectónico audaz con barra superior plana y doble puente en polímero mate de alto impacto.',
-    material: 'Polímero aeroespacial mate de alto impacto',
+    material: 'Acetato de celulosa de alta densidad · TR-90 Ultraliviano',
     lensDefault: 'dia',
     frameShape: 'Navigator Doble Puente Negro',
     bridgeWidth: 17,

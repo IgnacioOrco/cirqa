@@ -63,6 +63,16 @@ const BANK_DETAILS = {
 
 const OFFICIAL_WHATSAPP = '5491125073598';
 
+// Detección precisa de Ciudad Autónoma de Buenos Aires (CABA) para Envío Gratis Express
+const isCABA = (cp, province) => {
+  const postal = parseInt(cp, 10);
+  const isPostalCABA = !isNaN(postal) && postal >= 1000 && postal <= 1499;
+  const isProvCABA = (province || '').toLowerCase().includes('caba') || 
+                     (province || '').toLowerCase().includes('autónoma') || 
+                     (province || '').toLowerCase().includes('capital');
+  return isPostalCABA || isProvCABA;
+};
+
 // Mapeo inteligente de Código Postal (CP) argentino a Provincia y Localidad
 function detectProvinceFromZip(zipCode) {
   const cleanZip = String(zipCode).trim().replace(/\D/g, '');
@@ -173,26 +183,80 @@ export default function CheckoutDrawer() {
   const [transferSuccessOrder, setTransferSuccessOrder] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
 
+  // Detección en tiempo real de CABA
+  const isCustomerCABA = isCABA(formData.zipCode, formData.province);
+
   // 1. Subtotal de productos a precio regular
   const subtotal = activeItems.reduce(
     (acc, it) => acc + (Number(it.price) || 0) * (it.quantity || 1),
     0
   );
 
-  // 2. Costo de Envío según opción elegida de Zipnova (0 si aún no cotizó)
-  const shippingCost = selectedShippingOption ? Number(selectedShippingOption.cost) || 0 : 0;
+  // 2. Costo de Envío: Si es CABA, el costo de envío es $0 reales
+  const shippingCost = isCustomerCABA
+    ? 0
+    : (selectedShippingOption ? Number(selectedShippingOption.cost ?? selectedShippingOption.price ?? 0) : 0);
 
   // 3. Descuento del 15% OFF EXCLUSIVO sobre el valor de los productos para Transferencia
   // El 15% se calcula estrictamente sobre el subtotal de productos, NUNCA sobre el costo de envío
   const discountAmount = paymentMethod === 'transfer' ? Math.round(subtotal * 0.15) : 0;
 
-  // 4. Total a pagar: (subtotal - descuento) + envío
+  // 4. Total Final a pagar: (subtotal - descuento) + envío (Si es CABA, el envío suma $0 reales)
   const total = (subtotal - discountAmount) + shippingCost;
 
-  // Cotización automática y reactiva con Zipnova al detectar Código Postal
+  // Cotización automática y reactiva con detección de CABA y Andreani / OCA
   useEffect(() => {
     const cleanZip = String(formData.zipCode || '').trim().replace(/\D/g, '');
-    if (cleanZip.length >= 4 && activeItems.length > 0) {
+    const isDestCABA = isCABA(cleanZip, formData.province);
+
+    if (activeItems.length === 0) {
+      setShippingOptions([]);
+      setSelectedShippingOption(null);
+      return;
+    }
+
+    // 1. Detección Inmediata de CABA: Envío Gratis $0 por Motomensajería Express
+    if (isDestCABA) {
+      const cabaOptions = [
+        {
+          id: 'caba_express_free',
+          name: 'Envío Gratis CABA · Motomensajería Express',
+          description: 'Entrega en 24 a 48 hs hábiles',
+          carrier: 'Motomensajería',
+          service: 'express_caba_24h',
+          serviceType: 'express_caba_24h',
+          cost: 0,
+          price: 0,
+          estimatedDays: '24 a 48 hs hábiles',
+          type: 'home',
+          isFree: true,
+        },
+        {
+          id: 'caba_andreani_pickup',
+          name: 'Retiro en Sucursal · Correo Andreani / OCA',
+          description: `Sucursal cercana a CP ${cleanZip || '1000'}`,
+          carrier: 'Correo Andreani / OCA',
+          service: 'pickup_point',
+          serviceType: 'pickup_point',
+          cost: 0,
+          price: 0,
+          estimatedDays: '24 a 48 hs hábiles',
+          type: 'pickup',
+          isFree: true,
+        },
+      ];
+      setShippingOptions(cabaOptions);
+      setSelectedShippingOption((prev) => {
+        if (prev?.id === 'caba_andreani_pickup') return cabaOptions[1];
+        return cabaOptions[0];
+      });
+      setIsQuotingShipping(false);
+      setShippingError(null);
+      return;
+    }
+
+    // 2. Resto de Buenos Aires y el Interior del País: Andreani / OCA
+    if (cleanZip.length >= 4) {
       let isCancelled = false;
       const timer = setTimeout(async () => {
         setIsQuotingShipping(true);
@@ -203,25 +267,63 @@ export default function CheckoutDrawer() {
             items: activeItems,
           });
           if (isCancelled) return;
-          const options = Array.isArray(res?.options) ? res.options : [];
-          setShippingOptions(options);
-          if (options.length > 0) {
+          const rawOptions = Array.isArray(res?.options) ? res.options : [];
+          
+          // Estandarizar nombres de confianza: Andreani / OCA
+          const mappedOptions = rawOptions.map((opt) => {
+            const isPickup = opt.type === 'pickup' || (opt.name || '').toLowerCase().includes('punto') || (opt.name || '').toLowerCase().includes('sucursal');
+            return {
+              ...opt,
+              name: isPickup
+                ? 'Retiro en Punto / Sucursal Andreani / OCA'
+                : 'Envío a Domicilio · Correo Andreani / OCA',
+              carrier: 'Correo Andreani / OCA',
+              description: opt.description
+                ? opt.description.replace(/Zipnova/gi, 'Andreani / OCA')
+                : (isPickup ? `Sucursal cercana a CP ${cleanZip}` : 'Entrega puerta a puerta certificada'),
+            };
+          });
+
+          setShippingOptions(mappedOptions);
+          if (mappedOptions.length > 0) {
             setSelectedShippingOption((prev) => {
               if (prev) {
-                const match = options.find((o) => o.id === prev.id || o.type === prev.type);
+                const match = mappedOptions.find((o) => o.id === prev.id || o.type === prev.type);
                 if (match) return match;
               }
-              return options[0];
+              return mappedOptions[0];
             });
           }
         } catch (err) {
           if (isCancelled) return;
-          console.warn('[Zipnova Quote Error]:', err);
-          setShippingError('Tarifas calculadas con el motor de contingencia por zona de Zipnova.');
+          console.warn('[Shipping Quote Error]:', err);
+          // Fallback seguro con Andreani / OCA
+          const fallbackOptions = [
+            {
+              id: 'andreani_home_fb',
+              name: 'Envío a Domicilio · Correo Andreani / OCA',
+              description: 'Entrega puerta a puerta certificada en tu domicilio',
+              carrier: 'Correo Andreani / OCA',
+              cost: 4900,
+              estimatedDays: '3 a 5 días hábiles',
+              type: 'home',
+            },
+            {
+              id: 'andreani_pickup_fb',
+              name: 'Retiro en Punto / Sucursal Andreani / OCA',
+              description: `Punto o sucursal cercana a CP ${cleanZip}`,
+              carrier: 'Correo Andreani / OCA',
+              cost: 3800,
+              estimatedDays: '2 a 4 días hábiles',
+              type: 'pickup',
+            },
+          ];
+          setShippingOptions(fallbackOptions);
+          setSelectedShippingOption((prev) => prev ? fallbackOptions.find(o => o.type === prev.type) || fallbackOptions[0] : fallbackOptions[0]);
         } finally {
           if (!isCancelled) setIsQuotingShipping(false);
         }
-      }, 500);
+      }, 400);
 
       return () => {
         isCancelled = true;
@@ -231,7 +333,7 @@ export default function CheckoutDrawer() {
       setShippingOptions([]);
       setSelectedShippingOption(null);
     }
-  }, [formData.zipCode, activeItems.length]);
+  }, [formData.zipCode, formData.province, activeItems.length]);
 
   // Autocompletado reactivo de CP y provincia
   const handleZipCodeChange = (e) => {
@@ -302,13 +404,38 @@ export default function CheckoutDrawer() {
   };
 
   const buildOrderPayload = (selectedMethod) => {
-    const shippingMethodTitle = selectedShippingOption
-      ? selectedShippingOption.name
-      : 'Envío a Domicilio - Zipnova';
+    const isDestCABA = isCABA(formData.zipCode, formData.province);
+    const shippingPrice = isDestCABA ? 0 : Number(selectedShippingOption?.cost ?? selectedShippingOption?.price ?? 0);
+    const shippingMethodTitle = isDestCABA
+      ? (selectedShippingOption?.name || 'Envío Gratis CABA · Motomensajería Express')
+      : (selectedShippingOption?.name || 'Envío a Domicilio · Correo Andreani / OCA');
     const subtotalAmount = subtotal;
     const discount = selectedMethod === 'transfer' ? Math.round(subtotalAmount * 0.15) : 0;
-    const shippingPrice = Number(selectedShippingOption?.cost || selectedShippingOption?.price || 0);
     const totalCalc = (subtotalAmount - discount) + shippingPrice;
+
+    const shippingPayload = isDestCABA
+      ? {
+          carrier: 'Motomensajería',
+          service: 'express_caba_24h',
+          price: 0,
+          cost: 0,
+          status: 'PENDIENTE',
+          deliveryStatus: 'pending',
+          trackingNumber: '',
+          zipnovaShipmentId: '',
+          labelUrl: '',
+        }
+      : {
+          carrier: selectedShippingOption?.carrier || 'Correo Andreani / OCA',
+          service: selectedShippingOption?.service || selectedShippingOption?.serviceType || 'standard',
+          price: shippingPrice,
+          cost: shippingPrice,
+          status: 'PENDIENTE',
+          deliveryStatus: 'pending',
+          trackingNumber: '',
+          zipnovaShipmentId: '',
+          labelUrl: '',
+        };
 
     return {
       paymentMethod: selectedMethod,
@@ -356,16 +483,13 @@ export default function CheckoutDrawer() {
         };
       }),
       shippingMethod: shippingMethodTitle,
-      shipping: {
-        carrier: selectedShippingOption?.carrier || 'Zipnova',
-        cost: shippingPrice,
-        status: 'PENDIENTE',
-        deliveryStatus: 'pending',
-        trackingNumber: '',
-        zipnovaShipmentId: '',
-      },
+      shipping: shippingPayload,
       payment: {
         method: selectedMethod,
+        provider: selectedMethod === 'transfer' ? 'transfer' : 'mercadopago',
+      },
+    };
+  };
         provider: selectedMethod === 'transfer' ? 'transfer' : 'mercadopago',
       },
     };
@@ -532,7 +656,7 @@ export default function CheckoutDrawer() {
                 </span>
                 <span className="text-[10px] text-cirqa-primario bg-cirqa-primario/10 px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1 font-mono">
                   <Truck className="w-3 h-3" />
-                  Zipnova Logistics
+                  Andreani / OCA · Envíos a todo el país
                 </span>
               </div>
 
@@ -849,19 +973,25 @@ export default function CheckoutDrawer() {
               </div>
 
               {/* ========================================================= */}
-              {/* SELECTOR DINÁMICO DE ENVÍO ZIPNOVA                        */}
+              {/* SELECTOR DINÁMICO DE ENVÍO ANDREANI / OCA / CABA          */}
               {/* ========================================================= */}
               <div className="space-y-2.5 pt-3 border-t border-cirqa-negro/10">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-1.5">
                     <Truck className="w-4 h-4 text-cirqa-primario" />
                     <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro">
-                      Opciones de Envío · Zipnova Logistics
+                      Opciones de Envío & Logística
                     </span>
                   </div>
                   {selectedShippingOption && (
-                    <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-                      Zipnova Oficial
+                    <span
+                      className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                        selectedShippingOption.isFree
+                          ? 'text-emerald-700 bg-emerald-50 border-emerald-300 font-bold'
+                          : 'text-cirqa-negro/70 bg-cirqa-negro/5 border-cirqa-negro/10'
+                      }`}
+                    >
+                      {selectedShippingOption.isFree ? 'Envío Gratis CABA' : 'Andreani / OCA Oficial'}
                     </span>
                   )}
                 </div>
@@ -870,20 +1000,21 @@ export default function CheckoutDrawer() {
                   <div className="p-3.5 rounded-2xl bg-[#FBFBFA] border border-dashed border-cirqa-negro/15 text-xs text-cirqa-negro/60 flex items-center gap-2.5">
                     <MapPin className="w-4 h-4 text-cirqa-negro/40 flex-shrink-0" />
                     <p className="text-[11px] font-light">
-                      Ingresá tu <strong>Código Postal</strong> para cotizar las tarifas y tiempos de entrega oficiales de Zipnova.
+                      Ingresá tu <strong>Código Postal</strong> para activar <strong>Envío Gratis en CABA (24 hs)</strong> o cotizar despacho por <strong>Andreani / OCA</strong> a todo el país.
                     </p>
                   </div>
                 ) : isQuotingShipping && shippingOptions.length === 0 ? (
                   <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 text-center space-y-1.5">
                     <Loader2 className="w-5 h-5 animate-spin mx-auto text-cirqa-primario" />
                     <p className="text-xs text-cirqa-negro/70 font-medium">
-                      Consultando tarifas de Zipnova para CP {formData.zipCode}...
+                      Consultando opciones de entrega para CP {formData.zipCode}...
                     </p>
                   </div>
                 ) : shippingOptions.length > 0 ? (
                   <div className="space-y-2">
                     {shippingOptions.map((opt) => {
                       const isSelected = selectedShippingOption?.id === opt.id;
+                      const isFreeOption = opt.isFree || Number(opt.cost) === 0;
                       return (
                         <button
                           key={opt.id}
@@ -910,9 +1041,15 @@ export default function CheckoutDrawer() {
                                 <span className="text-xs font-bold text-cirqa-negro">
                                   {opt.name}
                                 </span>
-                                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cirqa-negro/5 text-cirqa-negro/70 font-medium">
-                                  {opt.estimatedDays || '3 a 5 días hábiles'}
-                                </span>
+                                {isFreeOption ? (
+                                  <span className="text-[9px] font-black tracking-wider uppercase px-2 py-0.5 rounded-full bg-emerald-600 text-white shadow-2xs">
+                                    GRATIS $0
+                                  </span>
+                                ) : (
+                                  <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cirqa-negro/5 text-cirqa-negro/70 font-medium">
+                                    {opt.estimatedDays || '3 a 5 días hábiles'}
+                                  </span>
+                                )}
                               </div>
                               <p className="text-[11px] text-cirqa-negro/60 font-light truncate mt-0.5">
                                 {opt.description || `Operado por ${opt.carrier}`}
@@ -920,12 +1057,25 @@ export default function CheckoutDrawer() {
                             </div>
                           </div>
                           <div className="text-right flex-shrink-0">
-                            <span className="text-xs font-mono font-bold text-cirqa-negro block">
-                              $ {Number(opt.cost || 0).toLocaleString('es-AR')}
-                            </span>
-                            <span className="text-[9px] text-cirqa-negro/50 font-mono">
-                              Zipnova
-                            </span>
+                            {isFreeOption ? (
+                              <>
+                                <span className="text-xs font-mono font-bold text-emerald-600 block">
+                                  $ 0
+                                </span>
+                                <span className="text-[9px] text-emerald-600 font-semibold font-mono">
+                                  BONIFICADO
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                <span className="text-xs font-mono font-bold text-cirqa-negro block">
+                                  $ {Number(opt.cost || 0).toLocaleString('es-AR')}
+                                </span>
+                                <span className="text-[9px] text-cirqa-negro/50 font-mono">
+                                  Andreani / OCA
+                                </span>
+                              </>
+                            )}
                           </div>
                         </button>
                       );
@@ -954,7 +1104,7 @@ export default function CheckoutDrawer() {
               </span>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Opción A: Mercado Pago */}
+                {/* Opción A: Mercado Pago con Badge de 6 Cuotas Sin Interés */}
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('mercadopago')}
@@ -983,12 +1133,18 @@ export default function CheckoutDrawer() {
                       {paymentMethod === 'mercadopago' && <Check className="w-2.5 h-2.5 text-white" />}
                     </div>
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-[11px] text-cirqa-negro/60 font-light leading-snug">
-                      Tarjetas de crédito/débito, cuotas y dinero en cuenta.
+
+                  <div className="space-y-1.5">
+                    {/* Badge destacado de 6 Cuotas Sin Interés */}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-[#009EE3] text-white shadow-2xs">
+                      <Sparkles className="w-2.5 h-2.5" />
+                      6 CUOTAS SIN INTERÉS
+                    </span>
+                    <p className="text-[11px] font-semibold text-[#007EB5] leading-snug">
+                      Hasta 6 cuotas sin interés de ${Math.round(total / 6).toLocaleString('es-AR')} con todas las tarjetas
                     </p>
                     <span className="text-[10px] font-mono text-cirqa-negro/50 block">
-                      Precio regular: ${subtotal.toLocaleString('es-AR')}
+                      Tarjetas de crédito, débito o dinero en cuenta
                     </span>
                   </div>
                 </button>

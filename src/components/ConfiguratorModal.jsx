@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertTriangle, ShieldCheck, Check, Sparkles, Layers } from 'lucide-react';
+import { X, AlertTriangle, ShieldCheck, Check, Sparkles, Layers, ZoomIn } from 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { formatMediaUrl } from '../services/api';
@@ -28,6 +28,18 @@ export default function ConfiguratorModal({
   const [selectedFilter, setSelectedFilter] = useState(initialFilter || FILTERS[1]);
   const [selectedVariant, setSelectedVariant] = useState(null);
   const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isZoomOpen, setIsZoomOpen] = useState(false);
+
+  // Cerrar lightbox con tecla Escape
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isZoomOpen) {
+        setIsZoomOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isZoomOpen]);
 
   // Sincronizar modelo inicial recibido como prop
   useEffect(() => {
@@ -260,7 +272,7 @@ export default function ConfiguratorModal({
             {/* Cuerpo del Modal: 2 Columnas */}
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 sm:p-8 lg:p-10 items-center overflow-y-auto">
               
-              {/* Columna Izquierda: Escenario Visual Limpio sin Cuadro */}
+              {/* Columna Izquierda: Escenario Visual Limpio con Zoom */}
               <div className="lg:col-span-6 flex flex-col items-center justify-center bg-[#FAF9F5] rounded-3xl p-6 sm:p-8 border border-cirqa-negro/10 relative">
                 
                 {/* Resplandor ambiental adaptativo */}
@@ -269,8 +281,12 @@ export default function ConfiguratorModal({
                   style={{ backgroundColor: glowColor }}
                 />
 
-                {/* Visor Principal con Integración Limpia - Eliminación Total de Cuadro */}
-                <div className="w-full max-w-md h-56 sm:h-64 flex items-center justify-center relative z-10 bg-transparent">
+                {/* Visor Principal con Integración Limpia e Interacción de Zoom */}
+                <div
+                  onClick={() => setIsZoomOpen(true)}
+                  className="w-full max-w-md h-56 sm:h-64 flex items-center justify-center relative z-10 bg-transparent cursor-zoom-in group select-none"
+                  title="Hacé clic para ampliar en alta resolución"
+                >
                   <AnimatePresence mode="wait">
                     <motion.img
                       key={`${currentModel.id || currentModel._id}-${currentPhoto}`}
@@ -280,7 +296,7 @@ export default function ConfiguratorModal({
                       animate={{ opacity: 1, scale: 1 }}
                       exit={{ opacity: 0, scale: 0.98 }}
                       transition={{ duration: 0.2, ease: 'easeOut' }}
-                      className="w-full h-full object-contain p-2 mix-blend-multiply select-none filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.06)] transition-all duration-300"
+                      className="w-full h-full object-contain p-2 mix-blend-multiply filter drop-shadow-[0_12px_24px_rgba(0,0,0,0.06)] group-hover:scale-105 transition-all duration-300"
                       style={{ mixBlendMode: 'multiply' }}
                       onError={(e) => {
                         e.target.onerror = null;
@@ -288,110 +304,77 @@ export default function ConfiguratorModal({
                       }}
                     />
                   </AnimatePresence>
+
+                  {/* Indicador sutil de Zoom en hover */}
+                  <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-[10px] px-2.5 py-1 rounded-full backdrop-blur-sm pointer-events-none flex items-center gap-1 font-mono shadow-xs">
+                    <ZoomIn className="w-3 h-3" />
+                    <span>Ampliar</span>
+                  </div>
                 </div>
 
-                {/* Selector de Ángulos debajo del Visor: Únicamente fotos de la variante activa (currentVariantImages) */}
+                {/* 6. Miniaturas Visuales de Galería: 2 o 3 fotos de la variante activa con borde interactivo */}
                 {currentVariantImages.length > 1 && (
-                  <div className="mt-4 flex items-center justify-center gap-2 z-10 flex-wrap max-w-full pb-1">
-                    {currentVariantImages.map((img, idx) => {
+                  <div className="mt-4 flex items-center justify-center gap-3 z-10 flex-wrap max-w-full pb-1">
+                    {currentVariantImages.slice(0, 3).map((img, idx) => {
                       const isSelected = activeImageIndex === idx;
-                      const label = getTagLabel(img.tag, idx);
                       return (
                         <button
-                          key={img._id || `variant-angle-${idx}`}
+                          key={img._id || `variant-thumb-${idx}`}
                           type="button"
                           onClick={() => setActiveImageIndex(idx)}
-                          className={`px-3.5 py-1.5 rounded-full text-[11px] font-semibold transition-all cursor-pointer flex items-center gap-1.5 ${
+                          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl p-1.5 transition-all cursor-pointer flex items-center justify-center relative overflow-hidden ${
                             isSelected
-                              ? 'bg-cirqa-negro text-white shadow-xs'
-                              : 'bg-white/80 hover:bg-white text-cirqa-negro/70 border border-cirqa-negro/15 hover:border-cirqa-negro/40'
+                              ? 'border-2 border-cirqa-negro bg-white shadow-md scale-105 ring-2 ring-cirqa-negro/10'
+                              : 'border border-cirqa-negro/15 bg-white/70 hover:border-cirqa-negro/40 hover:bg-white'
                           }`}
+                          title={getTagLabel(img.tag, idx)}
+                          aria-label={`Ver ángulo ${idx + 1}`}
                         >
-                          <span>{label}</span>
+                          <img
+                            src={formatMediaUrl(img.url)}
+                            alt={getTagLabel(img.tag, idx)}
+                            className="w-full h-full object-contain mix-blend-multiply"
+                          />
                         </button>
                       );
                     })}
                   </div>
                 )}
 
-                {/* Dimensiones e información de confección */}
-                <div className="mt-4 pt-4 border-t border-cirqa-negro/10 w-full flex items-center justify-between text-[11px] text-cirqa-negro/70 font-normal">
-                  <span>Lente: {currentModel.lensWidth || 50}mm</span>
-                  <span>Puente: {currentModel.bridgeWidth || 19}mm</span>
-                  <span>Patilla: {currentModel.templeLength || 142}mm</span>
-                  <span className="font-semibold text-cirqa-negro">{currentModel.frameShape}</span>
+                {/* Dimensiones Ópticas Limpias (Sin texto redundante repetido) */}
+                <div className="mt-4 pt-4 border-t border-cirqa-negro/10 w-full flex items-center justify-around text-[11px] text-cirqa-negro/70 font-normal">
+                  <span>Lente: <strong className="text-cirqa-negro">{currentModel.lensWidth || 50}mm</strong></span>
+                  <span>Puente: <strong className="text-cirqa-negro">{currentModel.bridgeWidth || 19}mm</strong></span>
+                  <span>Patilla: <strong className="text-cirqa-negro">{currentModel.templeLength || 142}mm</strong></span>
                 </div>
               </div>
 
-              {/* Columna Derecha: Controles de Configuración */}
-              <div className="lg:col-span-6 space-y-6">
+              {/* Columna Derecha: Controles de Configuración Limpios */}
+              <div className="lg:col-span-6 space-y-5">
                 
-                {/* 1. Paso 1 Simplificado: Enfoque en el Modelo Actual o Selector de Modelos */}
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <label className="text-[11px] font-bold uppercase tracking-wider text-cirqa-negro/70">
-                      1. Armazón Seleccionado
-                    </label>
-                  </div>
-                  
-                  {initialModel ? (
-                    /* Vista limpia y directa cuando se abrió para un modelo específico */
-                    <div className="flex items-center justify-between p-3.5 rounded-2xl bg-[#FAF9F5] border border-cirqa-negro/10">
-                      <div className="flex items-center gap-3">
-                        <span className="font-mono text-xs font-bold bg-white px-3 py-1 rounded-full border border-cirqa-negro/10 text-cirqa-negro shadow-2xs">
-                          {currentModel.modelCode || currentModel.code}
-                        </span>
-                        <div>
-                          <h4 className="text-xs font-semibold text-cirqa-negro">{currentModel.name}</h4>
-                          <span className="text-[10px] text-cirqa-negro/50 uppercase tracking-wider">
-                            {currentModel.frameShape} · {currentModel.material || 'Acetato Bio'}
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-xs font-bold font-mono text-cirqa-negro">
-                        ${Number(currentModel.price || 0).toLocaleString('es-AR')}
+                {/* 3. Bloque de Descripción Elegante del Armazón (MongoDB description) */}
+                {(currentModel.description || currentModel.frameShape) && (
+                  <div className="p-4 bg-[#FAF9F5] rounded-2xl border border-cirqa-negro/10">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] uppercase tracking-widest text-cirqa-negro/50 font-bold block">
+                        Detalles del Diseño & Calce
                       </span>
+                      {currentModel.modelCode && (
+                        <span className="font-mono text-[10px] font-bold text-cirqa-primario">
+                          {currentModel.modelCode}
+                        </span>
+                      )}
                     </div>
-                  ) : (
-                    /* Selector de modelos solo si se abrió el modal de forma genérica */
-                    <div className="grid grid-cols-3 sm:grid-cols-5 gap-2 max-h-40 overflow-y-auto pr-1">
-                      {products.map((model) => {
-                        const isOutOfStock = model.stock === 0;
-                        const isSelected = currentModel.id === model.id;
-                        return (
-                          <button
-                            key={model.id}
-                            disabled={isOutOfStock}
-                            onClick={() => {
-                              if (isOutOfStock) return;
-                              setSelectedModel(model);
-                            }}
-                            className={`py-2.5 px-1.5 text-center rounded-2xl border transition-all text-xs relative ${
-                              isOutOfStock
-                                ? 'border-cirqa-negro/10 bg-gray-50 text-cirqa-negro/40 cursor-not-allowed opacity-60'
-                                : isSelected
-                                ? 'border-cirqa-negro bg-cirqa-negro text-white font-semibold shadow-sm cursor-pointer'
-                                : 'border-cirqa-negro/15 bg-white text-cirqa-negro hover:border-cirqa-negro/40 cursor-pointer'
-                            }`}
-                          >
-                            <span className="block text-[10px] opacity-75 truncate">{model.modelCode || model.code}</span>
-                            <span className="block font-medium truncate">{model.name.replace('Modelo ', '')}</span>
-                            {isOutOfStock && (
-                              <span className="block text-[9px] font-semibold text-cirqa-carmin mt-0.5">
-                                Sin stock
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                    <p className="text-xs text-cirqa-negro/80 font-light leading-relaxed">
+                      {currentModel.description || 'Armazón ergonómico de perfil depurado con balance óptico ideal para uso prolongado.'}
+                    </p>
+                  </div>
+                )}
 
                 {/* 2. Selector Dinámico de Cristales Circadianos / Variantes */}
                 <div>
                   <label className="text-[11px] font-bold uppercase tracking-wider text-cirqa-negro/70 block mb-2">
-                    {currentModel.variantAxisTitle || '2. Configurar Cristal Circadiano'}
+                    {currentModel.variantAxisTitle || 'Personalizá el Cristal Circadiano'}
                   </label>
                   
                   {hasVariants && variantsList.length > 0 ? (
@@ -480,11 +463,13 @@ export default function ConfiguratorModal({
                   )}
                 </div>
 
-                {/* Especificaciones y Advertencia Nocturna */}
-                <div className="p-4 bg-cirqa-surface rounded-2xl border border-cirqa-negro/10 text-xs">
-                  <div className="flex items-center justify-between text-cirqa-negro/80 font-normal">
-                    <span>Protección: <strong>100% UV400 / Espectral</strong></span>
-                    <span>Material: <strong>{currentModel.material || 'Acetato Bio'}</strong></span>
+                {/* 2. Corrección Oficial de Materiales y Protección */}
+                <div className="p-4 bg-cirqa-surface rounded-2xl border border-cirqa-negro/10 text-xs space-y-2">
+                  <div className="text-cirqa-negro/85 leading-snug">
+                    <strong className="text-cirqa-negro font-bold">MATERIAL:</strong> Acetato de celulosa de alta densidad · TR-90 Ultraliviano · Aleación metálica flexible.
+                  </div>
+                  <div className="pt-2 border-t border-cirqa-negro/10 text-cirqa-negro/85 leading-snug">
+                    <strong className="text-cirqa-negro font-bold">PROTECCIÓN:</strong> 100% UV400 con tratamiento Antirréflex multicapa en todas las variantes.
                   </div>
                   {(selectedVariant?.key === 'noche' || selectedVariant?.name?.toLowerCase().includes('noche') || selectedFilter?.id === 'noche') && (
                     <div className="mt-2 pt-2 border-t border-cirqa-negro/10 flex items-center gap-1.5 text-cirqa-carmin text-[11px] font-semibold">
@@ -494,8 +479,29 @@ export default function ConfiguratorModal({
                   )}
                 </div>
 
-                {/* Acción Única Principal de Compra Directa (Removido 'Tengo Receta') */}
-                <div className="pt-2">
+                {/* 4. Formas de Pago Visibles en el Configurador */}
+                <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-1.5">
+                  <div className="flex items-baseline justify-between">
+                    <span className="text-2xl font-bold font-mono text-cirqa-negro">
+                      {formattedPrice}
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                      15% OFF TRANSFERENCIA
+                    </span>
+                  </div>
+                  <div className="text-xs space-y-1 pt-1.5 border-t border-cirqa-negro/5">
+                    <p className="text-cirqa-negro font-semibold flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                      <span>6 cuotas sin interés de <strong>${Math.round(calculatedPrice / 6).toLocaleString('es-AR')}</strong></span>
+                    </p>
+                    <p className="text-emerald-700 font-medium">
+                      o <strong>${Math.round(calculatedPrice * 0.85).toLocaleString('es-AR')}</strong> (15% OFF) pagando con Transferencia
+                    </p>
+                  </div>
+                </div>
+
+                {/* Acción Principal de Compra Directa */}
+                <div className="pt-1">
                   <button
                     type="button"
                     disabled={isModelOutOfStock}
@@ -512,6 +518,47 @@ export default function ConfiguratorModal({
             </div>
 
           </motion.div>
+
+          {/* 5. Zoom de Imagen / Lightbox Interactivo en Pantalla Completa */}
+          <AnimatePresence>
+            {isZoomOpen && (
+              <div
+                onClick={() => setIsZoomOpen(false)}
+                className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-8 bg-black/95 backdrop-blur-md cursor-zoom-out"
+              >
+                <button
+                  onClick={() => setIsZoomOpen(false)}
+                  className="absolute top-6 right-6 w-11 h-11 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer z-10"
+                  aria-label="Cerrar zoom"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.92 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.92 }}
+                  transition={{ duration: 0.2 }}
+                  className="relative max-w-5xl max-h-[85vh] flex flex-col items-center justify-center select-none"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <img
+                    src={currentPhoto}
+                    alt={`${currentModel.name} - Alta Resolución`}
+                    className="max-h-[75vh] max-w-full w-auto object-contain filter drop-shadow-[0_20px_50px_rgba(255,255,255,0.08)] rounded-2xl"
+                  />
+                  <div className="mt-4 text-center">
+                    <h4 className="text-white text-base font-medium">
+                      {currentModel.name} · {selectedVariant?.name || selectedFilter?.name}
+                    </h4>
+                    <span className="text-white/60 text-xs">
+                      100% UV400 · Tratamiento Antirréflex Multicapa
+                    </span>
+                  </div>
+                </motion.div>
+              </div>
+            )}
+          </AnimatePresence>
         </div>
       )}
     </AnimatePresence>

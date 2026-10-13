@@ -88,6 +88,14 @@ export const createOrderPreference = async (req, res, next) => {
               }
             : undefined,
         },
+        payment_methods: {
+          installments: 6,
+          default_installments: 1,
+        },
+        shipments: {
+          cost: Number(order.shippingCost || order.shipping?.cost || 0),
+          mode: 'not_specified',
+        },
         back_urls: {
           success: `${clientUrl}/checkout/success?orderId=${order._id}`,
           failure: `${clientUrl}/checkout/failure?orderId=${order._id}`,
@@ -302,10 +310,34 @@ export const createPreference = async (req, res, next) => {
 
     // 3. Subtotal estricto calculado desde los precios oficiales de la base de datos
     const subtotal = calculatedSubtotal;
-    const numericShippingCost = Number(shippingCost) || 0;
-    const shippingMethodTitle = String(
-      req.body.shippingMethod || req.body.shipping?.name || 'standard'
-    ).trim();
+    // Normalizar datos del comprador y dirección de envío para garantizar compatibilidad total con Mongoose
+    const rawAddr = customer.shippingAddress || {};
+    const streetRaw = String(rawAddr.street || '').trim();
+    const streetNumber = String(rawAddr.number || '').trim() || (streetRaw.match(/\d+/) ? streetRaw.match(/\d+/)[0] : 'S/N');
+    const zip = String(rawAddr.postalCode || rawAddr.zipCode || '').trim() || 'C1000';
+    const prov = String(rawAddr.province || rawAddr.state || 'Ciudad Autónoma de Buenos Aires').trim();
+    const city = String(rawAddr.city || '').trim() || prov;
+
+    // Helper de detección estricta de CABA (CABA siempre tiene costo $0 y carrier Motomensajería)
+    const checkIsCABA = (cp, province) => {
+      const postal = parseInt(cp, 10);
+      const isPostalCABA = !isNaN(postal) && postal >= 1000 && postal <= 1499;
+      const isProvCABA = (province || '').toLowerCase().includes('caba') || 
+                         (province || '').toLowerCase().includes('autónoma') || 
+                         (province || '').toLowerCase().includes('capital');
+      return isPostalCABA || isProvCABA;
+    };
+
+    const isDestCABA = checkIsCABA(zip, prov);
+
+    // 3. Subtotal estricto calculado desde los precios oficiales de la base de datos
+    const subtotal = calculatedSubtotal;
+    let numericShippingCost = isDestCABA ? 0 : (Number(shippingCost) || 0);
+    let shippingCarrier = isDestCABA ? 'Motomensajería' : (req.body.shipping?.carrier || 'Correo Andreani / OCA');
+    let shippingServiceType = isDestCABA ? 'express_caba_24h' : (req.body.shipping?.service || req.body.shipping?.serviceType || 'standard');
+    let shippingMethodTitle = isDestCABA
+      ? 'Envío Gratis CABA · Motomensajería Express'
+      : (String(req.body.shippingMethod || req.body.shipping?.name || 'Envío a Domicilio · Correo Andreani / OCA').trim());
 
     // 4. Lógica de Descuento: 15% OFF EXCLUSIVO sobre el valor de productos para Transferencia Bancaria
     // El cálculo del 15% se efectúa estrictamente sobre el subtotal de productos, NUNCA sobre el costo de envío.
@@ -315,14 +347,6 @@ export const createPreference = async (req, res, next) => {
     const year = new Date().getFullYear();
     const randomCode = Math.floor(100000 + Math.random() * 900000);
     const orderNumber = `CQ-${year}-${randomCode}`;
-
-    // Normalizar datos del comprador y dirección de envío para garantizar compatibilidad total con Mongoose
-    const rawAddr = customer.shippingAddress || {};
-    const streetRaw = String(rawAddr.street || '').trim();
-    const streetNumber = String(rawAddr.number || '').trim() || (streetRaw.match(/\d+/) ? streetRaw.match(/\d+/)[0] : 'S/N');
-    const zip = String(rawAddr.postalCode || rawAddr.zipCode || '').trim() || 'C1000';
-    const prov = String(rawAddr.province || rawAddr.state || 'Ciudad Autónoma de Buenos Aires').trim();
-    const city = String(rawAddr.city || '').trim() || prov;
 
     const normalizedCustomer = {
       name: String(customer.name || '').trim(),
@@ -353,8 +377,8 @@ export const createPreference = async (req, res, next) => {
       shippingMethod: shippingMethodTitle,
       totalAmount,
       shipping: {
-        carrier: req.body.shipping?.carrier || 'Zipnova',
-        service: req.body.shipping?.service || 'standard',
+        carrier: shippingCarrier,
+        service: shippingServiceType,
         trackingNumber: '',
         zipnovaShipmentId: '',
         labelUrl: '',
@@ -413,7 +437,7 @@ export const createPreference = async (req, res, next) => {
     }
 
     // =========================================================================
-    // FLUJO B: MERCADO PAGO CHECKOUT PRO
+    // FLUJO B: MERCADO PAGO CHECKOUT PRO (Hasta 6 Cuotas Sin Interés)
     // =========================================================================
     let initPoint = '';
     let sandboxInitPoint = '';
@@ -424,61 +448,55 @@ export const createPreference = async (req, res, next) => {
       const client = getMercadoPagoClient();
       const preference = new Preference(client);
 
-      const mpItems = validatedItems.map((vItem) => ({
-        id: String(vItem.product || vItem.modelCode || 'cirqa-item'),
-        title: `${vItem.name}${vItem.filter ? ` · Cristal ${vItem.filter}` : ''}`,
-        description: `Armazón óptico CIRQA ${vItem.name}`,
-        picture_url: vItem.image || undefined,
-        quantity: vItem.quantity,
-        unit_price: vItem.price,
-        currency_id: 'ARS',
-      }));
-
-      if (numericShippingCost > 0) {
-        mpItems.push({
-          id: 'shipping-cost',
-          title: `Costo de Envío (${shippingMethodTitle || 'Zipnova'})`,
-          quantity: 1,
-          unit_price: numericShippingCost,
+      const preferencePayload = {
+        items: validatedItems.map((item) => ({
+          id: item.product.toString(),
+          title: item.name,
+          unit_price: Number(item.price),
+          quantity: Number(item.quantity),
           currency_id: 'ARS',
-        });
-      }
-
-      const preferenceData = {
-        body: {
-          items: mpItems,
-          payer: {
-            name: normalizedCustomer.name,
-            email: normalizedCustomer.email,
-            phone: normalizedCustomer.phone ? { number: normalizedCustomer.phone } : undefined,
-            identification: normalizedCustomer.dni
-              ? { type: 'DNI', number: String(normalizedCustomer.dni) }
-              : undefined,
-            address: normalizedCustomer.shippingAddress
-              ? {
-                  street_name: normalizedCustomer.shippingAddress.street || '',
-                  zip_code: normalizedCustomer.shippingAddress.postalCode || normalizedCustomer.shippingAddress.zipCode || '',
-                }
-              : undefined,
-          },
-          back_urls: {
-            success: `${clientUrl}/checkout/success?orderId=${order._id}`,
-            failure: `${clientUrl}/checkout/failure?orderId=${order._id}`,
-            pending: `${clientUrl}/checkout/pending?orderId=${order._id}`,
-          },
-          auto_return: 'approved',
-          external_reference: order._id.toString(),
-          notification_url: `${apiUrl}/api/webhooks/mercadopago`,
-          statement_descriptor: 'CIRQA',
-          metadata: {
-            order_id: order._id.toString(),
-            order_number: order.orderNumber,
-            customer_email: normalizedCustomer.email,
-          },
+          picture_url: item.image || undefined,
+          description: `Armazón CIRQA: ${item.name}${item.filter ? ` · Cristal ${item.filter}` : ''}`,
+        })),
+        shipments: {
+          cost: Number(numericShippingCost || 0),
+          mode: 'not_specified',
+        },
+        payment_methods: {
+          installments: 6,
+          default_installments: 1,
+        },
+        back_urls: {
+          success: `${clientUrl}/checkout/success?orderId=${order._id}`,
+          failure: `${clientUrl}/checkout/failure?orderId=${order._id}`,
+          pending: `${clientUrl}/checkout/pending?orderId=${order._id}`,
+        },
+        auto_return: 'approved',
+        external_reference: order._id.toString(),
+        payer: {
+          name: normalizedCustomer.name,
+          email: normalizedCustomer.email,
+          phone: normalizedCustomer.phone ? { number: normalizedCustomer.phone } : undefined,
+          identification: normalizedCustomer.dni
+            ? { type: 'DNI', number: String(normalizedCustomer.dni) }
+            : undefined,
+          address: normalizedCustomer.shippingAddress
+            ? {
+                street_name: normalizedCustomer.shippingAddress.street || '',
+                zip_code: normalizedCustomer.shippingAddress.postalCode || normalizedCustomer.shippingAddress.zipCode || '',
+              }
+            : undefined,
+        },
+        notification_url: `${apiUrl}/api/webhooks/mercadopago`,
+        statement_descriptor: 'CIRQA',
+        metadata: {
+          order_id: order._id.toString(),
+          order_number: order.orderNumber,
+          customer_email: normalizedCustomer.email,
         },
       };
 
-      const response = await preference.create(preferenceData);
+      const response = await preference.create({ body: preferencePayload });
       order.gateway_id = response.id;
       if (!order.payment) order.payment = {};
       order.payment.preferenceId = response.id;
@@ -572,20 +590,37 @@ export const updateOrderStatus = async (req, res, next) => {
       if (!order.payment.dateApproved) order.payment.dateApproved = new Date();
     }
 
-    // Si pasa a preparación, emitir envío en Shipnova/Zipnova si aún no fue emitido
+    // Si pasa a preparación, gestionar despacho (Motomensajería local vs Zipnova nacional)
     if (
       (newStatusNormalized === 'preparacion' || newStatusNormalized === 'preparación') &&
       (!order.shipping?.trackingNumber || !order.shipping?.labelUrl)
     ) {
       try {
-        const shipmentData = await createShipment(order);
         if (!order.shipping) order.shipping = {};
-        if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
-        if (shipmentData.service) order.shipping.service = shipmentData.service;
-        if (shipmentData.trackingNumber) order.shipping.trackingNumber = shipmentData.trackingNumber;
-        if (shipmentData.zipnovaShipmentId) order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
-        if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
-        order.shipping.status = 'PREPARACION';
+
+        const isMoto =
+          order.shipping.carrier === 'Motomensajería' ||
+          (order.shipping.service || '').includes('express_caba') ||
+          (order.shippingMethod || '').toLowerCase().includes('motomensajería');
+
+        if (isMoto) {
+          const orderNumClean = order.orderNumber
+            ? order.orderNumber.replace(/^CQ-/, '')
+            : (order._id?.toString().slice(-6).toUpperCase() || 'EXPRESS');
+          order.shipping.carrier = 'Motomensajería';
+          order.shipping.service = 'express_caba_24h';
+          order.shipping.trackingNumber = `MOTO-CQ-${orderNumClean}`;
+          order.shipping.status = 'PREPARACION';
+        } else {
+          // Destino nacional: llamar a Zipnova
+          const shipmentData = await createShipment(order);
+          if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
+          if (shipmentData.service) order.shipping.service = shipmentData.service;
+          if (shipmentData.trackingNumber) order.shipping.trackingNumber = shipmentData.trackingNumber;
+          if (shipmentData.zipnovaShipmentId) order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+          if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
+          order.shipping.status = 'PREPARACION';
+        }
       } catch (shipErr) {
         console.warn('[Auto-Shipment Notice in updateOrderStatus]:', shipErr.message);
       }
@@ -721,15 +756,29 @@ export const updateOrderShipping = async (req, res, next) => {
       } else if (norm === 'ENTREGADO' || norm === 'DELIVERED') {
         order.status = 'delivered';
       } else if (norm === 'PREPARACION' || norm === 'PROCESSING') {
-        // Si no tiene guía ni etiqueta emitida, emitir envío en Shipnova/Zipnova
+        // Si no tiene guía ni etiqueta emitida, gestionar despacho
         if (!order.shipping.trackingNumber || !order.shipping.labelUrl) {
           try {
-            const shipmentData = await createShipment(order);
-            if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
-            if (shipmentData.service) order.shipping.service = shipmentData.service;
-            if (shipmentData.trackingNumber) order.shipping.trackingNumber = shipmentData.trackingNumber;
-            if (shipmentData.zipnovaShipmentId) order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
-            if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
+            const isMoto =
+              order.shipping?.carrier === 'Motomensajería' ||
+              (order.shipping?.service || '').includes('express_caba') ||
+              (order.shippingMethod || '').toLowerCase().includes('motomensajería');
+
+            if (isMoto) {
+              const orderNumClean = order.orderNumber
+                ? order.orderNumber.replace(/^CQ-/, '')
+                : (order._id?.toString().slice(-6).toUpperCase() || 'EXPRESS');
+              order.shipping.carrier = 'Motomensajería';
+              order.shipping.service = 'express_caba_24h';
+              order.shipping.trackingNumber = `MOTO-CQ-${orderNumClean}`;
+            } else {
+              const shipmentData = await createShipment(order);
+              if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
+              if (shipmentData.service) order.shipping.service = shipmentData.service;
+              if (shipmentData.trackingNumber) order.shipping.trackingNumber = shipmentData.trackingNumber;
+              if (shipmentData.zipnovaShipmentId) order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+              if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
+            }
           } catch (shipErr) {
             console.warn('[Auto-Shipment Notice in updateOrderShipping]:', shipErr.message);
           }
@@ -771,14 +820,40 @@ export const generateOrderShipping = async (req, res, next) => {
       });
     }
 
-    // Emitir despacho mediante la API de Shipnova/Zipnova
-    const shipmentData = await createShipment(order);
-
     if (!order.shipping) {
       order.shipping = {};
     }
 
-    order.shipping.carrier = shipmentData.carrier || order.shipping.carrier || 'Zipnova';
+    const isMoto =
+      order.shipping.carrier === 'Motomensajería' ||
+      (order.shipping.service || '').includes('express_caba') ||
+      (order.shippingMethod || '').toLowerCase().includes('motomensajería');
+
+    if (isMoto) {
+      const orderNumClean = order.orderNumber
+        ? order.orderNumber.replace(/^CQ-/, '')
+        : (order._id?.toString().slice(-6).toUpperCase() || 'EXPRESS');
+      const trackingNumber = `MOTO-CQ-${orderNumClean}`;
+      order.shipping.carrier = 'Motomensajería';
+      order.shipping.service = 'express_caba_24h';
+      order.shipping.trackingNumber = trackingNumber;
+      order.shipping.status = 'PREPARACION';
+      await order.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Despacho por Motomensajería CABA registrado exitosamente.',
+        trackingNumber,
+        carrier: 'Motomensajería',
+        data: order,
+        shipping: order.shipping,
+      });
+    }
+
+    // Emitir despacho mediante la API de Shipnova/Zipnova
+    const shipmentData = await createShipment(order);
+
+    order.shipping.carrier = shipmentData.carrier || order.shipping.carrier || 'Correo Andreani / OCA';
     order.shipping.service = shipmentData.service || order.shipping.service || 'standard';
     order.shipping.trackingNumber = shipmentData.trackingNumber;
     order.shipping.zipnovaShipmentId = shipmentData.shipmentId || shipmentData.zipnovaShipmentId;
