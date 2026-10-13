@@ -12,6 +12,7 @@ const STILL_LIFES = [
     modelImage: '/assets/SITUACIONES AMARILLO.jpg',
     image: '/assets/SITUACIONES AMARILLO.jpg',
     personImage: '/assets/SITUACIONES AMARILLO.jpg',
+    imagePosition: 'center center',
     description: 'Tu herramienta diaria frente a monitores. Bloquea el 84% de la luz azul preservando la percepción natural del color para trabajar sin cefaleas ni cansancio ocular.',
     accentColor: '#F3B93A',
     specs: ['84% Bloqueo Azul', 'Transmitancia 76.17%', '100% UV400'],
@@ -25,6 +26,7 @@ const STILL_LIFES = [
     modelImage: '/assets/SITUACIONES NARANJA.jpg',
     image: '/assets/SITUACIONES NARANJA.jpg',
     personImage: '/assets/SITUACIONES NARANJA.jpg',
+    imagePosition: 'center center',
     description: 'Diseñados para sesiones continuas de pantallas durante el final de la tarde. Filtran el 95% de la luz azul en el rango crítico sin alterar la nitidez ni generar fatiga.',
     accentColor: '#E84A0F',
     specs: ['95% Bloqueo Azul', 'Transmitancia 49.93%', 'Cero Resplandor'],
@@ -38,6 +40,7 @@ const STILL_LIFES = [
     modelImage: '/assets/SITUACIONES ROJO.jpg',
     image: '/assets/SITUACIONES ROJO.jpg',
     personImage: '/assets/SITUACIONES ROJO.jpg',
+    imagePosition: 'center center',
     description: 'En tu mesa de luz, listos para la última hora del día. Bloquean el espectro azul/verde de pantallas y luminarias, permitiendo el pico natural de melatonina y facilitando el sueño reparador.',
     accentColor: '#AC1917',
     specs: ['100% Bloqueo Azul', 'Transmitancia 9.53%', 'Norma ISO 12312-1'],
@@ -155,12 +158,13 @@ export default function StillLifeCarousel() {
                     </span>
                   </div>
 
-                  {/* Único contenedor de imagen principal: Modelo Real en Contexto */}
+                  {/* Único contenedor de imagen principal: Modelo Real enfocado en los anteojos */}
                   <div className="relative w-full h-64 sm:h-72 md:h-80 rounded-2xl overflow-hidden mb-5 bg-[#1A1A1A]">
                     <img 
                       src={encodeURI(item.modelImage || item.image || item.personImage)} 
                       alt={item.title}
                       className="w-full h-full object-cover object-center transition-transform duration-500 hover:scale-105"
+                      style={{ objectPosition: item.imagePosition || 'center center' }}
                       loading="lazy"
                     />
                     {item.tag && (
