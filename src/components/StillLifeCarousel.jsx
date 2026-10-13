@@ -1,49 +1,40 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ChevronLeft, ChevronRight, Clock, ShieldCheck } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 
-const STILL_LIFES = [
+const SITUACIONES = [
   {
-    id: 'amarillos-trabajando',
+    id: 'dia',
     title: 'Día & Foco Continuo',
-    subtitle: 'Mientras trabajás',
+    momentLabel: 'MIENTRAS TRABAJÁS',
     time: '10:00 hs — Jornada Diurna',
-    tag: 'Filtro Día Amarillo (84%)',
+    badgeFilter: 'FILTRO DÍA AMARILLO (84%)',
     modelImage: '/assets/SITUACIONES AMARILLO.jpg',
-    image: '/assets/SITUACIONES AMARILLO.jpg',
-    personImage: '/assets/SITUACIONES AMARILLO.jpg',
-    imagePosition: 'center center',
-    description: 'Tu herramienta diaria frente a monitores. Bloquea el 84% de la luz azul preservando la percepción natural del color para trabajar sin cefaleas ni cansancio ocular.',
     accentColor: '#F3B93A',
+    description: 'Tu herramienta diaria frente a monitores. Bloquea el 84% de la luz azul preservando la percepción natural del color para trabajar sin cefaleas ni cansancio ocular.',
     specs: ['84% Bloqueo Azul', 'Transmitancia 76.17%', '100% UV400'],
   },
   {
-    id: 'transicion-gamer',
-    title: 'Transición & Caída Solar',
-    subtitle: 'Cuando cae el sol',
+    id: 'transicion',
+    title: 'Transición Gamer / Pantallas',
+    momentLabel: 'CUANDO CAE EL SOL',
     time: '18:00 hs — Caída Solar',
-    tag: 'Filtro Transición Naranja (95%)',
+    badgeFilter: 'FILTRO TRANSICIÓN NARANJA (95%)',
     modelImage: '/assets/SITUACIONES NARANJA.jpg',
-    image: '/assets/SITUACIONES NARANJA.jpg',
-    personImage: '/assets/SITUACIONES NARANJA.jpg',
-    imagePosition: 'center center',
-    description: 'Diseñados para sesiones continuas de pantallas durante el final de la tarde. Filtran el 95% de la luz azul en el rango crítico sin alterar la nitidez ni generar fatiga.',
     accentColor: '#E84A0F',
-    specs: ['95% Bloqueo Azul', 'Transmitancia 49.93%', 'Cero Resplandor'],
+    description: 'Diseñados para sesiones continuas de pantallas durante el final de la tarde. Filtran el 95% de la luz azul en el rango crítico sin alterar la nitidez ni generar fatiga.',
+    specs: ['95% Bloqueo Azul Crítico', 'Protección Retina', '100% UV400'],
   },
   {
-    id: 'rojos-mesa-luz',
-    title: 'Noche & Melatonina',
-    subtitle: 'Antes de irte a dormir',
-    time: '21:30 hs — Noche',
-    tag: 'Filtro Noche Rojo (100%)',
+    id: 'noche',
+    title: 'Modo Noche · Melatonina & Reparación',
+    momentLabel: 'ANTES DE IRTE A DORMIR',
+    time: '21:30 hs — Desconexión Nocturna',
+    badgeFilter: 'FILTRO NOCHE ROJO (100%)',
     modelImage: '/assets/SITUACIONES ROJO.jpg',
-    image: '/assets/SITUACIONES ROJO.jpg',
-    personImage: '/assets/SITUACIONES ROJO.jpg',
-    imagePosition: 'center center',
-    description: 'En tu mesa de luz, listos para la última hora del día. Bloquean el espectro azul/verde de pantallas y luminarias, permitiendo el pico natural de melatonina y facilitando el sueño reparador.',
-    accentColor: '#AC1917',
-    specs: ['100% Bloqueo Azul', 'Transmitancia 9.53%', 'Norma ISO 12312-1'],
+    accentColor: '#EF4444',
+    description: 'En tu mesa de luz, listos para la última hora del día. Bloquean el espectro azul y verde de pantallas y luminarias, permitiendo el pico natural de melatonina y facilitando el sueño reparador.',
+    specs: ['100% Bloqueo Azul y Verde', 'Inducción Melatonina', 'Sueño REM Profundo'],
   },
 ];
 
@@ -68,7 +59,7 @@ export default function StillLifeCarousel() {
 
   const scroll = (direction) => {
     if (containerRef.current) {
-      const scrollAmount = containerRef.current.clientWidth * 0.8;
+      const scrollAmount = containerRef.current.clientWidth * 0.85;
       containerRef.current.scrollBy({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth',
@@ -85,27 +76,26 @@ export default function StillLifeCarousel() {
       <div id="still-life" className="absolute -top-20" aria-hidden="true" />
       
       {/* Background ambient glow */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-cirqa-ocaso/30 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-cirqa-ocaso/25 rounded-full blur-3xl pointer-events-none" />
 
       <div className="max-w-7xl mx-auto px-6 relative z-10">
         
-        {/* Section Header con títulos y subtítulo oficiales */}
+        {/* 1. Títulos y Encabezado de la Sección Oficial */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
-            <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.25em] text-cirqa-arena font-semibold block mb-2">
-              SITUACIONES REALES DE USO
+            <span className="text-[11px] font-mono tracking-[0.25em] text-cirqa-arena uppercase font-semibold block mb-2">
+              OPTIMIZÁ TU CICLO
             </span>
             <h2 className="text-3xl sm:text-4xl md:text-5xl font-light text-white tracking-tight leading-tight">
-              OPTIMIZÁ TU CICLO.<br />
-              <span className="font-medium text-cirqa-arena">UNO PARA CADA MOMENTO DEL DÍA.</span>
+              UNO PARA CADA MOMENTO DEL DÍA.
             </h2>
-            <p className="text-sm sm:text-base text-white/80 font-light mt-3 italic tracking-wide">
-              “Mientras trabajás. Cuando cae el sol. Antes de irte a dormir.”
+            <p className="text-sm sm:text-base text-white/70 font-light mt-3 tracking-wide">
+              Mientras trabajás. Cuando cae el sol. Antes de irte a dormir.
             </p>
           </div>
 
-          {/* Navigation Controls */}
-          <div className="flex items-center gap-2">
+          {/* Navigation Controls (visibles en mobile/tablet cuando hay desplazamiento horizontal) */}
+          <div className="flex items-center gap-2 md:hidden">
             <button
               onClick={() => scroll('left')}
               disabled={!canScrollLeft}
@@ -125,95 +115,87 @@ export default function StillLifeCarousel() {
           </div>
         </div>
 
-        {/* Snap-x Track con Fotos Exclusivas de Modelos Reales */}
-        <div className="relative -mx-6 px-6 sm:-mx-8 sm:px-8 lg:-mx-12 lg:px-12 mb-16">
+        {/* 2 & 4. Grilla Desktop (3 Columnas) / Carrusel Horizontal Mobile (Snap-x) */}
+        <div className="relative -mx-6 px-6 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0 mb-16">
           <div
             ref={containerRef}
             onScroll={checkScroll}
-            className="flex gap-6 md:gap-8 overflow-x-auto pt-4 pb-10 scroll-px-6 sm:scroll-px-8 lg:scroll-px-12 snap-x snap-mandatory cursor-grab active:cursor-grabbing select-none"
+            className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 overflow-x-auto md:overflow-visible pt-2 pb-6 md:pb-0 scroll-px-6 snap-x snap-mandatory select-none"
             style={{
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
               WebkitOverflowScrolling: 'touch',
             }}
           >
-            {STILL_LIFES.map((item) => (
+            {SITUACIONES.map((situation) => (
               <motion.div
-                key={item.id}
-                whileHover={{ y: -6, scale: 1.01 }}
+                key={situation.id}
+                whileHover={{ y: -6 }}
                 transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                className="w-[340px] sm:w-[480px] lg:w-[540px] flex-shrink-0 snap-start bg-white/5 backdrop-blur-xl rounded-3xl p-6 sm:p-8 border border-white/10 hover:border-white/25 flex flex-col justify-between shadow-xl hover:shadow-2xl transition-all duration-300 relative z-10 hover:z-20"
+                className="w-[85vw] sm:w-[380px] md:w-full flex-shrink-0 snap-center md:flex-shrink relative h-[500px] md:h-[580px] lg:h-[620px] rounded-3xl overflow-hidden group shadow-2xl bg-[#111111] flex flex-col justify-between p-6 sm:p-7 border border-white/10 hover:border-white/25 transition-colors duration-500"
               >
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-white/10 text-cirqa-arena text-xs font-medium">
-                      <Clock className="w-3.5 h-3.5" />
-                      {item.time}
-                    </span>
-                    <span
-                      className="px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wider text-white border"
-                      style={{ borderColor: item.accentColor, backgroundColor: `${item.accentColor}33` }}
-                    >
-                      {item.tag}
-                    </span>
+                {/* 1. Fotografía Vertical de Campaña en Fondo Completo */}
+                <img 
+                  src={situation.modelImage} 
+                  alt={situation.title}
+                  className="absolute inset-0 w-full h-full object-cover object-top md:object-center transition-transform duration-700 ease-out group-hover:scale-105"
+                  loading="lazy"
+                />
+
+                {/* 2. Capa de Gradiente Inmersiva para Legibilidad Óptima */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 via-55% to-black/20 pointer-events-none" />
+
+                {/* 3. Cabecera Superior Flotante (Glassmorphism) */}
+                <div className="relative z-10 flex items-center justify-between gap-2 w-full">
+                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md bg-black/40 border border-white/15 text-white/90 text-xs font-mono">
+                    <Clock className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{situation.time}</span>
                   </div>
 
-                  {/* Único contenedor de imagen principal: Modelo Real enfocado en los anteojos */}
-                  <div className="relative w-full h-64 sm:h-72 md:h-80 rounded-2xl overflow-hidden mb-5 bg-[#1A1A1A]">
-                    <img 
-                      src={encodeURI(item.modelImage || item.image || item.personImage)} 
-                      alt={item.title}
-                      className="w-full h-full object-cover object-center transition-transform duration-500 hover:scale-105"
-                      style={{ objectPosition: item.imagePosition || 'center center' }}
-                      loading="lazy"
-                    />
-                    {item.tag && (
-                      <div className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md text-[11px] font-mono tracking-widest text-white uppercase border border-white/10">
-                        {item.tag}
-                      </div>
-                    )}
+                  <div
+                    className="px-3 py-1.5 rounded-full backdrop-blur-md bg-black/40 border border-white/15 text-xs font-medium tracking-wide uppercase"
+                    style={{ color: situation.accentColor || '#F59E0B' }}
+                  >
+                    {situation.badgeFilter}
                   </div>
-
-                  {/* Título y Subtítulo */}
-                  <div>
-                    <h3 className="text-xl sm:text-2xl font-light text-white tracking-tight">
-                      {item.title}
-                    </h3>
-                    <p className="text-xs text-cirqa-arena font-semibold uppercase tracking-wider mt-0.5">
-                      {item.subtitle}
-                    </p>
-                  </div>
-
-                  {/* Descripción del momento */}
-                  <p className="text-xs sm:text-sm text-white/80 font-light leading-relaxed">
-                    {item.description}
-                  </p>
                 </div>
 
-                {/* Graphical Lens Spec Block */}
-                <div className="mt-8 pt-6 border-t border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex flex-wrap gap-2.5 text-xs text-white/70 font-light">
-                    {item.specs.map((spec, sIdx) => (
-                      <div key={sIdx} className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-full border border-white/5">
-                        <ShieldCheck className="w-3.5 h-3.5 text-cirqa-arena" />
-                        <span>{spec}</span>
-                      </div>
+                {/* 4. Pie de Tarjeta: Contenido Editorial y Especificaciones */}
+                <div className="relative z-10 flex flex-col gap-3">
+                  {/* Momento de Uso */}
+                  <span className="text-[11px] font-mono tracking-widest uppercase text-white/60 font-medium">
+                    {situation.momentLabel}
+                  </span>
+
+                  {/* Título Principal de la Situación */}
+                  <h3 className="text-2xl md:text-3xl font-light text-white tracking-tight leading-tight">
+                    {situation.title}
+                  </h3>
+
+                  {/* Descripción del Beneficio Biológico */}
+                  <p className="text-sm text-white/80 font-light leading-relaxed line-clamp-3">
+                    {situation.description}
+                  </p>
+
+                  {/* Chips Técnicos de Laboratorio / Homologación */}
+                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                    {situation.specs?.map((spec, i) => (
+                      <span 
+                        key={i} 
+                        className="px-2.5 py-1 rounded-lg backdrop-blur-sm bg-white/10 border border-white/10 text-[11px] font-mono text-white/90"
+                      >
+                        {spec}
+                      </span>
                     ))}
-                  </div>
-                  <div
-                    className="w-12 h-6 rounded-full border self-end flex items-center justify-center"
-                    style={{ borderColor: item.accentColor, backgroundColor: `${item.accentColor}44` }}
-                  >
-                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.accentColor }} />
                   </div>
                 </div>
               </motion.div>
             ))}
-            <div className="w-2 sm:w-6 flex-shrink-0 pointer-events-none" aria-hidden="true" />
+            <div className="w-2 md:hidden flex-shrink-0 pointer-events-none" aria-hidden="true" />
           </div>
         </div>
 
-        {/* Manifiesto Cita */}
+        {/* Manifiesto Cita al Pie */}
         <div className="max-w-4xl mx-auto text-left sm:text-center py-10 px-8 bg-gradient-to-r from-cirqa-ocaso/80 via-cirqa-carmin/80 to-cirqa-primario/80 rounded-3xl border border-white/15 shadow-2xl space-y-4">
           <p className="text-xs sm:text-sm font-semibold uppercase tracking-wider text-white/80">
             La mayoría de los hogares le dicen a tu cerebro: <span className="text-cirqa-amarillo font-bold">¡SEGUÍ DESPIERTO!</span>
