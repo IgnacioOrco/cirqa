@@ -24,7 +24,7 @@ const PILLARS = [
     id: 'metabolismo',
     name: 'METABOLISMO',
     icon: Flame,
-    desc: 'Regulación del reloj biológico, funcionamiento metabólico y control del azúcar en sangre.',
+    desc: 'La luz natural ayuda a regular nuestro reloj biológico y favorece el buen funcionamiento del metabolismo y el control del azúcar en sangre.',
     scientificDetail:
       'La luz natural ayuda a regular nuestro reloj biológico y favorece el buen funcionamiento del metabolismo, incluyendo el control del azúcar en sangre.\n\nLa exposición excesiva a la luz azul durante la noche puede alterar este equilibrio, afectando el descanso y la forma en que el cuerpo regula y utiliza la energía.',
     highlight: 'Control de azúcar y metabolismo',
@@ -33,7 +33,7 @@ const PILLARS = [
     id: 'sistema-inmune',
     name: 'SISTEMA INMUNE',
     icon: Shield,
-    desc: 'Producción nocturna de melatonina y preservación de defensas saludables.',
+    desc: 'Durante la noche, la oscuridad favorece la producción de melatonina, que ayuda a regular el sueño y preserva nuestras defensas saludables.',
     scientificDetail:
       'Durante la noche, la oscuridad favorece la producción de melatonina, una hormona que ayuda a regular el sueño y participa en el funcionamiento del sistema inmunológico.\n\nLa exposición excesiva a la luz azul durante la noche puede alterar este proceso y afectar el descanso, que es fundamental para mantener nuestras defensas saludables.',
     highlight: 'Defensas y respuesta inmunológica',
@@ -42,7 +42,7 @@ const PILLARS = [
     id: 'salud-mental',
     name: 'SALUD MENTAL (BIENESTAR EMOCIONAL)',
     icon: Heart,
-    desc: 'Equilibrio anímico, energía y bienestar emocional mediante luz natural.',
+    desc: 'Recibir luz natural de día y reducir la luz azul por la noche ayuda a mantener el reloj biológico en equilibrio, favoreciendo el bienestar emocional.',
     scientificDetail:
       'La luz influye en cómo nos sentimos. Recibir luz natural durante el día y reducir la exposición a la luz azul por la noche ayuda a mantener nuestro reloj biológico en equilibrio, favoreciendo el descanso, la energía y el bienestar emocional.',
     highlight: 'Equilibrio del estado de ánimo',
@@ -51,16 +51,16 @@ const PILLARS = [
     id: 'funcion-hormonal',
     name: 'FUNCIÓN HORMONAL',
     icon: Activity,
-    desc: 'Regulación de cortisol matutino y producción natural de melatonina.',
+    desc: 'La luz de la mañana ayuda a regular el cortisol (energía y alerta), y reducir la luz azul de noche favorece la melatonina para dormir.',
     scientificDetail:
       'La luz natural de la mañana ayuda a regular el cortisol, una hormona relacionada con la energía y el estado de alerta. Por la noche, reducir la exposición a la luz azul favorece la producción natural de melatonina, la hormona que prepara al cuerpo para dormir.',
-    highlight: 'Cortisol y melatonina',
+    highlight: 'Regulación de cortisol y melatonina',
   },
   {
     id: 'rendimiento-cognitivo',
     name: 'RENDIMIENTO COGNITIVO',
     icon: Brain,
-    desc: 'Alerta, concentración y comodidad visual frente a pantallas.',
+    desc: 'Una iluminación adecuada durante el día favorece la concentración y el estado de alerta, reduciendo la incomodidad visual frente a pantallas.',
     scientificDetail:
       'La luz influye en nuestra capacidad de mantenernos despiertos, atentos y concentrados. Una iluminación adecuada durante el día favorece el estado de alerta y el rendimiento mental.\n\nReducir el deslumbramiento de las pantallas puede mejorar la comodidad visual durante las actividades digitales prolongadas.',
     highlight: 'Concentración y agilidad mental',
@@ -69,7 +69,7 @@ const PILLARS = [
     id: 'recuperacion-muscular',
     name: 'RECUPERACIÓN MUSCULAR',
     icon: Dumbbell,
-    desc: 'Liberación de hormona de crecimiento (HGH) y regeneración de tejidos.',
+    desc: 'Durante el sueño profundo el cuerpo libera hormona del crecimiento (HGH), participando en la reparación tisular y la recuperación muscular.',
     scientificDetail:
       'Durante el sueño profundo, el cuerpo libera hormona del crecimiento (HGH), que participa en la reparación de tejidos y la recuperación muscular.\n\nMantener un ritmo de sueño saludable y reducir la exposición a la luz intensa durante la noche favorece el descanso y los procesos naturales de recuperación del organismo.',
     highlight: 'Reparación muscular y hormona del crecimiento',
@@ -78,7 +78,7 @@ const PILLARS = [
     id: 'longevidad-celular',
     name: 'LONGEVIDAD CELULAR',
     icon: Hourglass,
-    desc: 'Propiedades antioxidantes de la melatonina y protección celular.',
+    desc: 'La melatonina nocturna tiene propiedades antioxidantes que protegen las células del daño causado por los radicales libres.',
     scientificDetail:
       'La melatonina, hormona que nuestro cuerpo produce principalmente durante la noche, también tiene propiedades antioxidantes que ayudan a proteger las células del daño causado por los radicales libres.\n\nMantener un buen descanso y respetar los ciclos naturales de luz y oscuridad contribuye al funcionamiento saludable del organismo.',
     highlight: 'Protección y renovación celular',
@@ -87,7 +87,7 @@ const PILLARS = [
     id: 'sueno-reparador',
     name: 'SUEÑO REPARADOR',
     icon: BedDouble,
-    desc: 'Ciclos naturales de sueño y vigilia para un descanso profundo y reparador.',
+    desc: 'Reducir la exposición a la luz azul antes de acostarnos favorece el ritmo natural de sueño y vigilia para un descanso más saludable.',
     scientificDetail:
       'La exposición a la luz azul durante la noche puede interferir con la producción de melatonina, la hormona que ayuda a preparar nuestro cuerpo para dormir.\n\nReducir la exposición a esta luz antes de acostarnos favorece el ritmo natural de sueño y vigilia, contribuyendo a un descanso más saludable.',
     highlight: 'Calidad y ciclos del sueño',
@@ -601,9 +601,15 @@ export default function CircadianInfographic() {
                       <IconComp className="w-6 h-6" />
                     </div>
 
-                    <h4 className="text-xs sm:text-sm font-semibold tracking-wider text-white mb-2 uppercase">
+                    <h4 className="text-xs sm:text-sm font-semibold tracking-wider text-white mb-1.5 uppercase">
                       {pillar.name}
                     </h4>
+
+                    {pillar.highlight && (
+                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-cirqa-arena/10 text-cirqa-arena text-[10px] font-mono font-medium mb-2.5">
+                        {pillar.highlight}
+                      </span>
+                    )}
 
                     <p className="text-[11px] text-white/70 font-light leading-relaxed">
                       {pillar.desc}

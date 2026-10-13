@@ -1076,17 +1076,29 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                             </span>
                           </div>
 
-                          {/* Botón Destacado: Imprimir Etiqueta */}
-                          <button
-                            type="button"
-                            onClick={() => {
-                              window.open(selectedOrder.shipping.labelUrl, '_blank', 'noopener,noreferrer');
-                            }}
-                            className="w-full mt-2 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer"
-                          >
-                            <Printer className="w-4 h-4" />
-                            <span>🖨️ Imprimir Etiqueta</span>
-                          </button>
+                          {/* Botón Destacado: Imprimir Etiqueta Oficial si existe labelUrl */}
+                          {selectedOrder.shipping?.labelUrl && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                window.open(selectedOrder.shipping.labelUrl, '_blank', 'noopener,noreferrer');
+                              }}
+                              className="w-full mt-2 py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer"
+                            >
+                              <Printer className="w-4 h-4" />
+                              <span>🖨️ Imprimir Etiqueta Oficial</span>
+                            </button>
+                          )}
+
+                          {/* Info específica de Motomensajería Express CABA */}
+                          {selectedOrder.shipping?.carrier === 'Motomensajería' && (
+                            <div className="mt-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
+                              <span className="font-bold block">Envío CABA · Motomensajería Express</span>
+                              <span className="text-[11px] text-emerald-700 font-light">
+                                Despacho local en 24 a 48 hs. Guía de control: <strong className="font-mono">{selectedOrder.shipping.trackingNumber}</strong>
+                              </span>
+                            </div>
+                          )}
                         </div>
                       ) : (
                         <div className="pt-2 border-t border-cirqa-negro/10 space-y-2">

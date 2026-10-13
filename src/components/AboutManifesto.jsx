@@ -156,7 +156,7 @@ export default function AboutManifesto({ onExploreModels }) {
                 <AnimatePresence mode="wait">
                   <motion.img
                     key={activePhoto.src}
-                    src={activePhoto.src}
+                    src={encodeURI(activePhoto.src)}
                     alt={activePhoto.alt}
                     initial={{ opacity: 0, scale: 1.02 }}
                     animate={{ opacity: 1, scale: 1 }}

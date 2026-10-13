@@ -159,15 +159,19 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz }) {
                   transition={{ duration: 0.45, ease: 'easeOut' }}
                   className="w-full h-full flex items-end justify-center lg:justify-end"
                 >
-                  <picture className="w-full h-full flex items-end justify-center lg:justify-end">
-                    <source srcSet={activeSlide.image} type="image/webp" />
+                  <div className="w-full h-full flex items-end justify-center lg:justify-end">
                     <img
-                      src={activeSlide.fallback || activeSlide.image}
+                      src={encodeURI(activeSlide.image)}
                       alt={activeSlide.alt}
                       className="max-h-[460px] sm:max-h-[540px] lg:max-h-[620px] w-auto object-contain object-bottom select-none drop-shadow-[0_15px_35px_rgba(0,0,0,0.12)]"
                       loading="eager"
+                      onError={(e) => {
+                        if (activeSlide.fallback) {
+                          e.currentTarget.src = activeSlide.fallback;
+                        }
+                      }}
                     />
-                  </picture>
+                  </div>
                 </motion.div>
               </AnimatePresence>
 

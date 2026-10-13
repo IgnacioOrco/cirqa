@@ -172,7 +172,7 @@ export default function StillLifeCarousel() {
                     {/* Foto de persona usando los lentes (enmarcada sin tapar datos) */}
                     <div className="col-span-5 h-44 sm:h-52 rounded-2xl overflow-hidden border border-white/15 relative bg-white/5 shadow-inner">
                       <img
-                        src={item.personImage}
+                        src={encodeURI(item.personImage)}
                         alt={`Uso real: ${item.subtitle}`}
                         className="w-full h-full object-cover object-center filter brightness-95"
                         loading="lazy"

@@ -485,11 +485,7 @@ export default function CheckoutDrawer() {
       shippingMethod: shippingMethodTitle,
       shipping: shippingPayload,
       payment: {
-        method: selectedMethod,
-        provider: selectedMethod === 'transfer' ? 'transfer' : 'mercadopago',
-      },
-    };
-  };
+        method: selectedMethod === 'transfer' ? 'transfer' : 'mercadopago',
         provider: selectedMethod === 'transfer' ? 'transfer' : 'mercadopago',
       },
     };
