@@ -66,15 +66,15 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz }) {
   const activeSlide = HERO_SLIDES[currentSlide];
 
   return (
-    <section className="relative min-h-[92vh] pt-32 sm:pt-36 pb-0 flex items-end justify-center bg-white overflow-hidden">
-      <div className="max-w-7xl mx-auto px-6 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-end min-h-[calc(92vh-7rem)]">
+    <section className="relative min-h-[92vh] pt-32 sm:pt-36 pb-8 sm:pb-12 flex items-center justify-center bg-white overflow-hidden">
+      <div className="max-w-7xl mx-auto px-6 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch min-h-[calc(92vh-7rem)]">
         
         {/* Left Column: Narrative Copy */}
         <motion.div 
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 180, damping: 22 }}
-          className="lg:col-span-6 flex flex-col justify-center pb-12 lg:pb-20 pt-4 z-10"
+          className="lg:col-span-6 flex flex-col justify-center pb-8 lg:pb-12 pt-4 z-10"
         >
           {/* Volanta */}
           <span className="text-[10px] uppercase tracking-[0.2em] text-cirqa-negro/70 font-semibold mb-3 block">
@@ -139,95 +139,89 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz }) {
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 140, damping: 20, delay: 0.15 }}
-          className="lg:col-span-6 flex items-end justify-center lg:justify-end relative self-end h-full"
+          className="lg:col-span-6 relative w-full h-full min-h-[520px] md:min-h-[620px] lg:min-h-[720px] flex items-stretch py-2"
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
         >
-          <div className="relative flex items-end justify-center lg:justify-end w-full max-w-lg lg:max-w-xl pb-2">
-            
-            {/* Ambient soft glow behind slider */}
-            <div className="absolute -bottom-10 right-0 w-80 h-80 bg-cirqa-surface rounded-full blur-3xl -z-10 opacity-70" />
+          {/* Ambient soft glow behind slider */}
+          <div className="absolute -bottom-10 right-0 w-80 h-80 bg-cirqa-surface rounded-full blur-3xl -z-10 opacity-70" />
 
-            {/* Slider Image Container con Crossfade Elegante */}
-            <div className="w-full h-[480px] sm:h-[560px] lg:h-[640px] relative flex items-end justify-center lg:justify-end overflow-hidden">
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={activeSlide.id}
-                  initial={{ opacity: 0, scale: 0.98 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.98 }}
-                  transition={{ duration: 0.45, ease: 'easeOut' }}
-                  className="w-full h-full flex items-end justify-center lg:justify-end"
-                >
-                  <div className="w-full h-full flex items-end justify-center lg:justify-end">
-                    <img
-                      src={encodeURI(activeSlide.image)}
-                      alt={activeSlide.alt}
-                      className="max-h-[460px] sm:max-h-[540px] lg:max-h-[620px] w-auto object-contain object-bottom select-none drop-shadow-[0_15px_35px_rgba(0,0,0,0.12)]"
-                      loading="eager"
-                      onError={(e) => {
-                        if (activeSlide.fallback) {
-                          e.currentTarget.src = activeSlide.fallback;
-                        }
-                      }}
-                    />
-                  </div>
-                </motion.div>
-              </AnimatePresence>
+          {/* Slider Image Container con aprovechamiento vertical total y calidad editorial */}
+          <div className="relative w-full h-full rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl bg-[#111111]">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeSlide.id}
+                initial={{ opacity: 0, scale: 0.98 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.98 }}
+                transition={{ duration: 0.5, ease: 'easeOut' }}
+                className="w-full h-full"
+              >
+                <img
+                  src={encodeURI(activeSlide.image)}
+                  alt={activeSlide.alt}
+                  className="w-full h-full object-cover object-top md:object-center transition-all duration-700 select-none"
+                  loading="eager"
+                  onError={(e) => {
+                    if (activeSlide.fallback) {
+                      e.currentTarget.src = activeSlide.fallback;
+                    }
+                  }}
+                />
+              </motion.div>
+            </AnimatePresence>
 
-              {/* Botones de Navegación del Slider */}
-              <div className="absolute top-8 right-4 z-20 flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handlePrev}
-                  className="w-8 h-8 rounded-full bg-white/80 hover:bg-white border border-cirqa-negro/15 flex items-center justify-center text-cirqa-negro/70 hover:text-cirqa-negro transition-all shadow-xs cursor-pointer backdrop-blur-xs"
-                  aria-label="Foto anterior"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={handleNext}
-                  className="w-8 h-8 rounded-full bg-white/80 hover:bg-white border border-cirqa-negro/15 flex items-center justify-center text-cirqa-negro/70 hover:text-cirqa-negro transition-all shadow-xs cursor-pointer backdrop-blur-xs"
-                  aria-label="Foto siguiente"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Dots Indicadores */}
-              <div className="absolute top-10 left-4 z-20 flex items-center gap-1.5">
-                {HERO_SLIDES.map((_, idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setCurrentSlide(idx)}
-                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                      currentSlide === idx
-                        ? 'w-6 bg-cirqa-primario'
-                        : 'w-2 bg-cirqa-negro/20 hover:bg-cirqa-negro/40'
-                    }`}
-                    aria-label={`Ir al slide ${idx + 1}`}
-                  />
-                ))}
-              </div>
-
-              {/* Floating Glassmorphism Spec Badge */}
-              <AnimatePresence mode="wait">
-                <motion.div 
-                  key={activeSlide.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -10 }}
-                  transition={{ duration: 0.3 }}
-                  className="absolute bottom-6 left-4 sm:left-6 bg-white/95 backdrop-blur-xl border border-cirqa-negro/10 px-4 py-2.5 rounded-2xl text-[11px] text-cirqa-negro/85 font-normal tracking-wide shadow-lg z-20"
-                >
-                  <span className="font-semibold text-cirqa-negro block">{activeSlide.badge}</span>
-                  <span className="text-[10px] text-cirqa-negro/60">{activeSlide.subtitle}</span>
-                </motion.div>
-              </AnimatePresence>
+            {/* Botones de Navegación del Slider con backdrop-blur y contraste premium */}
+            <div className="absolute top-5 right-5 z-20 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={handlePrev}
+                className="w-9 h-9 rounded-full backdrop-blur-md bg-black/30 hover:bg-black/50 border border-white/20 flex items-center justify-center text-white transition-all shadow-md cursor-pointer"
+                aria-label="Foto anterior"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={handleNext}
+                className="w-9 h-9 rounded-full backdrop-blur-md bg-black/30 hover:bg-black/50 border border-white/20 flex items-center justify-center text-white transition-all shadow-md cursor-pointer"
+                aria-label="Foto siguiente"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
 
+            {/* Dots Indicadores con backdrop blur */}
+            <div className="absolute top-6 left-6 z-20 flex items-center gap-1.5">
+              {HERO_SLIDES.map((_, idx) => (
+                <button
+                  key={idx}
+                  type="button"
+                  onClick={() => setCurrentSlide(idx)}
+                  className={`h-1.5 rounded-full backdrop-blur-md transition-all cursor-pointer ${
+                    currentSlide === idx
+                      ? 'w-7 bg-white shadow-sm'
+                      : 'w-2.5 bg-white/40 hover:bg-white/70'
+                  }`}
+                  aria-label={`Ir al slide ${idx + 1}`}
+                />
+              ))}
+            </div>
+
+            {/* Floating Glassmorphism Spec Badge */}
+            <AnimatePresence mode="wait">
+              <motion.div 
+                key={activeSlide.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.3 }}
+                className="absolute bottom-6 left-5 sm:left-6 right-5 sm:right-auto backdrop-blur-md bg-black/40 border border-white/20 px-4 py-2.5 rounded-2xl text-[11px] text-white font-normal tracking-wide shadow-xl z-20"
+              >
+                <span className="font-semibold text-white block">{activeSlide.badge}</span>
+                <span className="text-[10px] text-white/75">{activeSlide.subtitle}</span>
+              </motion.div>
+            </AnimatePresence>
           </div>
         </motion.div>
 

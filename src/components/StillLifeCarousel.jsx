@@ -9,7 +9,8 @@ const STILL_LIFES = [
     subtitle: 'Mientras trabajás',
     time: '10:00 hs — Jornada Diurna',
     tag: 'Filtro Día Amarillo (84%)',
-    productImage: '/products/_DSC8692.webp',
+    modelImage: '/assets/SITUACIONES AMARILLO.jpg',
+    image: '/assets/SITUACIONES AMARILLO.jpg',
     personImage: '/assets/SITUACIONES AMARILLO.jpg',
     description: 'Tu herramienta diaria frente a monitores. Bloquea el 84% de la luz azul preservando la percepción natural del color para trabajar sin cefaleas ni cansancio ocular.',
     accentColor: '#F3B93A',
@@ -21,7 +22,8 @@ const STILL_LIFES = [
     subtitle: 'Cuando cae el sol',
     time: '18:00 hs — Caída Solar',
     tag: 'Filtro Transición Naranja (95%)',
-    productImage: '/products/_DSC8688.webp',
+    modelImage: '/assets/SITUACIONES NARANJA.jpg',
+    image: '/assets/SITUACIONES NARANJA.jpg',
     personImage: '/assets/SITUACIONES NARANJA.jpg',
     description: 'Diseñados para sesiones continuas de pantallas durante el final de la tarde. Filtran el 95% de la luz azul en el rango crítico sin alterar la nitidez ni generar fatiga.',
     accentColor: '#E84A0F',
@@ -33,7 +35,8 @@ const STILL_LIFES = [
     subtitle: 'Antes de irte a dormir',
     time: '21:30 hs — Noche',
     tag: 'Filtro Noche Rojo (100%)',
-    productImage: '/products/_DSC8682.webp',
+    modelImage: '/assets/SITUACIONES ROJO.jpg',
+    image: '/assets/SITUACIONES ROJO.jpg',
     personImage: '/assets/SITUACIONES ROJO.jpg',
     description: 'En tu mesa de luz, listos para la última hora del día. Bloquean el espectro azul/verde de pantallas y luminarias, permitiendo el pico natural de melatonina y facilitando el sueño reparador.',
     accentColor: '#AC1917',
@@ -119,7 +122,7 @@ export default function StillLifeCarousel() {
           </div>
         </div>
 
-        {/* Snap-x Track con Fotos de Producto + Fotos de Persona sin tapar textos */}
+        {/* Snap-x Track con Fotos Exclusivas de Modelos Reales */}
         <div className="relative -mx-6 px-6 sm:-mx-8 sm:px-8 lg:-mx-12 lg:px-12 mb-16">
           <div
             ref={containerRef}
@@ -152,36 +155,19 @@ export default function StillLifeCarousel() {
                     </span>
                   </div>
 
-                  {/* Dual Visual Container: Foto del Lente + Foto de Persona en Contexto */}
-                  <div className="grid grid-cols-12 gap-3 w-full">
-                    {/* Foto de estudio del producto */}
-                    <div className="col-span-7 h-44 sm:h-52 bg-white rounded-2xl p-3 flex items-center justify-center border border-white/15 overflow-hidden relative shadow-inner">
-                      <div
-                        className="absolute w-32 h-32 rounded-full blur-2xl opacity-20 pointer-events-none"
-                        style={{ backgroundColor: item.accentColor }}
-                      />
-                      <img
-                        src={item.productImage}
-                        alt={item.title}
-                        className="w-full h-full object-contain select-none filter drop-shadow-[0_8px_16px_rgba(0,0,0,0.08)] relative z-10"
-                        style={{ mixBlendMode: 'multiply' }}
-                        loading="lazy"
-                      />
-                    </div>
-
-                    {/* Foto de persona usando los lentes (enmarcada sin tapar datos) */}
-                    <div className="col-span-5 h-44 sm:h-52 rounded-2xl overflow-hidden border border-white/15 relative bg-white/5 shadow-inner">
-                      <img
-                        src={encodeURI(item.personImage)}
-                        alt={`Uso real: ${item.subtitle}`}
-                        className="w-full h-full object-cover object-center filter brightness-95"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
-                      <span className="absolute bottom-2.5 left-2 right-2 text-[10px] font-semibold text-white/90 uppercase tracking-wider text-center truncate">
-                        {item.subtitle}
-                      </span>
-                    </div>
+                  {/* Único contenedor de imagen principal: Modelo Real en Contexto */}
+                  <div className="relative w-full h-64 sm:h-72 md:h-80 rounded-2xl overflow-hidden mb-5 bg-[#1A1A1A]">
+                    <img 
+                      src={encodeURI(item.modelImage || item.image || item.personImage)} 
+                      alt={item.title}
+                      className="w-full h-full object-cover object-center transition-transform duration-500 hover:scale-105"
+                      loading="lazy"
+                    />
+                    {item.tag && (
+                      <div className="absolute bottom-3 right-3 px-3 py-1 rounded-full bg-black/60 backdrop-blur-md text-[11px] font-mono tracking-widest text-white uppercase border border-white/10">
+                        {item.tag}
+                      </div>
+                    )}
                   </div>
 
                   {/* Título y Subtítulo */}
