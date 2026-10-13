@@ -204,10 +204,12 @@ export default function CheckoutDrawer() {
   // 4. Total Final a pagar: (subtotal - descuento) + envío (Si es CABA, el envío suma $0 reales)
   const total = (subtotal - discountAmount) + shippingCost;
 
-  // Cotización automática y reactiva con detección de CABA y Andreani / OCA
+  // Cotización automática y reactiva con detección inmediata de CABA y Andreani / OCA
   useEffect(() => {
     const cleanZip = String(formData.zipCode || '').trim().replace(/\D/g, '');
-    const isDestCABA = isCABA(cleanZip, formData.province);
+    const postalCode = parseInt(cleanZip, 10);
+    const isPostalCABA = !isNaN(postalCode) && postalCode >= 1000 && postalCode <= 1499;
+    const isDestCABA = isPostalCABA || isCABA(cleanZip, formData.province);
 
     if (activeItems.length === 0) {
       setShippingOptions([]);
@@ -215,41 +217,22 @@ export default function CheckoutDrawer() {
       return;
     }
 
-    // 1. Detección Inmediata de CABA: Envío Gratis $0 por Motomensajería Express
+    // 1. Detección Inmediata de CABA: No esperar cotización paga, setear inmediatamente Motomensajería Express (24 hs)
     if (isDestCABA) {
-      const cabaOptions = [
-        {
-          id: 'caba_express_free',
-          name: 'Envío Gratis CABA · Motomensajería Express',
-          description: 'Entrega en 24 a 48 hs hábiles',
-          carrier: 'Motomensajería',
-          service: 'express_caba_24h',
-          serviceType: 'express_caba_24h',
-          cost: 0,
-          price: 0,
-          estimatedDays: '24 a 48 hs hábiles',
-          type: 'home',
-          isFree: true,
-        },
-        {
-          id: 'caba_andreani_pickup',
-          name: 'Retiro en Sucursal · Correo Andreani / OCA',
-          description: `Sucursal cercana a CP ${cleanZip || '1000'}`,
-          carrier: 'Correo Andreani / OCA',
-          service: 'pickup_point',
-          serviceType: 'pickup_point',
-          cost: 0,
-          price: 0,
-          estimatedDays: '24 a 48 hs hábiles',
-          type: 'pickup',
-          isFree: true,
-        },
-      ];
-      setShippingOptions(cabaOptions);
-      setSelectedShippingOption((prev) => {
-        if (prev?.id === 'caba_andreani_pickup') return cabaOptions[1];
-        return cabaOptions[0];
-      });
+      const cabaOption = {
+        id: 'caba_express_free',
+        carrier: 'Motomensajería',
+        service: 'express_caba_24h',
+        name: 'Envío Gratis CABA · Motomensajería Express (24 hs)',
+        price: 0,
+        cost: 0,
+        description: 'Entrega express en 24 hs en tu domicilio',
+        estimatedDays: '24 hs hábiles',
+        type: 'home',
+        isFree: true,
+      };
+      setShippingOptions([cabaOption]);
+      setSelectedShippingOption(cabaOption);
       setIsQuotingShipping(false);
       setShippingError(null);
       return;
@@ -269,13 +252,15 @@ export default function CheckoutDrawer() {
           if (isCancelled) return;
           const rawOptions = Array.isArray(res?.options) ? res.options : [];
           
-          // Estandarizar nombres de confianza: Andreani / OCA
+          // Estandarizar bajo nombres comerciales:
+          // "Envío a Domicilio · Correo Andreani / OCA"
+          // "Retiro en Sucursal · Correo Andreani / OCA"
           const mappedOptions = rawOptions.map((opt) => {
             const isPickup = opt.type === 'pickup' || (opt.name || '').toLowerCase().includes('punto') || (opt.name || '').toLowerCase().includes('sucursal');
             return {
               ...opt,
               name: isPickup
-                ? 'Retiro en Punto / Sucursal Andreani / OCA'
+                ? 'Retiro en Sucursal · Correo Andreani / OCA'
                 : 'Envío a Domicilio · Correo Andreani / OCA',
               carrier: 'Correo Andreani / OCA',
               description: opt.description
@@ -305,15 +290,17 @@ export default function CheckoutDrawer() {
               description: 'Entrega puerta a puerta certificada en tu domicilio',
               carrier: 'Correo Andreani / OCA',
               cost: 4900,
+              price: 4900,
               estimatedDays: '3 a 5 días hábiles',
               type: 'home',
             },
             {
               id: 'andreani_pickup_fb',
-              name: 'Retiro en Punto / Sucursal Andreani / OCA',
-              description: `Punto o sucursal cercana a CP ${cleanZip}`,
+              name: 'Retiro en Sucursal · Correo Andreani / OCA',
+              description: `Sucursal cercana a CP ${cleanZip}`,
               carrier: 'Correo Andreani / OCA',
               cost: 3800,
+              price: 3800,
               estimatedDays: '2 a 4 días hábiles',
               type: 'pickup',
             },
@@ -407,7 +394,7 @@ export default function CheckoutDrawer() {
     const isDestCABA = isCABA(formData.zipCode, formData.province);
     const shippingPrice = isDestCABA ? 0 : Number(selectedShippingOption?.cost ?? selectedShippingOption?.price ?? 0);
     const shippingMethodTitle = isDestCABA
-      ? (selectedShippingOption?.name || 'Envío Gratis CABA · Motomensajería Express')
+      ? (selectedShippingOption?.name || 'Envío Gratis CABA · Motomensajería Express (24 hs)')
       : (selectedShippingOption?.name || 'Envío a Domicilio · Correo Andreani / OCA');
     const subtotalAmount = subtotal;
     const discount = selectedMethod === 'transfer' ? Math.round(subtotalAmount * 0.15) : 0;

@@ -731,11 +731,11 @@ export const deleteProductImage = async (req, res, next) => {
 };
 
 /**
- * @desc    Modificar rol (tag), si es principal o la posición (order) de una imagen existente
+ * @desc    Modificar rol (tag), si es principal o hover, o la posición (order) de una imagen existente
  * @route   PATCH /api/products/:id/images/:imageId
  * @access  Privado (Admin)
  */
-export const updateProductImageMetadata = async (req, res, next) => {
+export const updateImageMetadata = async (req, res, next) => {
   try {
     const { id, imageId } = req.params;
     const { tag, isPrimary, isHover, order, variantKey } = req.body;
@@ -802,6 +802,7 @@ export const updateProductImageMetadata = async (req, res, next) => {
       targetImage.order = Number(order);
     }
 
+    // Si isPrimary === true, marcar las demás fotos del producto con isPrimary = false
     if (isPrimary === true) {
       product.images.forEach((img) => {
         const idVal = img?._id ? String(img._id) : String(img?.id || '');
@@ -820,6 +821,7 @@ export const updateProductImageMetadata = async (req, res, next) => {
       }
     }
 
+    // Si isHover === true, marcar las demás fotos con isHover = false
     if (isHover === true) {
       product.images.forEach((img) => {
         const idVal = img?._id ? String(img._id) : String(img?.id || '');
@@ -837,7 +839,9 @@ export const updateProductImageMetadata = async (req, res, next) => {
     }
 
     // Reordenar array según order si tienen definido
-    product.images.sort((a, b) => (a.order || 0) - (b.order || 0));
+    if (order !== undefined) {
+      product.images.sort((a, b) => (a.order || 0) - (b.order || 0));
+    }
 
     // Actualización atómica en MongoDB evitando validaciones de campos ajenos
     const updatedProduct = await Product.findByIdAndUpdate(
@@ -854,9 +858,14 @@ export const updateProductImageMetadata = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: 'Metadatos de la imagen actualizados exitosamente.',
+      product: updatedProduct || product,
       data: updatedProduct || product,
     });
   } catch (error) {
+    console.error('[updateImageMetadata Error]:', error);
     next(error);
   }
 };
+
+export const updateProductImageMetadata = updateImageMetadata;
+

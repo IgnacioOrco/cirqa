@@ -415,6 +415,11 @@ export const orderService = {
    * POST /api/orders/:orderId/generate-shipment
    * @param {string} orderId
    */
+  async generateShipment(orderId) {
+    const res = await api.post(`/api/orders/${orderId}/generate-shipment`);
+    return res.data || res;
+  },
+
   async generateOrderShipment(orderId) {
     const res = await api.post(`/api/orders/${orderId}/generate-shipment`);
     return res.data || res;

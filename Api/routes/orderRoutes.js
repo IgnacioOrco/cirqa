@@ -7,8 +7,10 @@ import {
   getOrderById,
   updateOrderShipping,
   updateOrderStatus,
+  generateShipment,
   generateOrderShipping,
 } from '../controllers/orderController.js';
+import * as orderController from '../controllers/orderController.js';
 import { protectAdmin } from '../middlewares/authMiddleware.js';
 import { uploadReceipt } from '../middlewares/uploadMiddleware.js';
 
@@ -36,13 +38,13 @@ router.get('/', protectAdmin, getOrders);
 router.get('/:orderId', getOrderById);
 
 /**
- * @route   POST /api/orders/:orderId/generate-shipping o /api/orders/:id/generate-shipment
+ * @route   POST /api/orders/:id/generate-shipment
  * @desc    Emitir despacho logístico mediante Shipnova/Zipnova y generar guía y etiqueta
- * @access  Privado (Admin)
+ * @access  Público / Admin
  */
-router.post('/:orderId/generate-shipping', protectAdmin, generateOrderShipping);
-router.post('/:orderId/generate-shipment', protectAdmin, generateOrderShipping);
-router.post('/:id/generate-shipment', protectAdmin, generateOrderShipping);
+router.post('/:id/generate-shipment', orderController.generateShipment);
+router.post('/:orderId/generate-shipment', orderController.generateShipment);
+router.post('/:orderId/generate-shipping', orderController.generateShipment);
 
 /**
  * @route   PATCH /api/orders/:orderId/shipping

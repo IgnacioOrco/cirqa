@@ -9,8 +9,10 @@ import {
   updateProductImage,
   uploadProductImagesController,
   deleteProductImage,
+  updateImageMetadata,
   updateProductImageMetadata,
 } from '../controllers/productController.js';
+import * as productController from '../controllers/productController.js';
 import { protectAdmin } from '../middlewares/authMiddleware.js';
 import {
   uploadProductImage,
@@ -88,7 +90,7 @@ router.delete('/:id/images/:imageId', protectAdmin, deleteProductImage);
  * @desc    Modificar rol (tag), si es principal (isPrimary) o posición (order)
  * @access  Privado (Admin)
  */
-router.patch('/:id/images/:imageId', protectAdmin, updateProductImageMetadata);
+router.patch('/:id/images/:imageId', protectAdmin, productController.updateImageMetadata);
 
 /**
  * @route   DELETE /api/products/:id

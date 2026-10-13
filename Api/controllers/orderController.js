@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
-import { createShipment } from '../services/zipnovaService.js';
+import zipnovaService, { createShipment } from '../services/zipnovaService.js';
 
 /**
  * Inicializar cliente de Mercado Pago con el Access Token
@@ -804,13 +804,13 @@ export const updateOrderShipping = async (req, res, next) => {
 };
 
 /**
- * @desc    Emitir envío real en Shipnova/Zipnova y generar guía/etiqueta
- * @route   POST /api/orders/:orderId/generate-shipping
- * @access  Privado (Admin)
+ * @desc    Emitir despacho logístico mediante Shipnova/Zipnova y generar guía y etiqueta
+ * @route   POST /api/orders/:id/generate-shipment
+ * @access  Privado (Admin) / Público
  */
-export const generateOrderShipping = async (req, res, next) => {
+export const generateShipment = async (req, res, next) => {
   try {
-    const targetId = req.params.orderId || req.params.id;
+    const targetId = req.params.id || req.params.orderId;
 
     const order = await Order.findById(targetId);
     if (!order) {
@@ -824,55 +824,40 @@ export const generateOrderShipping = async (req, res, next) => {
       order.shipping = {};
     }
 
-    const isMoto =
-      order.shipping.carrier === 'Motomensajería' ||
-      (order.shipping.service || '').includes('express_caba') ||
-      (order.shippingMethod || '').toLowerCase().includes('motomensajería');
-
-    if (isMoto) {
-      const orderNumClean = order.orderNumber
-        ? order.orderNumber.replace(/^CQ-/, '')
-        : (order._id?.toString().slice(-6).toUpperCase() || 'EXPRESS');
-      const trackingNumber = `MOTO-CQ-${orderNumClean}`;
-      order.shipping.carrier = 'Motomensajería';
-      order.shipping.service = 'express_caba_24h';
-      order.shipping.trackingNumber = trackingNumber;
+    // 1. Envío local por motomensajería (CABA)
+    if (order.shipping.carrier === 'Motomensajería') {
+      const motoSuffix = order.orderNumber || order._id.toString().slice(-4);
+      order.shipping.trackingNumber = `MOTO-CQ-${motoSuffix}`;
       order.shipping.status = 'PREPARACION';
+      order.status = 'preparacion';
       await order.save();
 
       return res.status(200).json({
         success: true,
-        message: 'Despacho por Motomensajería CABA registrado exitosamente.',
-        trackingNumber,
-        carrier: 'Motomensajería',
-        data: order,
-        shipping: order.shipping,
+        message: 'Envío local por motomensajería generado',
+        order,
       });
     }
 
-    // Emitir despacho mediante la API de Shipnova/Zipnova
-    const shipmentData = await createShipment(order);
-
-    order.shipping.carrier = shipmentData.carrier || order.shipping.carrier || 'Correo Andreani / OCA';
-    order.shipping.service = shipmentData.service || order.shipping.service || 'standard';
-    order.shipping.trackingNumber = shipmentData.trackingNumber;
-    order.shipping.zipnovaShipmentId = shipmentData.shipmentId || shipmentData.zipnovaShipmentId;
-    order.shipping.labelUrl = shipmentData.labelUrl;
+    // 2. Correo nacional (carrier !== 'Motomensajería')
+    const result = await zipnovaService.createShipment(order);
+    order.shipping.trackingNumber = result.trackingNumber;
+    order.shipping.zipnovaShipmentId = result.shipmentId || result.zipnovaShipmentId;
+    order.shipping.labelUrl = result.labelUrl;
     order.shipping.status = 'PREPARACION';
-
+    order.status = 'preparacion';
     await order.save();
 
     return res.status(200).json({
       success: true,
-      message: 'Envío emitido correctamente mediante Shipnova / Zipnova.',
-      shipmentId: shipmentData.shipmentId || shipmentData.zipnovaShipmentId,
-      trackingNumber: shipmentData.trackingNumber,
-      labelUrl: shipmentData.labelUrl,
-      data: order,
-      shipping: order.shipping,
+      message: 'Guía de Shipnova emitida con éxito',
+      order,
     });
   } catch (error) {
-    console.error('[generateOrderShipping Error]:', error);
+    console.error('[generateShipment Error]:', error);
     next(error);
   }
 };
+
+export const generateOrderShipping = generateShipment;
+
