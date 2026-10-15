@@ -7,7 +7,7 @@ const imageSchema = new mongoose.Schema({
   url: { type: String, required: true },
   tag: { 
     type: String, 
-    enum: ['front', 'side', 'angle', 'model', 'lifestyle', 'gallery', 'unassigned'], 
+    enum: ['front', 'side', 'angle', 'model', 'lifestyle', 'gallery', 'detail', 'hover', 'unassigned'], 
     default: 'front' 
   },
   variantKey: { type: String, default: null }, // 'clear', 'dia', 'transicion', 'noche' o null

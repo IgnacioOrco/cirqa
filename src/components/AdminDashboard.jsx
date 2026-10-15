@@ -53,13 +53,12 @@ const MODEL_SORT_ORDER = {
 
 // Etiquetas legibles para los roles o ubicaciones de fotos
 export const IMAGE_TAG_OPTIONS = [
-  { value: 'front', label: 'Frontal (Cara)' },
-  { value: 'hover', label: 'Hover (Al pasar cursor)' },
-  { value: 'side', label: 'Perfil / Lateral' },
-  { value: 'angle', label: 'Ángulo 45°' },
-  { value: 'model', label: 'Puesta en Modelo' },
-  { value: 'detail', label: 'Detalle Técnico / Bisagra' },
+  { value: 'front', label: 'Frente (Principal)' },
+  { value: 'angle', label: 'Ángulo / Perfil (Hover)' },
+  { value: 'side', label: 'Lateral' },
+  { value: 'model', label: 'Modelo / Lifestyle' },
   { value: 'gallery', label: 'Galería General' },
+  { value: 'detail', label: 'Detalle Técnico' },
 ];
 
 export default function AdminDashboard({ authToken: propToken, onLogout: propOnLogout }) {
@@ -326,8 +325,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   const [galleryPreviews, setGalleryPreviews] = useState([]);
 
   // Referencia para subida directa por columna
-  const columnFileInputRef = useRef(null);
   const [columnUploadTargetKey, setColumnUploadTargetKey] = useState(null);
+  const [activeAdminVariantTab, setActiveAdminVariantTab] = useState('all');
 
   // Limpiar previews temporales de subida
   const clearGalleryUploadSelection = () => {
@@ -359,6 +358,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         ? product.variants.map((v) => ({ ...v }))
         : []
     );
+    setActiveAdminVariantTab('all');
     setModalError(null);
     setSaveSuccess(false);
     clearGalleryUploadSelection();
@@ -547,13 +547,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     else if (lower.includes('detalle') || lower.includes('detail')) detectedTag = 'detail';
 
     // Variantes
-    if (lower.includes('noche') || lower.includes('night')) detectedVariantKey = 'noche';
-    else if (lower.includes('dia') || lower.includes('day')) detectedVariantKey = 'dia';
-    else if (lower.includes('transicion') || lower.includes('transition')) detectedVariantKey = 'transicion';
-    else if (lower.includes('clear')) detectedVariantKey = 'clear';
+    if (lower.includes('noche') || lower.includes('night') || lower.includes('rojo') || lower.includes('red') || lower.includes('sunset')) detectedVariantKey = 'noche';
+    else if (lower.includes('dia') || lower.includes('day') || lower.includes('amarill') || lower.includes('yellow')) detectedVariantKey = 'dia';
+    else if (lower.includes('transicion') || lower.includes('transition') || lower.includes('naranj') || lower.includes('orang') || lower.includes('amber')) detectedVariantKey = 'transicion';
+    else if (lower.includes('clear') || lower.includes('cristal') || lower.includes('transp') || lower.includes('neutr')) detectedVariantKey = 'clear';
     else if (lower.includes('carey') || lower.includes('tortoise')) detectedVariantKey = 'carey';
     else if (lower.includes('negro') || lower.includes('black')) detectedVariantKey = 'negro-mate';
-    else if (lower.includes('cristal') || lower.includes('transparente')) detectedVariantKey = 'cristal';
 
     // Si detectamos variantKey, verificar con las variantes existentes del producto
     if (detectedVariantKey && existingVariants.length > 0) {
@@ -679,8 +678,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     const files = Array.from(e.target.files || []);
     if (files.length === 0) return;
 
-    if (files.length > 10) {
-      setModalError('Puedes subir un máximo de 10 fotos por vez.');
+    if (files.length > 20) {
+      setModalError('Puedes subir un máximo de 20 fotos por vez.');
       return;
     }
 
@@ -1138,6 +1137,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         hasVariants: editHasVariants,
         variantAxisTitle: editVariantAxisTitle.trim() || 'Seleccionar Variante',
         variants: formattedVariants,
+        images: selectedProduct.images || [],
       };
 
       const res = await productService.updateProduct(selectedProduct._id, payload);
@@ -2047,24 +2047,44 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
               {/* SECCIÓN INTERACTIVA: TABLERO VISUAL DE GALERÍA Y AUTOCLASIFICACIÓN */}
               {(() => {
-                const activeGalleryVariants = (selectedProduct.variants && selectedProduct.variants.length > 0)
-                  ? selectedProduct.variants
-                  : (editVariants && editVariants.length > 0 ? editVariants : []);
-
-                const galleryColumns = [
+                const canonicalColumns = [
+                  {
+                    key: 'clear',
+                    name: 'Clear',
+                    subtitle: 'Transparente · Protección Básica',
+                    badgeColor: '#CBD5E1',
+                  },
+                  {
+                    key: 'dia',
+                    name: 'Día · Amarillo',
+                    subtitle: 'Filtro Azul 450nm · Pantallas',
+                    badgeColor: '#FACC15',
+                  },
+                  {
+                    key: 'transicion',
+                    name: 'Transición · Naranja',
+                    subtitle: 'Filtro Ámbar 500nm · Atardecer',
+                    badgeColor: '#FB923C',
+                  },
+                  {
+                    key: 'noche',
+                    name: 'Noche · Rojo',
+                    subtitle: 'Filtro Melatonina 550nm · Descanso',
+                    badgeColor: '#F87171',
+                  },
                   {
                     key: null,
-                    name: 'Armazón Base / General',
+                    name: 'Sin asignar / Generales',
                     subtitle: 'Fotos generales sin variante',
-                    badgeColor: '#475569',
+                    badgeColor: '#94A3B8',
                   },
-                  ...activeGalleryVariants.map((v) => ({
-                    key: v.key,
-                    name: v.name,
-                    subtitle: v.subtitle || 'Variante',
-                    badgeColor: v.badgeColor || '#D97706',
-                  })),
                 ];
+
+                const galleryColumns = canonicalColumns;
+
+                const displayedColumns = activeAdminVariantTab === 'all'
+                  ? galleryColumns
+                  : galleryColumns.filter((col) => (col.key ?? 'unassigned') === activeAdminVariantTab);
 
                 return (
                   <div className="mt-5 p-5 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-5">
@@ -2073,15 +2093,67 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                       <div className="flex items-center gap-2">
                         <Layers className="w-4 h-4 text-cirqa-primario" />
                         <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro/90">
-                          Tablero de Fotos por Variantes
+                          Organizador de Fotos por Variante
                         </span>
                         <span className="text-[10px] font-mono text-cirqa-negro/50 bg-black/5 px-2 py-0.5 rounded-full">
                           {selectedProduct.images?.length || 0} fotos en MongoDB
                         </span>
                       </div>
                       <span className="text-[10px] text-cirqa-negro/50 font-light">
-                        Arrastrá fotos entre columnas para reasignar su variante en 1 clic
+                        Gestioná y subí fotos para cada variante circadiana sin límite de cantidad
                       </span>
+                    </div>
+
+                    {/* Pestañas de Variante Circadiana */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                      <button
+                        type="button"
+                        onClick={() => setActiveAdminVariantTab('all')}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                          activeAdminVariantTab === 'all'
+                            ? 'bg-cirqa-negro text-white shadow-xs'
+                            : 'bg-white text-cirqa-negro/70 hover:bg-black/5 border border-cirqa-negro/10'
+                        }`}
+                      >
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>Todas (Kanban)</span>
+                        <span className="text-[10px] opacity-75 font-mono">({selectedProduct.images?.length || 0})</span>
+                      </button>
+
+                      {galleryColumns.map((col) => {
+                        const count = (selectedProduct.images || []).filter((img) =>
+                          col.key === null
+                            ? (!img.variantKey || img.variantKey === 'null')
+                            : (img.variantKey === col.key)
+                        ).length;
+                        const isTabActive = activeAdminVariantTab === (col.key ?? 'unassigned');
+
+                        return (
+                          <button
+                            key={col.key || 'unassigned'}
+                            type="button"
+                            onClick={() => setActiveAdminVariantTab(col.key ?? 'unassigned')}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
+                              isTabActive
+                                ? 'bg-cirqa-negro text-white shadow-xs'
+                                : 'bg-white text-cirqa-negro/70 hover:bg-black/5 border border-cirqa-negro/10'
+                            }`}
+                          >
+                            <span
+                              className="w-2.5 h-2.5 rounded-full border border-black/10 flex-shrink-0"
+                              style={{ backgroundColor: col.badgeColor }}
+                            />
+                            <span>{col.name}</span>
+                            <span
+                              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                                isTabActive ? 'bg-white/20 text-white' : 'bg-black/5 text-cirqa-negro/60'
+                              }`}
+                            >
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
 
                     {/* Inputs de archivos ocultos */}
@@ -2090,7 +2162,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                       type="file"
                       multiple
                       accept="image/jpeg,image/png,image/webp,image/avif"
-                      onChange={(e) => handleGalleryFilesChange(e)}
+                      onChange={(e) => handleGalleryFilesChange(e, activeAdminVariantTab !== 'all' ? (activeAdminVariantTab === 'unassigned' ? null : activeAdminVariantTab) : undefined)}
                       className="hidden"
                     />
                     <input
@@ -2101,6 +2173,37 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                       onChange={(e) => handleGalleryFilesChange(e, columnUploadTargetKey)}
                       className="hidden"
                     />
+
+                    {/* Banner de subida rápida contextual a la pestaña activa */}
+                    {activeAdminVariantTab !== 'all' && (
+                      <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-cirqa-negro/10 shadow-2xs">
+                        <div className="flex items-center gap-2">
+                          <span
+                            className="w-3.5 h-3.5 rounded-full border border-black/10"
+                            style={{
+                              backgroundColor: galleryColumns.find((c) => (c.key ?? 'unassigned') === activeAdminVariantTab)?.badgeColor || '#475569',
+                            }}
+                          />
+                          <div>
+                            <span className="text-xs font-bold text-cirqa-negro block">
+                              Variante activa: {galleryColumns.find((c) => (c.key ?? 'unassigned') === activeAdminVariantTab)?.name}
+                            </span>
+                            <span className="text-[10px] text-cirqa-negro/50 block">
+                              Las fotos que cargues se asignarán directamente a esta variante sin límite de cantidad.
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleTriggerColumnUpload(activeAdminVariantTab === 'unassigned' ? null : activeAdminVariantTab)}
+                          className="px-3.5 py-1.5 bg-cirqa-negro hover:bg-black text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <UploadCloud className="w-3.5 h-3.5" />
+                          <span>Subir fotos a {galleryColumns.find((c) => (c.key ?? 'unassigned') === activeAdminVariantTab)?.name}</span>
+                        </button>
+                      </div>
+                    )}
 
                     {/* Previews de Subida Pendiente (Con Autoclasificación en Vivo) */}
                     {galleryPreviews.length > 0 ? (
@@ -2221,7 +2324,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                       </span>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[380px] overflow-y-auto pr-1">
-                        {galleryColumns.map((col) => {
+                        {displayedColumns.map((col) => {
                           const colImages = (selectedProduct.images || [])
                             .filter((img) =>
                               col.key === null
@@ -2415,12 +2518,11 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                                             onChange={(e) => handleUpdateImageVariantKey(img._id, e.target.value)}
                                             className="flex-1 min-w-0 text-[10px] bg-white border border-cirqa-negro/15 rounded-md px-1.5 py-0.5 text-cirqa-negro focus:outline-none focus:border-cirqa-negro truncate cursor-pointer"
                                           >
-                                            <option value="">Base / General</option>
-                                            {activeGalleryVariants.map((v) => (
-                                              <option key={v.key} value={v.key}>
-                                                {v.name}
-                                              </option>
-                                            ))}
+                                            <option value="">Sin asignar / General</option>
+                                            <option value="clear">Clear</option>
+                                            <option value="dia">Día · Amarillo</option>
+                                            <option value="transicion">Transición · Naranja</option>
+                                            <option value="noche">Noche · Rojo</option>
                                           </select>
                                         </div>
                                       </div>

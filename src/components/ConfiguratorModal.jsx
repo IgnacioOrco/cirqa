@@ -96,7 +96,9 @@ export default function ConfiguratorModal({
 
   // Lista reactiva de fotos disponibles estrictamente para la variante activa usando getImagesForVariant
   const currentVariantImages = React.useMemo(() => {
-    const currentKey = selectedVariant ? selectedVariant.key : (selectedFilter?.id || 'dia');
+    const currentKey = selectedVariant
+      ? (selectedVariant.key || selectedVariant.id || selectedVariant.name)
+      : (selectedFilter?.id || 'dia');
     const imgs = getImagesForVariant(currentModel, currentKey);
     const sortedImages = [...imgs].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     return sortedImages.map((img, idx) => ({
@@ -111,7 +113,7 @@ export default function ConfiguratorModal({
   // Sincronizar reactivamente la foto frontal al cambiar de variante o filtro
   useEffect(() => {
     setActiveImageIndex(0);
-  }, [selectedVariant?.key, selectedFilter?.id]);
+  }, [selectedVariant?.key, selectedVariant?.id, selectedVariant?.name, selectedFilter?.id]);
 
   // Manejador de selección de variante con salto inmediato a la foto frontal
   const handleSelectVariant = (variant) => {

@@ -242,6 +242,13 @@ export const productService = {
   },
 
   /**
+   * Alias de updateProduct: PUT /api/products/:id
+   */
+  async update(id, updateData) {
+    return this.updateProduct(id, updateData);
+  },
+
+  /**
    * Actualizar stock individual: PATCH /api/products/:id/stock
    */
   async updateStock(id, stock) {
@@ -302,6 +309,19 @@ export const productService = {
       method: 'POST',
       body: formData,
     });
+  },
+
+  /**
+   * Subir imágenes aceptando FormData directo o lista de archivos
+   */
+  async uploadImages(id, filesOrFormData, tag = 'gallery', variantKey = null) {
+    if (filesOrFormData instanceof FormData) {
+      return request(`/api/products/${id}/images`, {
+        method: 'POST',
+        body: filesOrFormData,
+      });
+    }
+    return this.uploadProductImages(id, filesOrFormData, tag, variantKey);
   },
 
   /**

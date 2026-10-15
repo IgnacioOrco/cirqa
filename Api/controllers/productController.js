@@ -3,10 +3,18 @@ import path from 'node:path';
 import fs from 'node:fs';
 import Product from '../models/Product.js';
 
-export const normalizeVariant = (v) =>
-  v ? v.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : null;
+export const normalizeVariant = (v) => {
+  if (!v) return null;
+  const clean = v.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (!clean || clean === 'null' || clean === 'undefined') return null;
+  if (clean.includes('clear') || clean.includes('transp') || clean.includes('neutr')) return 'clear';
+  if (clean.includes('dia') || clean.includes('day') || clean.includes('amarill') || clean.includes('yellow')) return 'dia';
+  if (clean.includes('transic') || clean.includes('naranj') || clean.includes('orang') || clean.includes('amber')) return 'transicion';
+  if (clean.includes('noch') || clean.includes('night') || clean.includes('roj') || clean.includes('red') || clean.includes('sunset')) return 'noche';
+  return clean;
+};
 
-export const VALID_IMAGE_TAGS = ['front', 'side', 'angle', 'model', 'lifestyle', 'gallery', 'unassigned'];
+export const VALID_IMAGE_TAGS = ['front', 'side', 'angle', 'model', 'lifestyle', 'gallery', 'detail', 'hover', 'unassigned'];
 
 /**
  * @desc    Listar todos los productos
@@ -289,117 +297,12 @@ export const updateProduct = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    // Validar unicidad de slug si se cambia
-    if (req.body.slug) {
-      req.body.slug = req.body.slug.toLowerCase().trim();
-      const slugClash = await Product.findOne({
-        slug: req.body.slug,
-        _id: { $ne: id },
-      });
-      if (slugClash) {
-        return res.status(400).json({
-          success: false,
-          message: `El slug '${req.body.slug}' ya pertenece a otro producto.`,
-        });
-      }
+    let product;
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      product = await Product.findById(id);
+    } else {
+      product = await Product.findOne({ slug: id });
     }
-
-    // Validar unicidad de modelCode si se cambia
-    if (req.body.modelCode) {
-      req.body.modelCode = req.body.modelCode.trim().toUpperCase();
-      const codeClash = await Product.findOne({
-        modelCode: req.body.modelCode,
-        _id: { $ne: id },
-      });
-      if (codeClash) {
-        return res.status(400).json({
-          success: false,
-          message: `El código de modelo '${req.body.modelCode}' ya pertenece a otro producto.`,
-        });
-      }
-    }
-
-    // Sincronizar precio y basePrice
-    if (req.body.price !== undefined && req.body.basePrice === undefined) {
-      req.body.basePrice = req.body.price;
-    } else if (req.body.basePrice !== undefined && req.body.price === undefined) {
-      req.body.price = req.body.basePrice;
-    }
-
-    // Normalizar hasVariants y variantAxisTitle si se proporcionan
-    if (req.body.hasVariants !== undefined) {
-      req.body.hasVariants = Boolean(req.body.hasVariants);
-    }
-    if (req.body.variantAxisTitle !== undefined) {
-      req.body.variantAxisTitle = (req.body.variantAxisTitle || 'Seleccionar Variante').trim();
-    }
-
-    // Normalizar array de variantes si viene en req.body
-    if (Array.isArray(req.body.variants)) {
-      req.body.variants = req.body.variants.map((v, idx) => ({
-        _id: v._id,
-        key: (v.key || v.name || `var-${idx + 1}`).toLowerCase().trim().replace(/[\s\W-]+/g, '-'),
-        name: (v.name || `Variante ${idx + 1}`).trim(),
-        subtitle: (v.subtitle || '').trim(),
-        badgeColor: (v.badgeColor || '#FFFFFF').trim(),
-        priceModifier: Number(v.priceModifier) || 0,
-        isDefault: Boolean(v.isDefault),
-      }));
-    }
-
-    // Si viene actualización del array de imágenes, asegurar unicidad de isPrimary, isHover y preservar variantKey
-    if (Array.isArray(req.body.images)) {
-      req.body.images = req.body.images.map((img, idx) => ({
-        ...(img._id ? { _id: img._id } : {}),
-        url: img.url,
-        tag: VALID_IMAGE_TAGS.includes(img.tag) ? img.tag : (img.tag === 'hover' ? 'gallery' : (img.tag || 'gallery')),
-        isPrimary: Boolean(img.isPrimary),
-        isHover: Boolean(img.isHover || img.tag === 'hover'),
-        order: img.order !== undefined ? Number(img.order) : idx,
-        variantKey: normalizeVariant(img.variantKey),
-      }));
-
-      const primaryCount = req.body.images.filter((img) => img.isPrimary).length;
-      if (primaryCount === 0 && req.body.images.length > 0) {
-        req.body.images[0].isPrimary = true;
-      } else if (primaryCount > 1) {
-        let firstFound = false;
-        req.body.images.forEach((img) => {
-          if (img.isPrimary) {
-            if (!firstFound) {
-              firstFound = true;
-            } else {
-              img.isPrimary = false;
-            }
-          }
-        });
-      }
-
-      // Asegurar como máximo una imagen con isHover: true
-      const hoverCount = req.body.images.filter((img) => img.isHover).length;
-      if (hoverCount > 1) {
-        let firstHoverFound = false;
-        req.body.images.forEach((img) => {
-          if (img.isHover) {
-            if (!firstHoverFound) {
-              firstHoverFound = true;
-            } else {
-              img.isHover = false;
-            }
-          }
-        });
-      }
-
-      const primary = req.body.images.find((img) => img.isPrimary) || req.body.images[0];
-      if (primary) {
-        req.body.image_url = primary.url;
-      }
-    }
-
-    const product = await Product.findByIdAndUpdate(id, req.body, {
-      new: true,
-      runValidators: true,
-    });
 
     if (!product) {
       return res.status(404).json({
@@ -408,10 +311,108 @@ export const updateProduct = async (req, res, next) => {
       });
     }
 
+    // Validar unicidad de slug si se cambia
+    if (req.body.slug) {
+      const cleanSlug = req.body.slug.toLowerCase().trim();
+      const slugClash = await Product.findOne({
+        slug: cleanSlug,
+        _id: { $ne: product._id },
+      });
+      if (slugClash) {
+        return res.status(400).json({
+          success: false,
+          message: `El slug '${req.body.slug}' ya pertenece a otro producto.`,
+        });
+      }
+      product.slug = cleanSlug;
+    }
+
+    // Validar unicidad de modelCode si se cambia
+    if (req.body.modelCode) {
+      const cleanCode = req.body.modelCode.trim().toUpperCase();
+      const codeClash = await Product.findOne({
+        modelCode: cleanCode,
+        _id: { $ne: product._id },
+      });
+      if (codeClash) {
+        return res.status(400).json({
+          success: false,
+          message: `El código de modelo '${req.body.modelCode}' ya pertenece a otro producto.`,
+        });
+      }
+      product.modelCode = cleanCode;
+    }
+
+    if (req.body.name !== undefined) product.name = req.body.name.trim();
+    if (req.body.description !== undefined) product.description = req.body.description;
+    if (req.body.category !== undefined) product.category = req.body.category;
+    if (req.body.stock !== undefined) product.stock = Number(req.body.stock);
+    if (req.body.isActive !== undefined) product.isActive = Boolean(req.body.isActive);
+    if (req.body.lensWidth !== undefined) product.lensWidth = req.body.lensWidth;
+    if (req.body.bridgeWidth !== undefined) product.bridgeWidth = req.body.bridgeWidth;
+    if (req.body.templeLength !== undefined) product.templeLength = req.body.templeLength;
+
+    // Sincronizar precio y basePrice
+    if (req.body.price !== undefined) {
+      product.price = Number(req.body.price);
+      if (req.body.basePrice === undefined) product.basePrice = product.price;
+    }
+    if (req.body.basePrice !== undefined) {
+      product.basePrice = Number(req.body.basePrice);
+      if (req.body.price === undefined) product.price = product.basePrice;
+    }
+
+    // Normalizar hasVariants y variantAxisTitle si se proporcionan
+    if (req.body.hasVariants !== undefined) {
+      product.hasVariants = Boolean(req.body.hasVariants);
+    }
+    if (req.body.variantAxisTitle !== undefined) {
+      product.variantAxisTitle = (req.body.variantAxisTitle || 'Seleccionar Variante').trim();
+    }
+
+    // Normalizar array de variantes si viene en req.body
+    if (Array.isArray(req.body.variants)) {
+      product.variants = req.body.variants.map((v, idx) => ({
+        _id: v._id,
+        key: (v.key || v.name || `var-${idx + 1}`).toLowerCase().trim().replace(/[\s\W-]+/g, '-'),
+        name: (v.name || `Variante ${idx + 1}`).trim(),
+        subtitle: (v.subtitle || '').trim(),
+        badgeColor: (v.badgeColor || '#FFFFFF').trim(),
+        priceModifier: Number(v.priceModifier) || 0,
+        isDefault: Boolean(v.isDefault),
+      }));
+      product.markModified('variants');
+    }
+
+    // Soporte explícito para actualizar array images con todos sus metadatos
+    const validTags = VALID_IMAGE_TAGS;
+    if (Array.isArray(req.body.images)) {
+      product.images = req.body.images.map((img, idx) => ({
+        _id: img._id || undefined,
+        url: img.url,
+        tag: validTags.includes(img.tag) ? img.tag : 'front',
+        variantKey: normalizeVariant(img.variantKey),
+        isPrimary: Boolean(img.isPrimary),
+        isHover: Boolean(img.isHover),
+        order: typeof img.order === 'number' ? img.order : idx,
+      }));
+      product.markModified('images');
+
+      const primary = product.images.find((img) => img.isPrimary) || product.images[0];
+      if (primary) {
+        product.image_url = primary.url;
+      }
+    } else if (req.body.image_url) {
+      product.image_url = req.body.image_url;
+    }
+
+    await product.save();
+
     return res.status(200).json({
       success: true,
       message: 'Producto actualizado exitosamente.',
       data: product,
+      product,
     });
   } catch (error) {
     next(error);
@@ -547,10 +548,8 @@ export const updateProductImage = async (req, res, next) => {
 export const uploadProductImagesController = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const tag = req.body?.tag || req.query?.tag || 'gallery';
-    const variantKey = req.body?.variantKey ?? req.query?.variantKey ?? null;
-    const isPrimary = req.body?.isPrimary ?? req.query?.isPrimary;
-    const isHover = req.body?.isHover ?? req.query?.isHover;
+    const { tag, isPrimary, isHover, variantKey } = req.body;
+    const normalizedVariantKey = normalizeVariant(variantKey || req.query?.variantKey);
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -577,32 +576,23 @@ export const uploadProductImagesController = async (req, res, next) => {
       product.images = [];
     }
 
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const host = req.get('host');
+    const maxOrder = product.images.reduce((max, img) => Math.max(max, img.order || 0), -1);
+    const validTags = VALID_IMAGE_TAGS;
 
-    let currentMaxOrder = product.images.reduce((max, img) => Math.max(max, img.order || 0), -1);
-    const hasPrimary = product.images.some((img) => img.isPrimary);
+    req.files.forEach((file, index) => {
+      const shouldBePrimary = isPrimary !== undefined 
+        ? Boolean(isPrimary === 'true' || isPrimary === true) 
+        : (product.images.length === 0 && index === 0);
 
-    const validTag = VALID_IMAGE_TAGS.includes(tag) ? tag : (tag === 'hover' ? 'gallery' : 'gallery');
-    const normalizedVariantKey = normalizeVariant(variantKey);
-
-    const newImageSubdocs = req.files.map((file, idx) => {
-      const relativePath = `/uploads/${file.filename}`;
-      const fullImageUrl = `${protocol}://${host}${relativePath}`;
-      currentMaxOrder += 1;
-
-      return {
-        _id: new mongoose.Types.ObjectId(),
-        url: fullImageUrl,
-        tag: validTag,
+      product.images.push({
+        url: `/uploads/${file.filename}`,
+        tag: validTags.includes(tag) ? tag : 'front',
         variantKey: normalizedVariantKey,
-        isPrimary: isPrimary !== undefined ? Boolean(isPrimary === true || isPrimary === 'true') : (!hasPrimary && idx === 0),
-        isHover: isHover !== undefined ? Boolean(isHover === true || isHover === 'true') : Boolean(tag === 'hover'),
-        order: currentMaxOrder,
-      };
+        isPrimary: shouldBePrimary,
+        isHover: isHover === 'true' || isHover === true,
+        order: maxOrder + 1 + index,
+      });
     });
-
-    product.images.push(...newImageSubdocs);
 
     // Asegurar sincronización de foto de portada
     const primaryImg = product.images.find((img) => img.isPrimary) || product.images[0];
@@ -616,8 +606,9 @@ export const uploadProductImagesController = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       message: `${req.files.length} foto(s) cargada(s) y asociadas exitosamente.`,
+      product,
       data: product,
-      addedImages: newImageSubdocs,
+      addedImages: product.images.slice(-req.files.length),
     });
   } catch (error) {
     next(error);
@@ -803,8 +794,10 @@ export const updateImageMetadata = async (req, res, next) => {
       });
     }
 
+    const validTags = VALID_IMAGE_TAGS;
+
     if (tag) {
-      if (VALID_IMAGE_TAGS.includes(tag)) {
+      if (validTags.includes(tag)) {
         targetImage.tag = tag;
       } else if (tag === 'hover') {
         targetImage.isHover = true;
@@ -819,45 +812,67 @@ export const updateImageMetadata = async (req, res, next) => {
       targetImage.order = Number(order);
     }
 
-    // Si isPrimary === true, marcar las demás fotos del producto con isPrimary = false
+    const currentVariantKey = targetImage.variantKey;
+
+    // Manejo de isPrimary por variante sin pisar a los otros colores
     if (isPrimary !== undefined) {
       const boolPrimary = Boolean(isPrimary === true || isPrimary === 'true');
+      targetImage.isPrimary = boolPrimary;
+
       if (boolPrimary) {
+        // Desmarcar isPrimary ÚNICAMENTE en las otras fotos de esa misma variantKey
         product.images.forEach((img) => {
           const idVal = img?._id ? String(img._id) : String(img?.id || '');
-          img.isPrimary = idVal === targetIdStr;
+          if (idVal !== targetIdStr) {
+            const sameVariant = currentVariantKey
+              ? (img.variantKey === currentVariantKey)
+              : (!img.variantKey || img.variantKey === 'null');
+            if (sameVariant) {
+              img.isPrimary = false;
+            }
+          }
         });
-        product.image_url = targetImage.url;
-      } else if (targetImage.isPrimary) {
-        targetImage.isPrimary = false;
-        const fallback = product.images.find((img) => {
-          const idVal = img?._id ? String(img._id) : String(img?.id || '');
-          return idVal !== targetIdStr;
-        });
-        if (fallback) {
-          fallback.isPrimary = true;
-          product.image_url = fallback.url;
+
+        // Sincronizar portada general si es la foto general o si no hay portada aún
+        if (!currentVariantKey || !product.image_url) {
+          product.image_url = targetImage.url;
         }
       }
     }
 
-    // Si isHover === true, marcar las demás fotos con isHover = false
+    // Manejo de isHover por variante sin pisar a los otros colores
     if (isHover !== undefined) {
       const boolHover = Boolean(isHover === true || isHover === 'true');
+      targetImage.isHover = boolHover;
+
       if (boolHover) {
+        // Desmarcar isHover ÚNICAMENTE en las otras fotos de esa misma variantKey
         product.images.forEach((img) => {
           const idVal = img?._id ? String(img._id) : String(img?.id || '');
-          img.isHover = idVal === targetIdStr;
+          if (idVal !== targetIdStr) {
+            const sameVariant = currentVariantKey
+              ? (img.variantKey === currentVariantKey)
+              : (!img.variantKey || img.variantKey === 'null');
+            if (sameVariant) {
+              img.isHover = false;
+            }
+          }
         });
-      } else if (targetImage.isHover) {
-        targetImage.isHover = false;
       }
     }
 
     if (tag === 'hover') {
+      targetImage.isHover = true;
       product.images.forEach((img) => {
         const idVal = img?._id ? String(img._id) : String(img?.id || '');
-        img.isHover = idVal === targetIdStr;
+        if (idVal !== targetIdStr) {
+          const sameVariant = currentVariantKey
+            ? (img.variantKey === currentVariantKey)
+            : (!img.variantKey || img.variantKey === 'null');
+          if (sameVariant) {
+            img.isHover = false;
+          }
+        }
       });
     }
 
