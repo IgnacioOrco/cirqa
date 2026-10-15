@@ -3,42 +3,20 @@ import mongoose from 'mongoose';
 /**
  * Subdocumento de Imagen Clasificada con soporte de Asociación a Variante
  */
-const productImageSchema = new mongoose.Schema(
-  {
-    url: {
-      type: String,
-      required: [true, 'La URL de la imagen es obligatoria'],
-      trim: true,
-    },
-    tag: {
-      type: String,
-      enum: ['front', 'side', 'angle', 'model', 'detail', 'gallery', 'hover'],
-      default: 'gallery',
-      required: true,
-    },
-    variantKey: {
-      type: String,
-      default: null,
-      trim: true,
-    },
-    isPrimary: {
-      type: Boolean,
-      default: false,
-    },
-    isHover: {
-      type: Boolean,
-      default: false,
-    },
-    order: {
-      type: Number,
-      default: 0,
-    },
+const imageSchema = new mongoose.Schema({
+  url: { type: String, required: true },
+  tag: { 
+    type: String, 
+    enum: ['front', 'side', 'angle', 'model', 'lifestyle', 'gallery', 'unassigned'], 
+    default: 'front' 
   },
-  {
-    _id: true,
-    timestamps: true,
-  }
-);
+  variantKey: { type: String, default: null }, // 'clear', 'dia', 'transicion', 'noche' o null
+  isPrimary: { type: Boolean, default: false },
+  isHover: { type: Boolean, default: false },
+  order: { type: Number, default: 0 }
+}, { timestamps: true });
+
+const productImageSchema = imageSchema;
 
 /**
  * Subdocumento de Variante Dinámica de Producto
@@ -77,6 +55,7 @@ const productVariantSchema = new mongoose.Schema(
   },
   {
     _id: true,
+    strict: false,
   }
 );
 
@@ -140,7 +119,7 @@ const productSchema = new mongoose.Schema(
     },
     // Galería estructurada de fotos con categorización, orden y enlace a variante
     images: {
-      type: [productImageSchema],
+      type: [imageSchema],
       default: [],
     },
     // Campo de retrocompatibilidad con componentes existentes

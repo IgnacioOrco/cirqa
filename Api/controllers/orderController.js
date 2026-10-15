@@ -218,11 +218,9 @@ export const createPreference = async (req, res, next) => {
       });
     }
 
-    // Determinar si es transferencia o mercadopago
-    const requestedMethod = String(
-      rawPaymentMethod || rawPayment?.method || 'mercadopago'
-    ).toLowerCase();
-    const isTransfer = requestedMethod.includes('transfer');
+    // Determinar si es transferencia o mercadopago verificando TODAS las posibles ubicaciones en req.body
+    const rawMethod = req.body.paymentMethod || req.body.payment?.method || req.body.payment?.provider || 'mercadopago';
+    const isTransfer = rawMethod.toString().toLowerCase().includes('transfer');
     const paymentMethod = isTransfer ? 'transfer' : 'mercadopago';
 
     // 2. Validación Robusta de Productos en MongoDB

@@ -269,7 +269,10 @@ export const productService = {
     const formData = new FormData();
     formData.append('image', file);
     formData.append('tag', tag);
-    if (variantKey) formData.append('variantKey', variantKey);
+    const normKey = variantKey && variantKey !== 'null'
+      ? variantKey.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      : null;
+    if (normKey) formData.append('variantKey', normKey);
 
     return request(`/api/products/${id}/image`, {
       method: 'POST',
@@ -290,7 +293,10 @@ export const productService = {
       formData.append('images', file);
     });
     formData.append('tag', tag);
-    if (variantKey) formData.append('variantKey', variantKey);
+    const normKey = variantKey && variantKey !== 'null'
+      ? variantKey.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      : null;
+    if (normKey) formData.append('variantKey', normKey);
 
     return request(`/api/products/${id}/images`, {
       method: 'POST',
@@ -320,7 +326,13 @@ export const productService = {
    * @param {Object} metadata - { tag, isPrimary, isHover, order, variantKey }
    */
   async updateImageMetadata(id, imageId, metadata) {
-    return api.patch(`/api/products/${id}/images/${imageId}`, metadata);
+    const payload = { ...metadata };
+    if (payload.variantKey !== undefined) {
+      payload.variantKey = payload.variantKey && payload.variantKey !== 'null'
+        ? payload.variantKey.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        : null;
+    }
+    return api.patch(`/api/products/${id}/images/${imageId}`, payload);
   },
 
   async updateProductImageMetadata(id, imageId, metadata) {

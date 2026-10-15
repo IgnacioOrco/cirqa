@@ -3,6 +3,11 @@ import path from 'node:path';
 import fs from 'node:fs';
 import Product from '../models/Product.js';
 
+export const normalizeVariant = (v) =>
+  v ? v.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '') : null;
+
+export const VALID_IMAGE_TAGS = ['front', 'side', 'angle', 'model', 'lifestyle', 'gallery', 'unassigned'];
+
 /**
  * @desc    Listar todos los productos
  * @route   GET /api/products
@@ -147,9 +152,10 @@ export const createProduct = async (req, res, next) => {
         }
         return {
           url: img.url,
-          tag: img.tag || 'gallery',
-          variantKey: img.variantKey ? img.variantKey.trim().toLowerCase() : null,
+          tag: VALID_IMAGE_TAGS.includes(img.tag) ? img.tag : 'gallery',
+          variantKey: normalizeVariant(img.variantKey),
           isPrimary: Boolean(img.isPrimary),
+          isHover: Boolean(img.isHover || img.tag === 'hover'),
           order: img.order !== undefined ? Number(img.order) : idx,
         };
       });
@@ -160,6 +166,7 @@ export const createProduct = async (req, res, next) => {
           tag: 'front',
           variantKey: null,
           isPrimary: true,
+          isHover: false,
           order: 0,
         },
       ];
@@ -342,11 +349,14 @@ export const updateProduct = async (req, res, next) => {
 
     // Si viene actualización del array de imágenes, asegurar unicidad de isPrimary, isHover y preservar variantKey
     if (Array.isArray(req.body.images)) {
-      req.body.images = req.body.images.map((img) => ({
-        ...img,
+      req.body.images = req.body.images.map((img, idx) => ({
+        ...(img._id ? { _id: img._id } : {}),
+        url: img.url,
+        tag: VALID_IMAGE_TAGS.includes(img.tag) ? img.tag : (img.tag === 'hover' ? 'gallery' : (img.tag || 'gallery')),
         isPrimary: Boolean(img.isPrimary),
         isHover: Boolean(img.isHover || img.tag === 'hover'),
-        variantKey: img.variantKey && img.variantKey !== 'null' ? img.variantKey.trim().toLowerCase() : null,
+        order: img.order !== undefined ? Number(img.order) : idx,
+        variantKey: normalizeVariant(img.variantKey),
       }));
 
       const primaryCount = req.body.images.filter((img) => img.isPrimary).length;
@@ -464,7 +474,10 @@ export const deleteProduct = async (req, res, next) => {
 export const updateProductImage = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { tag = 'front', variantKey = null } = req.body;
+    const tag = req.body?.tag || req.query?.tag || 'front';
+    const variantKey = req.body?.variantKey ?? req.query?.variantKey ?? null;
+    const isPrimary = req.body?.isPrimary ?? req.query?.isPrimary;
+    const isHover = req.body?.isHover ?? req.query?.isHover;
 
     if (!req.file) {
       return res.status(400).json({
@@ -497,13 +510,14 @@ export const updateProductImage = async (req, res, next) => {
     }
 
     const hasPrimary = product.images.some((img) => img.isPrimary);
+    const validTag = VALID_IMAGE_TAGS.includes(tag) ? tag : (tag === 'hover' ? 'gallery' : 'front');
     const newImageObj = {
       _id: new mongoose.Types.ObjectId(),
       url: fullImageUrl,
-      tag: ['front', 'side', 'angle', 'model', 'detail', 'gallery', 'hover'].includes(tag) ? tag : 'front',
-      variantKey: variantKey && variantKey !== 'null' ? variantKey.trim().toLowerCase() : null,
-      isPrimary: !hasPrimary,
-      isHover: tag === 'hover',
+      tag: validTag,
+      variantKey: normalizeVariant(variantKey),
+      isPrimary: isPrimary !== undefined ? Boolean(isPrimary === true || isPrimary === 'true') : !hasPrimary,
+      isHover: isHover !== undefined ? Boolean(isHover === true || isHover === 'true') : Boolean(tag === 'hover'),
       order: product.images.length,
     };
 
@@ -511,21 +525,13 @@ export const updateProductImage = async (req, res, next) => {
     const primaryImg = product.images.find((img) => img.isPrimary) || product.images[0];
     product.image_url = primaryImg ? primaryImg.url : fullImageUrl;
 
-    const updatedProduct = await Product.findByIdAndUpdate(
-      product._id,
-      {
-        $set: {
-          images: product.images,
-          image_url: product.image_url,
-        },
-      },
-      { new: true, runValidators: false }
-    );
+    product.markModified('images');
+    await product.save();
 
     return res.status(200).json({
       success: true,
       message: 'Imagen del producto cargada y vinculada exitosamente.',
-      data: updatedProduct || product,
+      data: product,
       image_url: fullImageUrl,
     });
   } catch (error) {
@@ -541,7 +547,10 @@ export const updateProductImage = async (req, res, next) => {
 export const uploadProductImagesController = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { tag = 'gallery', variantKey = null } = req.body;
+    const tag = req.body?.tag || req.query?.tag || 'gallery';
+    const variantKey = req.body?.variantKey ?? req.query?.variantKey ?? null;
+    const isPrimary = req.body?.isPrimary ?? req.query?.isPrimary;
+    const isHover = req.body?.isHover ?? req.query?.isHover;
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -574,11 +583,8 @@ export const uploadProductImagesController = async (req, res, next) => {
     let currentMaxOrder = product.images.reduce((max, img) => Math.max(max, img.order || 0), -1);
     const hasPrimary = product.images.some((img) => img.isPrimary);
 
-    const validTag = ['front', 'side', 'angle', 'model', 'detail', 'gallery', 'hover'].includes(tag)
-      ? tag
-      : 'gallery';
-
-    const normalizedVariantKey = variantKey && variantKey !== 'null' ? variantKey.trim().toLowerCase() : null;
+    const validTag = VALID_IMAGE_TAGS.includes(tag) ? tag : (tag === 'hover' ? 'gallery' : 'gallery');
+    const normalizedVariantKey = normalizeVariant(variantKey);
 
     const newImageSubdocs = req.files.map((file, idx) => {
       const relativePath = `/uploads/${file.filename}`;
@@ -590,8 +596,8 @@ export const uploadProductImagesController = async (req, res, next) => {
         url: fullImageUrl,
         tag: validTag,
         variantKey: normalizedVariantKey,
-        isPrimary: !hasPrimary && idx === 0,
-        isHover: validTag === 'hover',
+        isPrimary: isPrimary !== undefined ? Boolean(isPrimary === true || isPrimary === 'true') : (!hasPrimary && idx === 0),
+        isHover: isHover !== undefined ? Boolean(isHover === true || isHover === 'true') : Boolean(tag === 'hover'),
         order: currentMaxOrder,
       };
     });
@@ -604,21 +610,13 @@ export const uploadProductImagesController = async (req, res, next) => {
       product.image_url = primaryImg.url;
     }
 
-    const updatedProduct = await Product.findByIdAndUpdate(
-      product._id,
-      {
-        $set: {
-          images: product.images,
-          image_url: product.image_url,
-        },
-      },
-      { new: true, runValidators: false }
-    );
+    product.markModified('images');
+    await product.save();
 
     return res.status(200).json({
       success: true,
       message: `${req.files.length} foto(s) cargada(s) y asociadas exitosamente.`,
-      data: updatedProduct || product,
+      data: product,
       addedImages: newImageSubdocs,
     });
   } catch (error) {
@@ -790,12 +788,16 @@ export const updateImageMetadata = async (req, res, next) => {
       });
     }
 
-    if (tag && ['front', 'side', 'angle', 'model', 'detail', 'gallery', 'hover'].includes(tag)) {
-      targetImage.tag = tag;
+    if (tag) {
+      if (VALID_IMAGE_TAGS.includes(tag)) {
+        targetImage.tag = tag;
+      } else if (tag === 'hover') {
+        targetImage.isHover = true;
+      }
     }
 
-    if (variantKey !== undefined) {
-      targetImage.variantKey = variantKey && variantKey !== 'null' ? variantKey.trim().toLowerCase() : null;
+    if (variantKey !== undefined || req.body.variantKey !== undefined) {
+      targetImage.variantKey = normalizeVariant(req.body.variantKey !== undefined ? req.body.variantKey : variantKey);
     }
 
     if (order !== undefined) {
@@ -803,32 +805,38 @@ export const updateImageMetadata = async (req, res, next) => {
     }
 
     // Si isPrimary === true, marcar las demás fotos del producto con isPrimary = false
-    if (isPrimary === true) {
-      product.images.forEach((img) => {
-        const idVal = img?._id ? String(img._id) : String(img?.id || '');
-        img.isPrimary = idVal === targetIdStr;
-      });
-      product.image_url = targetImage.url;
-    } else if (isPrimary === false && targetImage.isPrimary) {
-      targetImage.isPrimary = false;
-      const fallback = product.images.find((img) => {
-        const idVal = img?._id ? String(img._id) : String(img?.id || '');
-        return idVal !== targetIdStr;
-      });
-      if (fallback) {
-        fallback.isPrimary = true;
-        product.image_url = fallback.url;
+    if (isPrimary !== undefined) {
+      const boolPrimary = Boolean(isPrimary === true || isPrimary === 'true');
+      if (boolPrimary) {
+        product.images.forEach((img) => {
+          const idVal = img?._id ? String(img._id) : String(img?.id || '');
+          img.isPrimary = idVal === targetIdStr;
+        });
+        product.image_url = targetImage.url;
+      } else if (targetImage.isPrimary) {
+        targetImage.isPrimary = false;
+        const fallback = product.images.find((img) => {
+          const idVal = img?._id ? String(img._id) : String(img?.id || '');
+          return idVal !== targetIdStr;
+        });
+        if (fallback) {
+          fallback.isPrimary = true;
+          product.image_url = fallback.url;
+        }
       }
     }
 
     // Si isHover === true, marcar las demás fotos con isHover = false
-    if (isHover === true) {
-      product.images.forEach((img) => {
-        const idVal = img?._id ? String(img._id) : String(img?.id || '');
-        img.isHover = idVal === targetIdStr;
-      });
-    } else if (isHover === false && targetImage.isHover) {
-      targetImage.isHover = false;
+    if (isHover !== undefined) {
+      const boolHover = Boolean(isHover === true || isHover === 'true');
+      if (boolHover) {
+        product.images.forEach((img) => {
+          const idVal = img?._id ? String(img._id) : String(img?.id || '');
+          img.isHover = idVal === targetIdStr;
+        });
+      } else if (targetImage.isHover) {
+        targetImage.isHover = false;
+      }
     }
 
     if (tag === 'hover') {
@@ -843,23 +851,14 @@ export const updateImageMetadata = async (req, res, next) => {
       product.images.sort((a, b) => (a.order || 0) - (b.order || 0));
     }
 
-    // Actualización atómica en MongoDB evitando validaciones de campos ajenos
-    const updatedProduct = await Product.findByIdAndUpdate(
-      product._id,
-      {
-        $set: {
-          images: product.images,
-          image_url: product.image_url || targetImage.url,
-        },
-      },
-      { new: true, runValidators: false }
-    );
+    product.markModified('images');
+    await product.save();
 
     return res.status(200).json({
       success: true,
       message: 'Metadatos de la imagen actualizados exitosamente.',
-      product: updatedProduct || product,
-      data: updatedProduct || product,
+      product,
+      data: product,
     });
   } catch (error) {
     console.error('[updateImageMetadata Error]:', error);

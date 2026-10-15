@@ -1,6 +1,6 @@
-import React, { useRef } from 'react';
-import { motion, useScroll, useTransform, useMotionValueEvent, useSpring } from 'framer-motion';
-import { ArrowRight, FileText } from 'lucide-react';
+import React, { useRef, useEffect } from 'react';
+import { motion, useScroll, useTransform, useSpring } from 'framer-motion';
+import { ArrowRight } from 'lucide-react';
 
 export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
   const containerRef = useRef(null);
@@ -19,35 +19,12 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
     restDelta: 0.0001,
   });
 
-  // Notify parent of dark mode when entering Stage 2 (Tarde / Transición)
-  useMotionValueEvent(smoothProgress, 'change', (latest) => {
+  // Ensure navbar stays in light theme since section background is unified clean white
+  useEffect(() => {
     if (onThemeChange) {
-      onThemeChange(latest >= 0.32 && latest <= 0.98);
+      onThemeChange(false);
     }
-  });
-
-  // High-contrast background color interpolation:
-  // Phase 1 (0.0 -> 0.28): Clean White (#FFFFFF)
-  // Swift Transition (0.28 -> 0.36): Shifts directly into Deep Nocturnal Dark (#18110B)
-  // Phase 2 & 3 (0.36 -> 1.0): Deep Dark (#18110B -> #110905) for maximum contrast
-  const backgroundColor = useTransform(
-    smoothProgress,
-    [0.0, 0.28, 0.36, 0.70, 1.0],
-    ['#FFFFFF', '#FFFFFF', '#18110B', '#140C07', '#0F0704']
-  );
-
-  // Section Header Text color interpolation with high contrast
-  const headerTextColor = useTransform(
-    smoothProgress,
-    [0.0, 0.28, 0.36, 1.0],
-    ['#18110B', '#18110B', '#FFFFFF', '#FFFFFF']
-  );
-
-  const headerSubtextColor = useTransform(
-    smoothProgress,
-    [0.0, 0.28, 0.36, 1.0],
-    ['#7A6A5E', '#7A6A5E', '#E4B070', '#E4B070']
-  );
+  }, [onThemeChange]);
 
   // --- STAGE 1: Filtro Amarillo (84%) ---
   const lens1X = useTransform(smoothProgress, [0.0, 0.12, 0.26, 0.36], ['100%', '0%', '0%', '-100%']);
@@ -74,7 +51,7 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
   const text3Opacity = useTransform(smoothProgress, [0.66, 0.78, 1.0], [0, 1, 1]);
 
   return (
-    <section id="tecnologia" className="relative">
+    <section id="tecnologia" className="relative bg-white">
       
       {/* Top Ticker Marquee Bar */}
       <div className="w-full bg-cirqa-surface border-y border-cirqa-negro/10 py-3 overflow-hidden z-20 relative">
@@ -88,28 +65,19 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
       </div>
 
       {/* Scroll-Jacking Narrative Container */}
-      <div ref={containerRef} className="relative h-[240vh]">
+      <div ref={containerRef} className="relative h-[240vh] bg-white">
         
-        {/* Sticky Fullscreen Presentation Stage */}
-        <motion.div
-          style={{ backgroundColor }}
-          className="sticky top-0 h-screen w-full flex flex-col justify-center items-center overflow-hidden px-6 transition-colors duration-200"
-        >
+        {/* Sticky Fullscreen Presentation Stage (Unified clean white background) */}
+        <div className="sticky top-0 h-screen w-full flex flex-col justify-center items-center overflow-hidden px-6 bg-white">
           {/* Header Track */}
           <div className="absolute top-20 sm:top-24 left-0 right-0 max-w-7xl mx-auto px-6 sm:px-8 flex justify-between items-start pointer-events-none z-10">
             <div>
-              <motion.span
-                style={{ color: headerSubtextColor }}
-                className="text-[10px] sm:text-[11px] uppercase tracking-[0.2em] font-semibold block"
-              >
+              <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.2em] font-semibold block text-[#7A6A5E]">
                 Detalle de Filtros · Tecnología Óptica
-              </motion.span>
-              <motion.h2
-                style={{ color: headerTextColor }}
-                className="text-xl sm:text-2xl md:text-3xl font-light tracking-tight mt-1"
-              >
+              </span>
+              <h2 className="text-xl sm:text-2xl md:text-3xl font-light tracking-tight mt-1 text-[#18110B]">
                 Tres Niveles de Calibración Espectral.
-              </motion.h2>
+              </h2>
             </div>
           </div>
 
@@ -117,7 +85,7 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
           <div className="relative w-full max-w-6xl mx-auto h-[500px] flex items-center justify-center">
             
             {/* ========================================================= */}
-            {/* FASE 1: FILTRO AMARILLO (84%) - High Contrast Light Mode  */}
+            {/* FASE 1: FILTRO AMARILLO (84%)                             */}
             {/* ========================================================= */}
             <motion.div
               style={{ opacity: lens1Opacity }}
@@ -140,7 +108,7 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
                 <div>
                   <button
                     onClick={() => onOpenTrials && onOpenTrials('dia')}
-                    className="inline-flex items-center gap-2 bg-cirqa-primario hover:brightness-110 active:scale-95 text-white text-[11px] font-bold tracking-widest uppercase px-7 py-4 rounded-full transition-all shadow-md group"
+                    className="inline-flex items-center gap-2 bg-cirqa-primario hover:brightness-110 active:scale-95 text-white text-[11px] font-bold tracking-widest uppercase px-7 py-4 rounded-full transition-all shadow-md group cursor-pointer"
                   >
                     <span>ACCEDE AL ESTUDIO</span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -155,17 +123,22 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
               >
                 <div className="w-full max-w-md sm:max-w-lg relative">
                   <img
-                    src="/products/_DSC8680.webp"
+                    src="/assets/lens-dia.webp"
                     alt="CIRQA con Filtro Amarillo 84%"
-                    className="w-full h-auto object-contain select-none drop-shadow-[0_20px_35px_rgba(0,0,0,0.18)]"
+                    className="w-full h-auto object-contain select-none drop-shadow-[0_20px_35px_rgba(0,0,0,0.12)] mix-blend-multiply"
                     loading="eager"
+                    onError={(e) => {
+                      if (e.currentTarget.src.endsWith('.webp')) {
+                        e.currentTarget.src = '/assets/lens-dia.png';
+                      }
+                    }}
                   />
                 </div>
               </motion.div>
             </motion.div>
 
             {/* ========================================================= */}
-            {/* FASE 2: FILTRO NARANJA (95%) - High Contrast Dark Mode   */}
+            {/* FASE 2: FILTRO NARANJA (95%)                              */}
             {/* ========================================================= */}
             <motion.div
               style={{ opacity: lens2Opacity }}
@@ -174,15 +147,15 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
               {/* Narrative Text */}
               <motion.div
                 style={{ opacity: text2Opacity, y: text2Y }}
-                className="w-full md:w-5/12 flex flex-col justify-center text-left md:text-right pointer-events-auto text-white"
+                className="w-full md:w-5/12 flex flex-col justify-center text-left md:text-right pointer-events-auto text-cirqa-negro"
               >
-                <div className="text-[10px] md:text-[11px] font-semibold tracking-[0.2em] uppercase text-cirqa-primario mb-2">
+                <div className="text-[10px] md:text-[11px] font-semibold tracking-[0.2em] uppercase text-[#D95A1E] mb-2">
                   17:00 — 20:00 · TARDE & TRANSICIÓN
                 </div>
-                <h3 className="text-2xl sm:text-3xl md:text-4xl font-light text-white tracking-tight mb-3">
+                <h3 className="text-2xl sm:text-3xl md:text-4xl font-light text-[#18110B] tracking-tight mb-3">
                   FILTRO NARANJA (95%)
                 </h3>
-                <p className="text-xs sm:text-sm font-light text-white/90 leading-relaxed mb-6 max-w-md md:ml-auto">
+                <p className="text-xs sm:text-sm font-normal text-[#382B21] leading-relaxed mb-6 max-w-md md:ml-auto">
                   logra el equilibrio perfecto para el uso de pantallas durante el día. Las lentes naranjas filtran más del 95% de la luz azul en el rango crítico de alta energía, reduciendo la fatiga ocular mientras mantienen una vista brillante y vívida.
                   <br className="my-2 block" />
                   mantiene tu enfoque nítido y tus ojos relajados desde la primera luz hasta el último correo electrónico.
@@ -190,7 +163,7 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
                 <div className="flex md:justify-end">
                   <button
                     onClick={() => onOpenTrials && onOpenTrials('transicion')}
-                    className="inline-flex items-center gap-2 bg-cirqa-primario hover:brightness-110 active:scale-95 text-white text-[11px] font-bold tracking-widest uppercase px-7 py-4 rounded-full transition-all shadow-md group"
+                    className="inline-flex items-center gap-2 bg-cirqa-primario hover:brightness-110 active:scale-95 text-white text-[11px] font-bold tracking-widest uppercase px-7 py-4 rounded-full transition-all shadow-md group cursor-pointer"
                   >
                     <span>ACCEDE AL ESTUDIO</span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -205,17 +178,22 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
               >
                 <div className="w-full max-w-md sm:max-w-lg relative">
                   <img
-                    src="/products/_DSC8681.webp"
+                    src="/assets/lens-transicion.webp"
                     alt="CIRQA con Filtro Naranja 95%"
-                    className="w-full h-auto object-contain select-none drop-shadow-[0_20px_35px_rgba(0,0,0,0.28)]"
+                    className="w-full h-auto object-contain select-none drop-shadow-[0_20px_35px_rgba(0,0,0,0.12)] mix-blend-multiply"
                     loading="lazy"
+                    onError={(e) => {
+                      if (e.currentTarget.src.endsWith('.webp')) {
+                        e.currentTarget.src = '/assets/lens-transicion.png';
+                      }
+                    }}
                   />
                 </div>
               </motion.div>
             </motion.div>
 
             {/* ========================================================= */}
-            {/* FASE 3: FILTRO ROJO (100%) - High Contrast Nocturnal Mode */}
+            {/* FASE 3: FILTRO ROJO (100%)                                */}
             {/* ========================================================= */}
             <motion.div
               style={{ opacity: lens3Opacity }}
@@ -224,15 +202,15 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
               {/* Narrative Text */}
               <motion.div
                 style={{ opacity: text3Opacity, y: text3Y }}
-                className="w-full md:w-5/12 flex flex-col justify-center text-left pointer-events-auto text-white"
+                className="w-full md:w-5/12 flex flex-col justify-center text-left pointer-events-auto text-cirqa-negro"
               >
-                <div className="text-[10px] md:text-[11px] font-semibold tracking-[0.2em] uppercase text-cirqa-carmin mb-2">
+                <div className="text-[10px] md:text-[11px] font-semibold tracking-[0.2em] uppercase text-[#AC1917] mb-2">
                   20:00 — 06:00 · NOCHE & MELATONINA
                 </div>
-                <h3 className="text-2xl sm:text-3xl md:text-4xl font-light text-white tracking-tight mb-3">
+                <h3 className="text-2xl sm:text-3xl md:text-4xl font-light text-[#18110B] tracking-tight mb-3">
                   FILTRO ROJO (100%)
                 </h3>
-                <p className="text-xs sm:text-sm font-light text-white/90 leading-relaxed mb-6 max-w-md">
+                <p className="text-xs sm:text-sm font-normal text-[#382B21] leading-relaxed mb-6 max-w-md">
                   este modelo está diseñado para un enfoque profundo y claridad nocturna. Sus lentes rojos bloquean casi el 100% de la luz azul, creando un campo visual tranquilo ideal para uso nocturno.
                   <br className="my-2 block" />
                   Ya sea que estés diseñando, leyendo o relajándote después del anochecer.
@@ -242,7 +220,7 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
                 <div>
                   <button
                     onClick={() => onOpenTrials && onOpenTrials('noche')}
-                    className="inline-flex items-center gap-2 bg-cirqa-primario hover:brightness-110 active:scale-95 text-white text-[11px] font-bold tracking-widest uppercase px-7 py-4 rounded-full transition-all shadow-md group"
+                    className="inline-flex items-center gap-2 bg-cirqa-primario hover:brightness-110 active:scale-95 text-white text-[11px] font-bold tracking-widest uppercase px-7 py-4 rounded-full transition-all shadow-md group cursor-pointer"
                   >
                     <span>ACCEDE AL ESTUDIO</span>
                     <ArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition-transform" />
@@ -257,10 +235,15 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
               >
                 <div className="w-full max-w-md sm:max-w-lg relative">
                   <img
-                    src="/products/_DSC8682.webp"
+                    src="/assets/lens-noche.webp"
                     alt="CIRQA con Filtro Rojo 100%"
-                    className="w-full h-auto object-contain select-none drop-shadow-[0_25px_40px_rgba(0,0,0,0.35)]"
+                    className="w-full h-auto object-contain select-none drop-shadow-[0_20px_35px_rgba(0,0,0,0.12)] mix-blend-multiply"
                     loading="lazy"
+                    onError={(e) => {
+                      if (e.currentTarget.src.endsWith('.webp')) {
+                        e.currentTarget.src = '/assets/lens-noche.png';
+                      }
+                    }}
                   />
                 </div>
               </motion.div>
@@ -268,7 +251,7 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
 
           </div>
 
-        </motion.div>
+        </div>
       </div>
 
     </section>

@@ -183,6 +183,93 @@ export const getSortedProductImages = (product) => {
 };
 
 /**
+ * Asignación Inteligente y Fallback por Pares para Variantes de Producto
+ * @param {Object} product - Producto a inspeccionar
+ * @param {string|null} variantKey - Clave de variante ('clear', 'dia', 'transicion', 'noche')
+ * @returns {Array} Array de imágenes filtradas y ordenadas para la variante
+ */
+export const getImagesForVariant = (product, variantKey = null) => {
+  if (!product) {
+    return [{ url: FALLBACK_IMAGE, tag: 'front', isPrimary: true, isHover: false, order: 0, variantKey: null }];
+  }
+
+  const allImages = getSortedProductImages(product);
+  if (!allImages || allImages.length === 0) {
+    return [{ url: FALLBACK_IMAGE, tag: 'front', isPrimary: true, isHover: false, order: 0, variantKey: null }];
+  }
+
+  const normKey = normalizeVariantKey(variantKey);
+
+  // Caso A (Imágenes con variantKey asignado en DB):
+  // Si el producto tiene al menos una imagen con img.variantKey definido en DB,
+  // devolver estrictamente las imágenes donde normalizeVariantKey(img.variantKey) === normalizeVariantKey(variantKey).
+  const rawImages = Array.isArray(product.images) ? product.images : [];
+  const hasDbVariantKey = rawImages.some(
+    (img) => img && img.variantKey && img.variantKey !== 'null' && String(img.variantKey).trim() !== ''
+  );
+
+  if (hasDbVariantKey) {
+    const matched = allImages.filter(
+      (img) => img.variantKey && normalizeVariantKey(img.variantKey) === normKey
+    );
+    if (matched.length > 0) {
+      return matched;
+    }
+  }
+
+  // Caso B (Productos en DB cuyas fotos aún no tienen variantKey):
+  // Separar las fotos que NO son tag === 'model' (fotos de estudio del armazón, ordenadas por order)
+  const studioImages = allImages.filter((img) => img.tag !== 'model');
+  const modelImages = allImages.filter((img) => img.tag === 'model');
+
+  // Si hay >= 8 fotos de estudio y ninguna tiene variantKey en DB,
+  // repartirlas automáticamente en pares (Frente + Ángulo) según el orden de las 4 variantes circadianas:
+  // 'clear' -> fotos de estudio índice 0 y 1 (más la 1ra foto model si existe)
+  // 'dia' -> fotos de estudio índice 2 y 3 (más la 2da foto model si existe)
+  // 'transicion' -> fotos de estudio índice 4 y 5 (más la 3ra foto model si existe)
+  // 'noche' -> fotos de estudio índice 6 y 7 (más la 4ta foto model si existe)
+  if (studioImages.length >= 8) {
+    let pairIndices = [0, 1];
+    let modelIndex = 0;
+
+    if (normKey === 'clear') {
+      pairIndices = [0, 1];
+      modelIndex = 0;
+    } else if (normKey === 'dia') {
+      pairIndices = [2, 3];
+      modelIndex = 1;
+    } else if (normKey === 'transicion') {
+      pairIndices = [4, 5];
+      modelIndex = 2;
+    } else if (normKey === 'noche') {
+      pairIndices = [6, 7];
+      modelIndex = 3;
+    }
+
+    const selectedStudio = pairIndices
+      .map((idx) => studioImages[idx])
+      .filter(Boolean);
+
+    const result = [...selectedStudio];
+    if (modelImages[modelIndex]) {
+      result.push(modelImages[modelIndex]);
+    }
+
+    if (result.length > 0) {
+      return result;
+    }
+  }
+
+  // Si el producto tiene solo 2 fotos en total (como Q-004) o pocas fotos,
+  // mostrar esas fotos para cualquier variante para que nunca quede el visor vacío.
+  if (allImages.length <= 4 || studioImages.length < 8) {
+    return allImages;
+  }
+
+  return allImages;
+};
+
+/**
  * Regla 1: Selección Determinista de Portada
  * Prioridad Absoluta a fotos de la variante activa cargadas por la administración:
  * - Si variantKey está presente, prioriza foto frontal (tag === 'front') o primaria de esa variante.
@@ -192,29 +279,22 @@ export const getSortedProductImages = (product) => {
 export const getPrimaryProductImage = (product, variantKey = null) => {
   if (!product) return FALLBACK_IMAGE;
 
+  if (variantKey) {
+    const varImages = getImagesForVariant(product, variantKey);
+    if (varImages && varImages.length > 0) {
+      const varPrimary = varImages.find((img) => Boolean(img.isPrimary));
+      if (varPrimary) return normalizeImageUrl(varPrimary.url || varPrimary.imageUrl);
+
+      const varFront = varImages.find((img) => (img.tag || inferImageTag(img)) === 'front');
+      if (varFront) return normalizeImageUrl(varFront.url || varFront.imageUrl);
+
+      return normalizeImageUrl(varImages[0].url || varImages[0].imageUrl);
+    }
+  }
+
   if (Array.isArray(product.images) && product.images.length > 0) {
     const validImages = product.images.filter((img) => img && (img.url || img.imageUrl));
     if (validImages.length > 0) {
-      // Si se especificó una variante, buscar estrictamente dentro de sus fotos
-      if (variantKey) {
-        const variantImages = validImages.filter((img) => {
-          const vKey = img.variantKey || inferImageVariantKey(img);
-          return matchVariantKey(vKey, variantKey);
-        });
-
-        if (variantImages.length > 0) {
-          const varPrimary = variantImages.find((img) => Boolean(img.isPrimary));
-          if (varPrimary) return normalizeImageUrl(varPrimary.url || varPrimary.imageUrl);
-
-          const varFront = variantImages.find((img) => (img.tag || inferImageTag(img)) === 'front');
-          if (varFront) return normalizeImageUrl(varFront.url || varFront.imageUrl);
-
-          const sortedVar = [...variantImages].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-          return normalizeImageUrl(sortedVar[0].url || sortedVar[0].imageUrl);
-        }
-      }
-
-      // Si no hay variante o no tiene fotos propias, buscar en fotos generales del producto
       const primaryImg = validImages.find((img) => Boolean(img.isPrimary));
       if (primaryImg) {
         return normalizeImageUrl(primaryImg.url || primaryImg.imageUrl);
@@ -244,36 +324,32 @@ export const getHoverProductImage = (product, primaryUrl = null, variantKey = nu
   if (!product) return FALLBACK_IMAGE;
   const resolvedPrimary = primaryUrl || getPrimaryProductImage(product, variantKey);
 
+  if (variantKey) {
+    const varImages = getImagesForVariant(product, variantKey);
+    if (varImages && varImages.length > 0) {
+      const varSide = varImages.find(
+        (img) => {
+          const tag = img.tag || inferImageTag(img);
+          return (tag === 'side' || tag === 'angle' || Boolean(img.isHover)) &&
+            normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary;
+        }
+      );
+      if (varSide) return normalizeImageUrl(varSide.url || varSide.imageUrl);
+
+      const secondImg = varImages.find((img) => normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary);
+      if (secondImg) return normalizeImageUrl(secondImg.url || secondImg.imageUrl);
+
+      if (varImages.length > 1) {
+        return normalizeImageUrl(varImages[1].url || varImages[1].imageUrl);
+      }
+
+      return normalizeImageUrl(varImages[0].url || varImages[0].imageUrl);
+    }
+  }
+
   if (Array.isArray(product.images) && product.images.length > 0) {
     const validImages = product.images.filter((img) => img && (img.url || img.imageUrl));
     if (validImages.length > 0) {
-      // Si se especificó variante, buscar estrictamente dentro de las fotos de esa misma variante
-      if (variantKey) {
-        const variantImages = validImages.filter((img) => {
-          const vKey = img.variantKey || inferImageVariantKey(img);
-          return matchVariantKey(vKey, variantKey);
-        });
-
-        if (variantImages.length > 0) {
-          const varSide = variantImages.find(
-            (img) => {
-              const tag = img.tag || inferImageTag(img);
-              return tag === 'side' || tag === 'angle' || Boolean(img.isHover);
-            }
-          );
-          if (varSide) return normalizeImageUrl(varSide.url || varSide.imageUrl);
-
-          const sortedVar = [...variantImages].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-          if (sortedVar.length > 1) {
-            return normalizeImageUrl(sortedVar[1].url || sortedVar[1].imageUrl);
-          }
-
-          const varFront = variantImages.find((img) => (img.tag || inferImageTag(img)) === 'front') || sortedVar[0];
-          return normalizeImageUrl(varFront.url || varFront.imageUrl);
-        }
-      }
-
-      // Buscar en fotos del MISMO producto foto lateral/ángulo que no sea la primaria
       const sideImg = validImages.find(
         (img) => {
           const tag = img.tag || inferImageTag(img);

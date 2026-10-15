@@ -78,7 +78,7 @@ const orderSchema = new mongoose.Schema(
     // Subtotal: Suma de productos a precio regular (sin descuentos ni costos de envío)
     subtotal: {
       type: Number,
-      required: [true, 'El subtotal de la orden es obligatorio'],
+      default: 0,
       min: [0, 'El subtotal no puede ser negativo'],
     },
 
@@ -106,7 +106,7 @@ const orderSchema = new mongoose.Schema(
     // Total final de la orden: (subtotal - discountAmount + shippingCost)
     totalAmount: {
       type: Number,
-      required: [true, 'El monto total de la orden es obligatorio'],
+      required: true,
       min: [0, 'El total no puede ser negativo'],
     },
 
@@ -177,24 +177,19 @@ const orderSchema = new mongoose.Schema(
     payment: {
       method: {
         type: String,
-        required: [true, 'El método de pago es obligatorio'],
-        enum: {
-          values: ['mercadopago', 'transfer'],
-          message: '{VALUE} no es un método de pago válido. Debe ser mercadopago o transfer',
-        },
+        enum: ['mercadopago', 'transfer'],
         default: 'mercadopago',
       },
       provider: {
         type: String,
+        enum: ['mercadopago', 'transfer'],
         default: 'mercadopago',
       },
-      status: {
-        type: String,
-        enum: ['pending', 'paid', 'failed', 'cancelled'],
-        default: 'pending',
-      },
-      preferenceId: { type: String, trim: true, default: '' },
-      paymentId: { type: String, trim: true, default: '' },
+      preferenceId: { type: String, default: '' },
+      paymentId: { type: String, default: '' },
+      status: { type: String, default: 'pending' },
+      statusDetail: { type: String, default: '' },
+      paymentType: { type: String, default: '' },
       dateApproved: { type: Date, default: null },
       details: {
         type: mongoose.Schema.Types.Mixed,
@@ -205,7 +200,7 @@ const orderSchema = new mongoose.Schema(
     // Campo de retrocompatibilidad con frontend existente y queries
     paymentMethod: {
       type: String,
-      default: 'MERCADO_PAGO',
+      default: undefined,
     },
 
     // Control de estados de la orden
@@ -311,39 +306,37 @@ orderSchema.pre('validate', function (next) {
     this.shipping.cost = this.shippingCost;
   }
 
-  // 4. Si totalAmount no fue establecido, calcularlo como subtotal - discountAmount + shippingCost
+  // 4. Lógica de Descuento y Total
+  const isTransfer = 
+    (this.payment?.method && String(this.payment.method).toLowerCase().includes('transfer')) ||
+    (this.payment?.provider && String(this.payment.provider).toLowerCase().includes('transfer')) ||
+    (this.paymentMethod && String(this.paymentMethod).toLowerCase().includes('transfer'));
+
+  if (isTransfer) {
+    if (!this.discountAmount && this.subtotal) {
+      this.discountAmount = Math.round(this.subtotal * 0.15);
+    }
+  }
+
+  // Si totalAmount no fue establecido, calcularlo como subtotal - discountAmount + shippingCost
   if (this.totalAmount === undefined && this.subtotal !== undefined) {
     this.totalAmount = Math.max(0, (this.subtotal - (this.discountAmount || 0)) + (this.shippingCost || 0));
   }
 
   // 5. Normalización de payment y retrocompatibilidad con paymentMethod
   if (!this.payment) {
-    this.payment = {
-      method: 'mercadopago',
-      provider: 'mercadopago',
-    };
+    this.payment = {};
   }
 
-  if (this.paymentMethod) {
-    const pmLower = String(this.paymentMethod).toLowerCase();
-    if (pmLower.includes('transfer')) {
-      this.payment.method = 'transfer';
-      this.payment.provider = 'transfer';
-    } else {
-      this.payment.method = 'mercadopago';
-      this.payment.provider = this.payment.provider || 'mercadopago';
-    }
-  } else if (this.payment?.method) {
-    const mLower = String(this.payment.method).toLowerCase();
-    this.payment.method = mLower.includes('transfer') ? 'transfer' : 'mercadopago';
+  if (isTransfer) {
+    this.payment.method = 'transfer';
+    this.payment.provider = 'transfer';
+    this.paymentMethod = 'TRANSFERENCIA';
+  } else {
+    this.payment.method = 'mercadopago';
+    this.payment.provider = this.payment.provider === 'transfer' ? 'transfer' : (this.payment.provider || 'mercadopago');
+    this.paymentMethod = 'MERCADO_PAGO';
   }
-
-  if (!this.payment.provider) {
-    this.payment.provider = this.payment.method === 'transfer' ? 'transfer' : 'mercadopago';
-  }
-
-  // Sincronizar paymentMethod en formato compatible
-  this.paymentMethod = this.payment.method === 'transfer' ? 'TRANSFERENCIA' : 'MERCADO_PAGO';
 
   // 6. Normalizar status si viene en mayúsculas o en español
   if (this.status) {

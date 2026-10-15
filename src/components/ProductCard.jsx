@@ -5,6 +5,7 @@ import { formatMediaUrl } from '../services/api';
 import {
   getPrimaryProductImage,
   getHoverProductImage,
+  getImagesForVariant,
   matchVariantKey,
   DEFAULT_CIRCADIAN_VARIANTS,
 } from '../utils/productImages';
@@ -57,7 +58,8 @@ export default function ProductCard({
     variantOptions[0] ||
     FILTERS[0];
 
-  // Selección determinista de Portada y Hover para la variante activa del MISMO modelo
+  // Selección determinista de Portada y Hover para la variante activa del MISMO modelo usando getImagesForVariant
+  const variantImages = getImagesForVariant(product, activeVariantKey);
   const primaryImg = getPrimaryProductImage(product, activeVariantKey);
   const hoverImg = getHoverProductImage(product, primaryImg, activeVariantKey);
   const hasDistinctHover = hoverImg && hoverImg !== primaryImg;

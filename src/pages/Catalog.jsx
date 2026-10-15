@@ -11,7 +11,7 @@ import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import ProductCard from '../components/ProductCard';
 import { FILTERS } from '../data/filters';
 import { formatMediaUrl } from '../services/api';
-import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage, matchVariantKey } from '../utils/productImages';
+import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage, getImagesForVariant, matchVariantKey } from '../utils/productImages';
 
 const CIRCADIAN_FILTER_TABS = [
   { id: 'ALL', label: 'Todos', color: '#111111' },

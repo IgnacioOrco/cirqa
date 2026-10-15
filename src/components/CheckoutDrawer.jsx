@@ -425,7 +425,7 @@ export default function CheckoutDrawer() {
         };
 
     return {
-      paymentMethod: selectedMethod,
+      paymentMethod: selectedMethod === 'transfer' ? 'transfer' : 'mercadopago',
       subtotal: subtotalAmount,
       discountAmount: discount,
       shippingCost: shippingPrice,
@@ -495,7 +495,8 @@ export default function CheckoutDrawer() {
     setIsSubmitting(true);
 
     try {
-      const payload = buildOrderPayload(paymentMethod);
+      const activeMethod = paymentMethod === 'transfer' ? 'transfer' : 'mercadopago';
+      const payload = buildOrderPayload(activeMethod);
       const response = await orderService.createPreference(payload);
 
       // CASO A: TRANSFERENCIA BANCARIA (15% OFF)

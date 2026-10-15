@@ -503,7 +503,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   const handleUpdateImageVariantKey = async (imageId, newVariantKey) => {
     if (!selectedProduct) return;
     const normalizedKey = newVariantKey && newVariantKey.trim() !== '' && newVariantKey !== 'null'
-      ? newVariantKey.trim().toLowerCase()
+      ? newVariantKey.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
       : null;
 
     try {
@@ -723,7 +723,10 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
   // Abrir selector de archivos directo para una columna de variante específica
   const handleTriggerColumnUpload = (variantKey) => {
-    setColumnUploadTargetKey(variantKey);
+    const normKey = variantKey && variantKey !== 'null'
+      ? variantKey.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      : null;
+    setColumnUploadTargetKey(normKey);
     if (columnFileInputRef.current) {
       columnFileInputRef.current.value = '';
       columnFileInputRef.current.click();
@@ -732,8 +735,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
   // Modificar tag o variantKey de un preview específico antes de subir
   const handleUpdatePreviewMetadata = (idx, field, value) => {
+    let cleanVal = value || null;
+    if (field === 'variantKey' && cleanVal && cleanVal !== 'null') {
+      cleanVal = cleanVal.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    }
     setGalleryPreviews((prev) =>
-      prev.map((p, i) => (i === idx ? { ...p, [field]: value || null } : p))
+      prev.map((p, i) => (i === idx ? { ...p, [field]: cleanVal } : p))
     );
   };
 
@@ -759,11 +766,14 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
       // Agrupar previews por (tag, variantKey) para enviar cada lote con sus metadatos exactos
       const groups = {};
       processedPreviews.forEach((prevItem) => {
-        const groupKey = `${prevItem.tag || 'gallery'}__${prevItem.variantKey || 'null'}`;
+        const normKey = prevItem.variantKey && prevItem.variantKey !== 'null'
+          ? prevItem.variantKey.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          : null;
+        const groupKey = `${prevItem.tag || 'gallery'}__${normKey || 'null'}`;
         if (!groups[groupKey]) {
           groups[groupKey] = {
             tag: prevItem.tag || 'gallery',
-            variantKey: prevItem.variantKey || null,
+            variantKey: normKey,
             files: [],
           };
         }

@@ -8,6 +8,7 @@ import {
   normalizeImageUrl,
   getPrimaryProductImage,
   getHoverProductImage,
+  getImagesForVariant,
   matchVariantKey,
   inferImageVariantKey,
   inferImageTag,
@@ -93,49 +94,16 @@ export default function ConfiguratorModal({
     }
   }, [currentModel?._id, currentModel?.id, hasVariants, initialVariantKey, initialVariant]);
 
-  // Lista reactiva de fotos disponibles estrictamente para la variante activa (currentVariantImages)
+  // Lista reactiva de fotos disponibles estrictamente para la variante activa usando getImagesForVariant
   const currentVariantImages = React.useMemo(() => {
-    const allImages = Array.isArray(currentModel.images) ? currentModel.images : [];
-    const validImages = allImages.filter((img) => img && (img.url || img.imageUrl));
-
-    const currentKey = selectedVariant ? selectedVariant.key : selectedFilter?.id;
-    if (currentKey && validImages.length > 0) {
-      const variantMatched = validImages.filter((img) => {
-        const vKey = img.variantKey || inferImageVariantKey(img);
-        return matchVariantKey(vKey, currentKey);
-      });
-
-      if (variantMatched.length > 0) {
-        // Ordenar fotos de la variante: primero frontal (front), luego ángulo (angle)
-        const sortedMatched = [...variantMatched].sort((a, b) => {
-          const tagA = a.tag || inferImageTag(a);
-          const tagB = b.tag || inferImageTag(b);
-          if (tagA === 'front' && tagB !== 'front') return -1;
-          if (tagB === 'front' && tagA !== 'front') return 1;
-          return (Number(a.order) || 0) - (Number(b.order) || 0);
-        });
-
-        return sortedMatched.map((img, idx) => ({
-          ...img,
-          tag: img.tag || inferImageTag(img, idx),
-          _id: img._id || `var-img-${idx}`,
-          url: normalizeImageUrl(img.url || img.imageUrl),
-        }));
-      }
-    }
-
-    // Si la variante no tiene fotos específicas, usar fotos del producto
-    if (validImages.length > 0) {
-      return validImages.map((img, idx) => ({
-        ...img,
-        tag: img.tag || inferImageTag(img, idx),
-        _id: img._id || `gen-img-${idx}`,
-        url: normalizeImageUrl(img.url || img.imageUrl),
-      }));
-    }
-
-    const fallbackUrl = currentModel.image_url || getPrimaryProductImage(currentModel, selectedVariant?.key);
-    return [{ _id: 'fallback-0', url: fallbackUrl, tag: 'front', isPrimary: true }];
+    const currentKey = selectedVariant ? selectedVariant.key : (selectedFilter?.id || 'dia');
+    const imgs = getImagesForVariant(currentModel, currentKey);
+    return imgs.map((img, idx) => ({
+      ...img,
+      tag: img.tag || inferImageTag(img, idx),
+      _id: img._id || `var-img-${idx}`,
+      url: normalizeImageUrl(img.url || img.imageUrl),
+    }));
   }, [currentModel, selectedVariant, selectedFilter]);
 
   // Sincronizar reactivamente la foto frontal al cambiar de variante o filtro
