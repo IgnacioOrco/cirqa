@@ -28,10 +28,10 @@ connectDB();
 
 const app = express();
 
-// Configuración dinámica y robusta de CORS
+// Configuración definitiva y robusta de CORS
 const allowedOrigins = [
-  'https://cirqa.com.ar',
   'https://www.cirqa.com.ar',
+  'https://cirqa.com.ar',
   'http://localhost:5173',
   'http://localhost:3000',
   'http://localhost:4173',
@@ -39,9 +39,8 @@ const allowedOrigins = [
 ].filter(Boolean);
 
 const isOriginAllowed = (origin) => {
-  if (!origin) return true;
+  if (!origin) return true; // Permitir peticiones locales o sin header Origin (curl, cron jobs, scripts)
   if (allowedOrigins.includes(origin)) return true;
-  if (origin.endsWith('.cirqa.com.ar') || origin.endsWith('cirqa.com.ar')) return true;
   if (/^https?:\/\/([a-z0-9-]+\.)*cirqa\.com\.ar(:\d+)?$/i.test(origin)) return true;
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return true;
   if (/^https?:\/\/([a-z0-9-]+\.)*vercel\.app$/i.test(origin)) return true;
@@ -50,11 +49,11 @@ const isOriginAllowed = (origin) => {
 
 const corsOptions = {
   origin: (origin, callback) => {
-    // Permite peticiones sin origin (herramientas locales, scripts) o dentro de la lista permitida
-    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.some((o) => origin.endsWith('.cirqa.com.ar')) || isOriginAllowed(origin)) {
+    if (isOriginAllowed(origin)) {
       callback(null, true);
     } else {
-      callback(new Error(`Origen ${origin} no autorizado por CORS`));
+      console.warn(`[CORS] Origen no permitido bloqueado: ${origin}`);
+      callback(null, false);
     }
   },
   credentials: true,
@@ -65,14 +64,15 @@ const corsOptions = {
     'X-Requested-With',
     'Accept',
     'Origin',
+    'x-signature',
+    'x-request-id',
   ],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  optionsSuccessStatus: 200,
+  optionsSuccessStatus: 204,
 };
 
+// Aplicar middleware de CORS y responder a peticiones preflight OPTIONS globalmente
 app.use(cors(corsOptions));
-
-// Responder explícitamente a las peticiones preflight OPTIONS
 app.options('*', cors(corsOptions));
 
 // Middlewares para parseo de solicitudes con soporte para payloads pesados
