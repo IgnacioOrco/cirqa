@@ -213,7 +213,7 @@ export const getImagesForVariant = (product, variantKey = null) => {
       (img) => img.variantKey && normalizeVariantKey(img.variantKey) === normKey
     );
     if (matched.length > 0) {
-      return matched;
+      return [...matched].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     }
   }
 

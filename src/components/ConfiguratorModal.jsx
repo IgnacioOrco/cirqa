@@ -98,11 +98,13 @@ export default function ConfiguratorModal({
   const currentVariantImages = React.useMemo(() => {
     const currentKey = selectedVariant ? selectedVariant.key : (selectedFilter?.id || 'dia');
     const imgs = getImagesForVariant(currentModel, currentKey);
-    return imgs.map((img, idx) => ({
+    const sortedImages = [...imgs].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    return sortedImages.map((img, idx) => ({
       ...img,
       tag: img.tag || inferImageTag(img, idx),
       _id: img._id || `var-img-${idx}`,
       url: normalizeImageUrl(img.url || img.imageUrl),
+      order: img.order !== undefined ? img.order : idx,
     }));
   }, [currentModel, selectedVariant, selectedFilter]);
 

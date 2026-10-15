@@ -124,7 +124,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         let imagesList = [];
 
         if (Array.isArray(item.images) && item.images.length > 0) {
-          imagesList = item.images.map((img, idx) => {
+          const sortedRaw = [...item.images].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          imagesList = sortedRaw.map((img, idx) => {
             if (typeof img === 'string') {
               return {
                 _id: `img-${idx}`,
@@ -144,6 +145,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               order: img.order !== undefined ? Number(img.order) : idx,
             };
           });
+
+          imagesList.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
           const primaryObj = imagesList.find((i) => i.isPrimary) || imagesList[0];
           if (primaryObj) primaryImgUrl = primaryObj.url;
@@ -794,7 +797,13 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
       if (!latestProduct) throw new Error('Respuesta inválida del servidor.');
 
-      const updatedImages = (latestProduct.images || []).map((img, idx) => ({
+      const payload = latestProduct;
+      const updatedProd = payload?.product || payload?.data || payload;
+      const sortedImages = [...(updatedProd?.images || [])].sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0)
+      );
+
+      const updatedImages = sortedImages.map((img, idx) => ({
         _id: img._id,
         url: img.url,
         tag: img.tag || 'gallery',
@@ -961,9 +970,14 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
     try {
       const res = await productService.deleteProductImage(selectedProduct._id, imageId);
-      const updatedProduct = res.data;
+      const payload = res.data;
+      const updatedProduct = payload?.product || payload?.data || payload;
 
-      const updatedImages = (updatedProduct.images || []).map((img, idx) => ({
+      const sortedImages = [...(updatedProduct?.images || [])].sort(
+        (a, b) => (a.order ?? 0) - (b.order ?? 0)
+      );
+
+      const updatedImages = sortedImages.map((img, idx) => ({
         _id: img._id,
         url: img.url,
         tag: img.tag || 'gallery',
@@ -2208,11 +2222,13 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
                       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[380px] overflow-y-auto pr-1">
                         {galleryColumns.map((col) => {
-                          const colImages = (selectedProduct.images || []).filter((img) =>
-                            col.key === null
-                              ? (!img.variantKey || img.variantKey === 'null')
-                              : (img.variantKey === col.key)
-                          );
+                          const colImages = (selectedProduct.images || [])
+                            .filter((img) =>
+                              col.key === null
+                                ? (!img.variantKey || img.variantKey === 'null')
+                                : (img.variantKey === col.key)
+                            )
+                            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
                           return (
                             <div

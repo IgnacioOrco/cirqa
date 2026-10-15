@@ -632,6 +632,7 @@ export const uploadProductImagesController = async (req, res, next) => {
 export const deleteProductImage = async (req, res, next) => {
   try {
     const { id, imageId } = req.params;
+    const { url } = req.body || {};
 
     let product;
     if (mongoose.Types.ObjectId.isValid(id)) {
@@ -651,11 +652,11 @@ export const deleteProductImage = async (req, res, next) => {
       product.images = [];
     }
 
-    const targetIdStr = String(imageId);
+    const targetKey = String(imageId || url || '').trim();
 
-    // Búsqueda resiliente de la imagen
+    // Búsqueda resiliente de la imagen objetivo
     let targetImage = null;
-    if (typeof product.images.id === 'function') {
+    if (imageId && typeof product.images.id === 'function') {
       try {
         targetImage = product.images.id(imageId);
       } catch (err) {
@@ -665,7 +666,12 @@ export const deleteProductImage = async (req, res, next) => {
     if (!targetImage) {
       targetImage = product.images.find((img) => {
         const idVal = img?._id ? String(img._id) : String(img?.id || '');
-        return idVal === targetIdStr;
+        const urlVal = img?.url ? String(img.url) : '';
+        return (
+          (targetKey && idVal === targetKey) ||
+          (targetKey && urlVal === targetKey) ||
+          (url && urlVal === String(url))
+        );
       });
     }
 
@@ -676,7 +682,7 @@ export const deleteProductImage = async (req, res, next) => {
       });
     }
 
-    // Borrado físico del archivo en el servidor VPS
+    // Borrado físico del archivo en el servidor VPS si corresponde
     if (targetImage.url && targetImage.url.includes('/uploads/')) {
       try {
         const filename = path.basename(targetImage.url);
@@ -690,16 +696,30 @@ export const deleteProductImage = async (req, res, next) => {
     }
 
     const wasPrimary = Boolean(targetImage.isPrimary);
+    const targetIdStr = targetImage._id ? String(targetImage._id) : targetKey;
+    const targetUrl = targetImage.url ? String(targetImage.url) : (url ? String(url) : '');
 
-    // Filtrar la imagen eliminada de manera segura
+    // 1. Filtrar el array product.images para remover el elemento seleccionado
     product.images = product.images.filter((img) => {
       const idVal = img?._id ? String(img._id) : String(img?.id || '');
-      return idVal !== targetIdStr;
+      const urlVal = img?.url ? String(img.url) : '';
+      if (targetIdStr && idVal === targetIdStr) return false;
+      if (targetUrl && urlVal === targetUrl) return false;
+      return true;
     });
 
-    // Si eliminamos la foto principal y aún quedan fotos, reasignar la primera como principal
-    if (wasPrimary && product.images.length > 0) {
-      product.images[0].isPrimary = true;
+    // 2. Reordenamiento secuencial obligatorio: Recorrer el array resultante de imágenes y reasignar la propiedad order de forma consecutiva empezando desde 0
+    product.images = product.images.map((img, index) => ({
+      ...(img.toObject ? img.toObject() : img),
+      order: index,
+    }));
+
+    // Si eliminamos la foto principal y aún quedan fotos, o no queda ninguna marcada como principal, reasignar la primera como principal
+    if (product.images.length > 0) {
+      const hasPrimary = product.images.some((img) => img.isPrimary);
+      if (!hasPrimary || wasPrimary) {
+        product.images[0].isPrimary = true;
+      }
     }
 
     // Sincronizar foto principal
@@ -707,21 +727,16 @@ export const deleteProductImage = async (req, res, next) => {
     const newImageUrl = currentPrimary ? currentPrimary.url : '';
     product.image_url = newImageUrl;
 
-    const updatedProduct = await Product.findByIdAndUpdate(
-      product._id,
-      {
-        $set: {
-          images: product.images,
-          image_url: newImageUrl,
-        },
-      },
-      { new: true, runValidators: false }
-    );
+    // 3. Marcar el campo como modificado y persistir
+    product.markModified('images');
+    await product.save();
 
+    // 4. Responder enviando el producto actualizado con sus índices limpios y sincronizados
     return res.status(200).json({
       success: true,
-      message: 'Imagen eliminada exitosamente del producto y del almacenamiento.',
-      data: updatedProduct || product,
+      message: 'Imagen eliminada exitosamente del producto y reindexada.',
+      product,
+      data: product,
     });
   } catch (error) {
     next(error);
