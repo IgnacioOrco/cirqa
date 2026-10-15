@@ -325,6 +325,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   const [galleryPreviews, setGalleryPreviews] = useState([]);
 
   // Referencia para subida directa por columna
+  const columnFileInputRef = useRef(null);
   const [columnUploadTargetKey, setColumnUploadTargetKey] = useState(null);
   const [activeAdminVariantTab, setActiveAdminVariantTab] = useState('all');
 
