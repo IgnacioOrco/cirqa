@@ -184,9 +184,82 @@ export const getSortedProductImages = (product) => {
 };
 
 /**
- * Asignación Inteligente y Fallback por Pares para Variantes de Producto
+ * Auto-asigna claves de variante a imágenes huérfanas (sin variantKey)
+ * emparejando fronts[i], angles[i] y models[i] con ['clear', 'dia', 'transicion', 'noche'][i].
+ *
+ * @param {Array} images - Array de imágenes del producto
+ * @returns {Array} Array de imágenes con variantKey asignado
+ */
+export const autoAssignMissingVariantKeys = (images) => {
+  if (!Array.isArray(images) || images.length === 0) return [];
+
+  const hasOrphans = images.some(
+    (img) => !img.variantKey || img.variantKey === 'null' || img.variantKey === 'undefined'
+  );
+  if (!hasOrphans) {
+    return images;
+  }
+
+  const VARIANT_KEYS = ['clear', 'dia', 'transicion', 'noche'];
+  const orphanImages = images.filter(
+    (img) => !img.variantKey || img.variantKey === 'null' || img.variantKey === 'undefined'
+  );
+
+  let fronts = orphanImages.filter((img) => img.tag === 'front');
+  // Si hay un solo 'front' (como en Q 002) o menos de 4 frentes, complementar con 'gallery'
+  if (fronts.length <= 1) {
+    const galleryFronts = orphanImages.filter(
+      (img) => img.tag === 'gallery' && img.tag !== 'angle' && img.tag !== 'side' && img.tag !== 'model' && img.tag !== 'lifestyle'
+    );
+    fronts = [...fronts, ...galleryFronts];
+  }
+
+  const angles = orphanImages.filter(
+    (img) => img.tag === 'angle' || img.tag === 'side' || img.tag === 'hover'
+  );
+  const models = orphanImages.filter(
+    (img) => img.tag === 'model' || img.tag === 'lifestyle'
+  );
+
+  const assignedVariantMap = new Map();
+  const assignedTagMap = new Map();
+
+  VARIANT_KEYS.forEach((vKey, i) => {
+    if (fronts[i]) {
+      const key = fronts[i]._id || fronts[i].url;
+      assignedVariantMap.set(key, vKey);
+      assignedTagMap.set(key, 'front');
+    }
+    if (angles[i]) {
+      const key = angles[i]._id || angles[i].url;
+      assignedVariantMap.set(key, vKey);
+      assignedTagMap.set(key, 'angle');
+    }
+    if (models[i]) {
+      const key = models[i]._id || models[i].url;
+      assignedVariantMap.set(key, vKey);
+      assignedTagMap.set(key, 'model');
+    }
+  });
+
+  return images.map((img) => {
+    const key = img._id || img.url;
+    if (assignedVariantMap.has(key)) {
+      return {
+        ...img,
+        variantKey: assignedVariantMap.get(key),
+        tag: assignedTagMap.get(key) || img.tag || 'gallery',
+      };
+    }
+    return img;
+  });
+};
+
+/**
+ * Asignación Inteligente y Soporte Ilimitado de Fotos por Variante
  * @param {Object} product - Producto a inspeccionar
  * @param {string|null} variantKey - Clave de variante ('clear', 'dia', 'transicion', 'noche')
+ * @param {Object} options - Opciones adicionales (forAdmin, allowFallback)
  * @returns {Array} Array de imágenes filtradas y ordenadas para la variante
  */
 export const getImagesForVariant = (product, variantKey = null, options = {}) => {
@@ -209,19 +282,10 @@ export const getImagesForVariant = (product, variantKey = null, options = {}) =>
       order: typeof img.order === 'number' ? img.order : idx,
     }));
 
-  // Ordenar todas las imágenes respetando su order y priorizando tags ('front', luego angle/side, luego model)
-  const tagPriority = { front: 1, angle: 2, side: 3, gallery: 4, detail: 5, model: 6, lifestyle: 7, unassigned: 8 };
-  allImages.sort((a, b) => {
-    const orderDiff = (a.order ?? 0) - (b.order ?? 0);
-    if (orderDiff !== 0) return orderDiff;
-    const prioA = tagPriority[a.tag] || 99;
-    const prioB = tagPriority[b.tag] || 99;
-    return prioA - prioB;
-  });
+  allImages.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
+  // 1. Normalizar targetKey = normalizeVariantKey(variantKey). Si !targetKey, devolver todas las imágenes ordenadas.
   const targetKey = normalizeVariantKey(variantKey);
-
-  // Si no se pide variante (!targetKey), devolver todas las imágenes ordenadas
   if (!targetKey) {
     if (allImages.length > 0) return allImages;
     if (product.image_url) {
@@ -230,69 +294,83 @@ export const getImagesForVariant = (product, variantKey = null, options = {}) =>
     return [{ url: FALLBACK_IMAGE, tag: 'front', isPrimary: true, isHover: false, order: 0, variantKey: null }];
   }
 
-  // Filtrar todas las imágenes del producto que tengan normalizeVariantKey(img.variantKey) === targetKey
-  const matched = allImages.filter(
+  // 2. Filtrar las imágenes que ya tienen normalizeVariantKey(img.variantKey) === targetKey
+  const strictMatches = allImages.filter(
     (img) => img.variantKey && normalizeVariantKey(img.variantKey) === targetKey
   );
 
-  // Si hay 1 o más imágenes asignadas a targetKey (1, 2, 3, 5 o 10 fotos): devolver TODAS esas imágenes completas
-  if (matched.length > 0) {
-    return matched;
+  const rolePriority = (tag) => {
+    if (tag === 'front') return 1;
+    if (tag === 'angle' || tag === 'side' || tag === 'hover') return 2;
+    if (tag === 'model' || tag === 'lifestyle') return 3;
+    if (tag === 'gallery' || tag === 'detail') return 4;
+    return 5;
+  };
+
+  // 3. Regla Principal (Sin límite de cantidad):
+  // Si strictMatches.length > 0, devolver TODAS las imágenes de strictMatches ordenadas por rol
+  // ('front' primero, luego 'angle'/'side', luego 'model'/'lifestyle', luego 'gallery') y por 'order'.
+  // NUNCA recortar con .slice(0, 2).
+  if (strictMatches.length > 0) {
+    const sortedStrict = [...strictMatches].sort((a, b) => {
+      const prioDiff = rolePriority(a.tag) - rolePriority(b.tag);
+      if (prioDiff !== 0) return prioDiff;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
+    return sortedStrict;
   }
 
-  // Si para esa variante puntual (targetKey) hay 0 imágenes con variantKey === targetKey:
-  const hasAnyAssignedVariant = allImages.some((img) => Boolean(img.variantKey));
+  // 4. Regla de Emparejamiento por Rol para Imágenes sin variantKey (Fallback inteligente)
+  const orphanImages = allImages.filter(
+    (img) => !img.variantKey || !normalizeVariantKey(img.variantKey)
+  );
 
-  // Si algunas variantes ya fueron asignadas en el Admin pero esta variante específica aún no tiene fotos asignadas:
-  if (hasAnyAssignedVariant) {
-    if (options.allowFallback === false || options.forAdmin) {
-      return [];
+  if (orphanImages.length > 0) {
+    let fronts = orphanImages.filter((img) => img.tag === 'front');
+    // Si hay un solo 'front' (como en Q 002) o menos de 4 frentes, complementar con 'gallery'
+    if (fronts.length <= 1) {
+      const galleryFronts = orphanImages.filter(
+        (img) => img.tag === 'gallery' && img.tag !== 'angle' && img.tag !== 'side' && img.tag !== 'model' && img.tag !== 'lifestyle'
+      );
+      fronts = [...fronts, ...galleryFronts];
     }
-    // En la tienda pública devolver como fallback únicamente la foto de portada general para que no se vea roto
-    const primaryGeneral = allImages.find((img) => img.isPrimary) || allImages[0];
-    if (primaryGeneral) {
-      return [{ ...primaryGeneral, isPrimary: true, isHover: false }];
+
+    const angles = orphanImages.filter(
+      (img) => img.tag === 'angle' || img.tag === 'side' || img.tag === 'hover'
+    );
+    const models = orphanImages.filter(
+      (img) => img.tag === 'model' || img.tag === 'lifestyle'
+    );
+
+    const VARIANT_ORDER = ['clear', 'dia', 'transicion', 'noche'];
+    let variantIndex = VARIANT_ORDER.indexOf(targetKey);
+    if (variantIndex === -1 && Array.isArray(product.variants)) {
+      variantIndex = product.variants.findIndex(
+        (v) => normalizeVariantKey(v.key || v.name) === targetKey
+      );
     }
-    if (product.image_url) {
-      return [{ url: normalizeImageUrl(product.image_url), tag: 'front', isPrimary: true, isHover: false, order: 0, variantKey: null }];
+
+    if (variantIndex >= 0) {
+      const variantGroup = [];
+      if (fronts[variantIndex]) variantGroup.push(fronts[variantIndex]);
+      if (angles[variantIndex]) variantGroup.push(angles[variantIndex]);
+      if (models[variantIndex]) variantGroup.push(models[variantIndex]);
+
+      if (variantGroup.length > 0) {
+        return variantGroup;
+      }
     }
+  }
+
+  // Fallback si no hay imágenes para la variante puntual
+  if (options.allowFallback === false || options.forAdmin) {
     return [];
   }
 
-  // Si TODAS las imágenes del producto son huérfanas (productos viejos en DB no categorizados) y hay >= 8 imágenes:
-  const studioImages = allImages.filter((img) => img.tag !== 'model' && img.tag !== 'lifestyle');
-  const modelImages = allImages.filter((img) => img.tag === 'model' || img.tag === 'lifestyle');
-
-  if (studioImages.length >= 8) {
-    let pairIndices = [0, 1];
-    let modelIndex = 0;
-
-    if (targetKey === 'clear') {
-      pairIndices = [0, 1];
-      modelIndex = 0;
-    } else if (targetKey === 'dia') {
-      pairIndices = [2, 3];
-      modelIndex = 1;
-    } else if (targetKey === 'transicion') {
-      pairIndices = [4, 5];
-      modelIndex = 2;
-    } else if (targetKey === 'noche') {
-      pairIndices = [6, 7];
-      modelIndex = 3;
-    }
-
-    const selectedStudio = pairIndices.map((idx) => studioImages[idx]).filter(Boolean);
-    const result = [...selectedStudio];
-    if (modelImages[modelIndex]) {
-      result.push(modelImages[modelIndex]);
-    }
-    if (result.length > 0) {
-      return result;
-    }
-  }
-
+  // En la tienda pública, devolver como fallback la portada general si existe
   if (allImages.length > 0) {
-    return allImages;
+    const primaryGeneral = allImages.find((img) => img.isPrimary) || allImages[0];
+    return [primaryGeneral];
   }
 
   if (product.image_url) {

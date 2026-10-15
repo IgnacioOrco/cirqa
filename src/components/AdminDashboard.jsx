@@ -41,6 +41,7 @@ import {
   handleSessionExpired,
   formatMediaUrl,
 } from '../services/api';
+import { autoAssignMissingVariantKeys, normalizeVariantKey } from '../utils/productImages';
 import OrdersTab from './admin/OrdersTab';
 
 const MODEL_SORT_ORDER = {
@@ -146,6 +147,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
           });
 
           imagesList.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+          imagesList = autoAssignMissingVariantKeys(imagesList);
 
           const primaryObj = imagesList.find((i) => i.isPrimary) || imagesList[0];
           if (primaryObj) primaryImgUrl = primaryObj.url;
@@ -346,7 +348,15 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
   // Abrir modal de edición
   const handleOpenEdit = (product) => {
-    setSelectedProduct(product);
+    const rawImages = Array.isArray(product.images) ? product.images : [];
+    const autoAssignedImages = autoAssignMissingVariantKeys(rawImages);
+
+    const updatedProduct = {
+      ...product,
+      images: autoAssignedImages,
+    };
+
+    setSelectedProduct(updatedProduct);
     setEditPrice(String(product.price));
     setEditStock(String(product.stock));
     setEditIsActive(product.isActive !== false);
@@ -507,7 +517,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   const handleUpdateImageVariantKey = async (imageId, newVariantKey) => {
     if (!selectedProduct) return;
     const normalizedKey = newVariantKey && newVariantKey.trim() !== '' && newVariantKey !== 'null'
-      ? newVariantKey.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      ? normalizeVariantKey(newVariantKey)
       : null;
 
     try {
@@ -698,9 +708,15 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
     // Crear previews con autoclasificación
     const activeVariants = editVariants.length > 0 ? editVariants : (selectedProduct?.variants || []);
+    const effectiveVariantKey = forcedVariantKey !== undefined
+      ? forcedVariantKey
+      : (activeAdminVariantTab !== 'all' ? (activeAdminVariantTab === 'unassigned' ? null : activeAdminVariantTab) : undefined);
+
     const newPreviews = files.map((f) => {
       const classification = classifyImageFile(f.name, activeVariants);
-      const assignedVariant = forcedVariantKey !== undefined ? forcedVariantKey : classification.variantKey;
+      const assignedVariant = effectiveVariantKey !== undefined
+        ? effectiveVariantKey
+        : classification.variantKey;
       const assignedTag = classification.tag || 'gallery';
 
       return {
@@ -709,15 +725,15 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         name: f.name,
         size: (f.size / 1024).toFixed(0),
         tag: assignedTag,
-        variantKey: assignedVariant || null,
+        variantKey: assignedVariant ? normalizeVariantKey(assignedVariant) : null,
         autoDetected: Boolean(classification.variantKey || classification.tag !== 'gallery'),
       };
     });
 
     setGalleryPreviews(newPreviews);
     setSelectedGalleryFiles(files);
-    if (forcedVariantKey !== undefined) {
-      setSelectedGalleryVariantKey(forcedVariantKey || '');
+    if (effectiveVariantKey !== undefined) {
+      setSelectedGalleryVariantKey(effectiveVariantKey ? normalizeVariantKey(effectiveVariantKey) : '');
     } else if (newPreviews[0]?.variantKey) {
       setSelectedGalleryVariantKey(newPreviews[0].variantKey);
     }
@@ -727,7 +743,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   // Abrir selector de archivos directo para una columna de variante específica
   const handleTriggerColumnUpload = (variantKey) => {
     const normKey = variantKey && variantKey !== 'null'
-      ? variantKey.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+      ? normalizeVariantKey(variantKey)
       : null;
     setColumnUploadTargetKey(normKey);
     if (columnFileInputRef.current) {
@@ -740,7 +756,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   const handleUpdatePreviewMetadata = (idx, field, value) => {
     let cleanVal = value || null;
     if (field === 'variantKey' && cleanVal && cleanVal !== 'null') {
-      cleanVal = cleanVal.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      cleanVal = normalizeVariantKey(cleanVal);
     }
     setGalleryPreviews((prev) =>
       prev.map((p, i) => (i === idx ? { ...p, [field]: cleanVal } : p))
@@ -770,7 +786,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
       const groups = {};
       processedPreviews.forEach((prevItem) => {
         const normKey = prevItem.variantKey && prevItem.variantKey !== 'null'
-          ? prevItem.variantKey.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+          ? normalizeVariantKey(prevItem.variantKey)
           : null;
         const groupKey = `${prevItem.tag || 'gallery'}__${normKey || 'null'}`;
         if (!groups[groupKey]) {
@@ -1160,6 +1176,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               hasVariants: updatedData.hasVariants !== undefined ? updatedData.hasVariants : editHasVariants,
               variantAxisTitle: updatedData.variantAxisTitle || editVariantAxisTitle,
               variants: Array.isArray(updatedData.variants) ? updatedData.variants : formattedVariants,
+              images: updatedData.images || selectedProduct.images || p.images,
             };
           }
           return p;
@@ -2124,8 +2141,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                       {galleryColumns.map((col) => {
                         const count = (selectedProduct.images || []).filter((img) =>
                           col.key === null
-                            ? (!img.variantKey || img.variantKey === 'null')
-                            : (img.variantKey === col.key)
+                            ? (!img.variantKey || img.variantKey === 'null' || !normalizeVariantKey(img.variantKey))
+                            : (normalizeVariantKey(img.variantKey) === normalizeVariantKey(col.key))
                         ).length;
                         const isTabActive = activeAdminVariantTab === (col.key ?? 'unassigned');
 
@@ -2329,8 +2346,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                           const colImages = (selectedProduct.images || [])
                             .filter((img) =>
                               col.key === null
-                                ? (!img.variantKey || img.variantKey === 'null')
-                                : (img.variantKey === col.key)
+                                ? (!img.variantKey || img.variantKey === 'null' || !normalizeVariantKey(img.variantKey))
+                                : (normalizeVariantKey(img.variantKey) === normalizeVariantKey(col.key))
                             )
                             .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
 
