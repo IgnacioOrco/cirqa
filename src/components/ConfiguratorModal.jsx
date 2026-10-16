@@ -9,6 +9,7 @@ import {
   getPrimaryProductImage,
   getHoverProductImage,
   getImagesForVariant,
+  getActiveProductVariants,
   matchVariantKey,
   inferImageVariantKey,
   inferImageTag,
@@ -66,12 +67,11 @@ export default function ConfiguratorModal({
   }, [initialFilter, initialVariantKey]);
 
   const currentModel = selectedModel || products[0] || {};
-  const hasVariants = Boolean(
-    currentModel.hasVariants &&
-    Array.isArray(currentModel.variants) &&
-    currentModel.variants.length > 0
-  );
-  const variantsList = hasVariants ? currentModel.variants : [];
+  const activeVariants = React.useMemo(() => {
+    return getActiveProductVariants(currentModel);
+  }, [currentModel]);
+  const hasVariants = activeVariants.length > 0;
+  const variantsList = activeVariants;
 
   // Sincronizar variante seleccionada por defecto al cambiar de modelo o recibir initialVariantKey
   useEffect(() => {
@@ -84,15 +84,18 @@ export default function ConfiguratorModal({
         }
       }
       if (initialVariant) {
-        setSelectedVariant(initialVariant);
-        return;
+        const found = variantsList.find((v) => matchVariantKey(v.key, initialVariant.key || initialVariant.name));
+        if (found) {
+          setSelectedVariant(found);
+          return;
+        }
       }
       const defaultVar = variantsList.find((v) => v.isDefault) || variantsList[0];
       setSelectedVariant(defaultVar);
     } else {
       setSelectedVariant(null);
     }
-  }, [currentModel?._id, currentModel?.id, hasVariants, initialVariantKey, initialVariant]);
+  }, [currentModel?._id, currentModel?.id, hasVariants, variantsList, initialVariantKey, initialVariant]);
 
   // Lista reactiva de fotos disponibles estrictamente para la variante activa usando getImagesForVariant
   const currentVariantImages = React.useMemo(() => {

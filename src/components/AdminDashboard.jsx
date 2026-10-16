@@ -34,6 +34,10 @@ import {
   Layers,
   Tag,
   Sparkles,
+  Percent,
+  ArrowLeft,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react';
 import {
   productService,
@@ -43,6 +47,14 @@ import {
 } from '../services/api';
 import { autoAssignMissingVariantKeys, normalizeVariantKey } from '../utils/productImages';
 import OrdersTab from './admin/OrdersTab';
+import CouponsTab from './admin/CouponsTab';
+
+export const CANONICAL_VARIANTS = [
+  { key: 'clear', name: 'Clear', subtitle: 'USO DIARIO', colorHex: '#CBD5E1', badgeColor: '#CBD5E1' },
+  { key: 'dia', name: 'Día', subtitle: 'PANTALLAS · FOCO', colorHex: '#FACC15', badgeColor: '#FACC15' },
+  { key: 'transicion', name: 'Transición', subtitle: 'TARDE 17HS · CAÍDA SOLAR', colorHex: '#FB923C', badgeColor: '#FB923C' },
+  { key: 'noche', name: 'Noche', subtitle: 'NOCHE 20HS · MELATONINA', colorHex: '#F87171', badgeColor: '#F87171' },
+];
 
 const MODEL_SORT_ORDER = {
   q001: 1,
@@ -328,6 +340,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
   // Referencia para subida directa por columna
   const columnFileInputRef = useRef(null);
+  const directUploadInputRef = useRef(null);
+  const [directUploadTarget, setDirectUploadTarget] = useState({ variantKey: null, tag: 'front', label: '' });
   const [columnUploadTargetKey, setColumnUploadTargetKey] = useState(null);
   const [activeAdminVariantTab, setActiveAdminVariantTab] = useState('all');
 
@@ -346,14 +360,71 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }
   };
 
-  // Abrir modal de edición
+    // Abrir modal de edición
   const handleOpenEdit = (product) => {
     const rawImages = Array.isArray(product.images) ? product.images : [];
     const autoAssignedImages = autoAssignMissingVariantKeys(rawImages);
 
+    // Reconstruir variantes persistentes:
+    // 1) Si product.variants existe y tiene elementos, usarlas.
+    // 2) Si está vacío, reconstruir a partir de variantKey de las imágenes.
+    // 3) Si tampoco hay imágenes con variantKey, precargar las 4 canónicas circadianas.
+    let initialVariants = Array.isArray(product.variants) && product.variants.length > 0
+      ? product.variants.map((v, idx) => ({
+          key: normalizeVariantKey(v.key || v.name),
+          name: v.name || v.key,
+          subtitle: v.subtitle || '',
+          colorHex: v.colorHex || v.badgeColor || '#CBD5E1',
+          badgeColor: v.badgeColor || v.colorHex || '#CBD5E1',
+          priceModifier: Number(v.priceModifier) || 0,
+          stock: v.stock !== undefined ? Number(v.stock) : 10,
+          isAvailable: v.isAvailable !== false,
+          order: typeof v.order === 'number' ? v.order : idx,
+        }))
+      : [];
+
+    if (initialVariants.length === 0) {
+      const keysInImages = [
+        ...new Set(
+          autoAssignedImages
+            .filter((img) => img.tag !== 'model' && img.variantKey)
+            .map((img) => normalizeVariantKey(img.variantKey))
+            .filter(Boolean)
+        ),
+      ];
+
+      if (keysInImages.length > 0) {
+        initialVariants = keysInImages.map((k, idx) => {
+          const match = CANONICAL_VARIANTS.find((p) => p.key === k);
+          return {
+            key: k,
+            name: match?.name || k.toUpperCase(),
+            subtitle: match?.subtitle || '',
+            colorHex: match?.colorHex || '#CBD5E1',
+            badgeColor: match?.badgeColor || '#CBD5E1',
+            priceModifier: 0,
+            stock: 10,
+            isAvailable: true,
+            order: idx,
+          };
+        });
+      } else {
+        initialVariants = CANONICAL_VARIANTS.map((p, idx) => ({
+          ...p,
+          priceModifier: 0,
+          stock: 10,
+          isAvailable: true,
+          order: idx,
+        }));
+      }
+    }
+
+    initialVariants.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
     const updatedProduct = {
       ...product,
       images: autoAssignedImages,
+      variants: initialVariants,
     };
 
     setSelectedProduct(updatedProduct);
@@ -362,13 +433,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setEditIsActive(product.isActive !== false);
     setEditDescription(product.description || '');
     setEditModelCode(product.modelCode || product.code || '');
-    setEditHasVariants(Boolean(product.hasVariants));
-    setEditVariantAxisTitle(product.variantAxisTitle || 'Seleccionar Variante');
-    setEditVariants(
-      Array.isArray(product.variants) && product.variants.length > 0
-        ? product.variants.map((v) => ({ ...v }))
-        : []
-    );
+    setEditHasVariants(true);
+    setEditVariantAxisTitle(product.variantAxisTitle || 'Seleccionar Cristal Circadiano');
+    setEditVariants(initialVariants);
     setActiveAdminVariantTab('all');
     setModalError(null);
     setSaveSuccess(false);
@@ -439,78 +506,350 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     }
   };
 
-  // Handlers para la gestión interactiva de variantes en el repeater
-  const handleAddVariant = () => {
-    const idx = editVariants.length + 1;
-    const defaultKey = `var-${Date.now().toString().slice(-4)}`;
-    setEditVariants((prev) => [
-      ...prev,
-      {
-        key: defaultKey,
-        name: `Opción ${idx}`,
-        subtitle: '',
-        badgeColor: '#000000',
-        priceModifier: 0,
-        isDefault: prev.length === 0,
-      },
-    ]);
+    // Persistir variantes de inmediato en MongoDB
+  const persistVariantsToBackend = async (productId, newVariants) => {
+    try {
+      const formatted = newVariants.map((v, idx) => ({
+        key: normalizeVariantKey(v.key || v.name),
+        name: v.name || v.key,
+        subtitle: v.subtitle || '',
+        colorHex: v.colorHex || v.badgeColor || '#CBD5E1',
+        badgeColor: v.badgeColor || v.colorHex || '#CBD5E1',
+        priceModifier: Number(v.priceModifier) || 0,
+        stock: v.stock !== undefined ? Number(v.stock) : 10,
+        isAvailable: v.isAvailable !== false,
+        order: typeof v.order === 'number' ? v.order : idx,
+      }));
+
+      await productService.updateProduct(productId, {
+        variants: formatted,
+        hasVariants: formatted.length > 0,
+      });
+
+      setSelectedProduct((prev) => (prev ? { ...prev, variants: formatted } : prev));
+      setProducts((prev) =>
+        prev.map((p) => (p._id === productId ? { ...p, variants: formatted } : p))
+      );
+    } catch (err) {
+      console.error('[persistVariantsToBackend Error]:', err);
+      showToast('Error al persistir variantes en el servidor.', 'error');
+    }
   };
 
-  const handleRemoveVariant = (index) => {
-    setEditVariants((prev) => prev.filter((_, idx) => idx !== index));
+  const handleMoveVariantOrder = async (index, direction) => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= editVariants.length) return;
+
+    const newVariants = [...editVariants];
+    const [moved] = newVariants.splice(index, 1);
+    newVariants.splice(targetIndex, 0, moved);
+
+    const reordered = newVariants.map((v, idx) => ({ ...v, order: idx }));
+    setEditVariants(reordered);
+    if (selectedProduct) {
+      await persistVariantsToBackend(selectedProduct._id, reordered);
+    }
+    showToast('Orden de variantes actualizado.');
   };
 
-  const handleUpdateVariantField = (index, field, value) => {
-    setEditVariants((prev) =>
-      prev.map((v, idx) => {
-        if (idx !== index) return v;
-        const updated = { ...v, [field]: value };
-        if (field === 'name' && (!v.key || v.key.startsWith('var-'))) {
-          const autoKey = value
-            .toLowerCase()
-            .trim()
-            .normalize('NFD')
-            .replace(/[\u0300-\u036f]/g, '')
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '');
-          if (autoKey) updated.key = autoKey;
-        }
-        return updated;
-      })
+  const handleAddPresetVariant = async (preset) => {
+    const normKey = normalizeVariantKey(preset.key);
+    if (editVariants.some((v) => normalizeVariantKey(v.key) === normKey)) {
+      showToast(`La variante "${preset.name}" ya existe en este producto.`, 'error');
+      return;
+    }
+
+    const newVariant = {
+      key: normKey,
+      name: preset.name,
+      subtitle: preset.subtitle || '',
+      colorHex: preset.colorHex || '#CBD5E1',
+      badgeColor: preset.badgeColor || preset.colorHex || '#CBD5E1',
+      priceModifier: 0,
+      stock: 10,
+      isAvailable: true,
+      order: editVariants.length,
+    };
+
+    const updated = [...editVariants, newVariant];
+    setEditVariants(updated);
+    if (selectedProduct) {
+      await persistVariantsToBackend(selectedProduct._id, updated);
+    }
+    showToast(`Variante "${preset.name}" agregada.`);
+  };
+
+  const handleAddCustomVariant = async () => {
+    const name = window.prompt('Nombre de la nueva variante (ej. Noche Plus, Talle L):');
+    if (!name || !name.trim()) return;
+    const cleanKey = normalizeVariantKey(name);
+    if (editVariants.some((v) => normalizeVariantKey(v.key) === cleanKey)) {
+      showToast(`Ya existe una variante con la clave "${cleanKey}".`, 'error');
+      return;
+    }
+
+    const newVariant = {
+      key: cleanKey,
+      name: name.trim(),
+      subtitle: '',
+      colorHex: '#CBD5E1',
+      badgeColor: '#CBD5E1',
+      priceModifier: 0,
+      stock: 10,
+      isAvailable: true,
+      order: editVariants.length,
+    };
+
+    const updated = [...editVariants, newVariant];
+    setEditVariants(updated);
+    if (selectedProduct) {
+      await persistVariantsToBackend(selectedProduct._id, updated);
+    }
+    showToast(`Variante "${name.trim()}" creada.`);
+  };
+
+  const handleDeleteVariant = async (index) => {
+    const variant = editVariants[index];
+    if (!variant || !selectedProduct) return;
+
+    const variantKey = normalizeVariantKey(variant.key);
+    const variantPhotos = (selectedProduct.images || []).filter(
+      (img) => img.tag !== 'model' && normalizeVariantKey(img.variantKey) === variantKey
     );
+
+    let confirmMsg = `¿Estás seguro de que deseas eliminar la variante "${variant.name}"?`;
+    if (variantPhotos.length > 0) {
+      confirmMsg += `\n\nEste producto tiene ${variantPhotos.length} foto(s) asignadas a esta variante. Pasarán a "Fotos sin variante asignada".`;
+    }
+
+    if (!window.confirm(confirmMsg)) return;
+
+    const newVariants = editVariants
+      .filter((_, i) => i !== index)
+      .map((v, idx) => ({ ...v, order: idx }));
+    setEditVariants(newVariants);
+
+    let updatedImages = selectedProduct.images;
+    if (variantPhotos.length > 0) {
+      updatedImages = (selectedProduct.images || []).map((img) =>
+        normalizeVariantKey(img.variantKey) === variantKey ? { ...img, variantKey: null } : img
+      );
+      setSelectedProduct((prev) => ({ ...prev, images: updatedImages }));
+      setProducts((prev) =>
+        prev.map((p) => (p._id === selectedProduct._id ? { ...p, images: updatedImages } : p))
+      );
+    }
+
+    try {
+      await productService.updateProduct(selectedProduct._id, {
+        variants: newVariants,
+        images: updatedImages,
+        hasVariants: newVariants.length > 0,
+      });
+      showToast(`Variante "${variant.name}" eliminada.`);
+    } catch (err) {
+      console.error('[handleDeleteVariant Error]:', err);
+      showToast('Error al eliminar variante del servidor.', 'error');
+    }
   };
 
-  // PRESETS DE VARIANTES
-  // 1. Plantilla Cristales Circadianos CIRQA
-  const handleLoadCircadianPresets = () => {
-    setEditHasVariants(true);
-    setEditVariantAxisTitle('Seleccionar Cristal Circadiano');
-    setEditVariants([
-      { key: 'clear', name: 'Clear', subtitle: 'USO DIARIO', badgeColor: '#F3F4F6', priceModifier: 0, isDefault: false },
-      { key: 'dia', name: 'Día', subtitle: 'PANTALLAS · FOCO', badgeColor: '#F3B93A', priceModifier: 0, isDefault: true },
-      { key: 'transicion', name: 'Transición', subtitle: 'TARDE 17HS · CAÍDA SOLAR', badgeColor: '#D97706', priceModifier: 0, isDefault: false },
-      { key: 'noche', name: 'Noche', subtitle: 'NOCHE 20HS · MELATONINA', badgeColor: '#991B1B', priceModifier: 0, isDefault: false },
-    ]);
-    showToast('Plantilla de 4 Cristales Circadianos CIRQA cargada.');
+  // Subida directa por bloque de variante o modelo
+  const handleTriggerDirectUpload = (variantKey, tag = 'front', label = '') => {
+    setDirectUploadTarget({ variantKey, tag, label });
+    if (directUploadInputRef.current) {
+      directUploadInputRef.current.value = '';
+      directUploadInputRef.current.click();
+    }
   };
 
-  // 2. Plantilla Colores de Armazón
-  const handleLoadFrameColorsPresets = () => {
-    setEditHasVariants(true);
-    setEditVariantAxisTitle('Seleccionar Color de Armazón');
-    setEditVariants([
-      { key: 'negro-mate', name: 'Negro Mate', subtitle: 'ACETATO MATE', badgeColor: '#1C1917', priceModifier: 0, isDefault: true },
-      { key: 'carey', name: 'Carey Clásico', subtitle: 'HAVANA TORTUGUERO', badgeColor: '#78350F', priceModifier: 0, isDefault: false },
-      { key: 'cristal', name: 'Cristal Transparente', subtitle: 'CLEAR TRANSLÚCIDO', badgeColor: '#E5E7EB', priceModifier: 0, isDefault: false },
-    ]);
-    showToast('Plantilla de Colores de Armazón cargada.');
+  const handleDirectUploadSelected = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0 || !selectedProduct) return;
+
+    setUploadingGallery(true);
+    setModalError(null);
+
+    try {
+      const processedFiles = await Promise.all(
+        files.map(async (f) => compressImageFile(f))
+      );
+
+      const targetTag = directUploadTarget.tag || 'front';
+      const targetKey = targetTag === 'model'
+        ? null
+        : (directUploadTarget.variantKey ? normalizeVariantKey(directUploadTarget.variantKey) : null);
+
+      const res = await productService.uploadProductImages(
+        selectedProduct._id,
+        processedFiles,
+        targetTag,
+        targetKey
+      );
+
+      const updatedProd = res.data?.product || res.data || res;
+      const images = Array.isArray(updatedProd.images) ? updatedProd.images : [];
+      const currentVariants = editVariants.length > 0 ? editVariants : (updatedProd.variants || []);
+
+      setSelectedProduct((prev) => ({
+        ...prev,
+        images,
+        variants: currentVariants,
+      }));
+
+      setProducts((prev) =>
+        prev.map((p) =>
+          p._id === selectedProduct._id
+            ? { ...p, images, variants: currentVariants }
+            : p
+        )
+      );
+
+      showToast(`${processedFiles.length} foto(s) subida(s) con éxito.`);
+    } catch (err) {
+      console.error('[handleDirectUploadSelected Error]:', err);
+      showToast(err.message || 'Error al subir fotos.', 'error');
+    } finally {
+      setUploadingGallery(false);
+      if (directUploadInputRef.current) directUploadInputRef.current.value = '';
+    }
   };
 
-  // 3. Producto Simple (Sin variantes)
-  const handleSetSimpleProduct = () => {
-    setEditHasVariants(false);
-    setEditVariants([]);
-    showToast('Configurado como Producto Simple (sin variantes).');
+  // Reordenar foto secuencialmente dentro de su grupo
+  const handleMovePhotoOrder = async (imageId, direction, groupKey) => {
+    if (!selectedProduct) return;
+
+    const isModelGroup = groupKey === 'model';
+    const groupPhotos = (selectedProduct.images || [])
+      .filter((img) =>
+        isModelGroup
+          ? img.tag === 'model'
+          : (img.tag !== 'model' && normalizeVariantKey(img.variantKey) === normalizeVariantKey(groupKey))
+      )
+      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+    const currentIndex = groupPhotos.findIndex((img) => img._id === imageId);
+    if (currentIndex === -1) return;
+
+    const targetIndex = direction === 'left' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= groupPhotos.length) return;
+
+    const [moved] = groupPhotos.splice(currentIndex, 1);
+    groupPhotos.splice(targetIndex, 0, moved);
+
+    const photoOrderMap = new Map();
+    groupPhotos.forEach((img, idx) => {
+      photoOrderMap.set(img._id, idx);
+    });
+
+    const updatedImages = (selectedProduct.images || []).map((img) => {
+      if (photoOrderMap.has(img._id)) {
+        return {
+          ...img,
+          order: photoOrderMap.get(img._id),
+        };
+      }
+      return img;
+    });
+
+    setSelectedProduct((prev) => ({ ...prev, images: updatedImages }));
+    setProducts((prev) =>
+      prev.map((p) => (p._id === selectedProduct._id ? { ...p, images: updatedImages } : p))
+    );
+
+    try {
+      await productService.updateProduct(selectedProduct._id, {
+        images: updatedImages,
+        variants: editVariants,
+      });
+    } catch (err) {
+      console.error('[handleMovePhotoOrder Error]:', err);
+      showToast('Error al persistir orden de fotos.', 'error');
+    }
+  };
+
+  const handleMovePhotoToVariant = async (imageId, targetKey) => {
+    if (!selectedProduct) return;
+    try {
+      const isModel = targetKey === 'model';
+      const newTag = isModel ? 'model' : 'front';
+      const newVariantKey = isModel ? null : (targetKey ? normalizeVariantKey(targetKey) : null);
+
+      await productService.updateProductImageMetadata(selectedProduct._id, imageId, {
+        tag: newTag,
+        variantKey: newVariantKey,
+      });
+
+      const updatedImages = (selectedProduct.images || []).map((img) =>
+        img._id === imageId
+          ? { ...img, tag: newTag, variantKey: newVariantKey }
+          : img
+      );
+
+      setSelectedProduct((prev) => ({ ...prev, images: updatedImages }));
+      setProducts((prev) =>
+        prev.map((p) => (p._id === selectedProduct._id ? { ...p, images: updatedImages } : p))
+      );
+
+      showToast(isModel ? 'Foto movida a Fotos de Modelo.' : 'Foto reasignada.');
+    } catch (err) {
+      console.error('[handleMovePhotoToVariant Error]:', err);
+      showToast('Error al mover la foto.', 'error');
+    }
+  };
+
+  const handleUpdatePhotoTag = async (imageId, newTag) => {
+    if (!selectedProduct) return;
+    try {
+      const isHover = newTag === 'angle' || newTag === 'hover';
+      await productService.updateProductImageMetadata(selectedProduct._id, imageId, {
+        tag: newTag,
+        isHover,
+      });
+
+      const updatedImages = (selectedProduct.images || []).map((img) =>
+        img._id === imageId
+          ? { ...img, tag: newTag, isHover }
+          : img
+      );
+
+      setSelectedProduct((prev) => ({ ...prev, images: updatedImages }));
+      setProducts((prev) =>
+        prev.map((p) => (p._id === selectedProduct._id ? { ...p, images: updatedImages } : p))
+      );
+
+      showToast('Tipo de toma actualizado.');
+    } catch (err) {
+      console.error('[handleUpdatePhotoTag Error]:', err);
+      showToast('Error al actualizar toma.', 'error');
+    }
+  };
+
+  const handleDeletePhoto = async (imageId) => {
+    if (!selectedProduct) return;
+    if (!window.confirm('¿Eliminar esta foto del producto y del servidor?')) return;
+
+    try {
+      const res = await productService.deleteProductImage(selectedProduct._id, imageId);
+      const updatedProduct = res.data?.product || res.data || res;
+      const images = Array.isArray(updatedProduct.images) ? updatedProduct.images : [];
+
+      setSelectedProduct((prev) => ({
+        ...prev,
+        images,
+        variants: prev.variants?.length ? prev.variants : editVariants,
+      }));
+      setProducts((prev) =>
+        prev.map((p) =>
+          p._id === selectedProduct._id
+            ? { ...p, images, variants: p.variants?.length ? p.variants : editVariants }
+            : p
+        )
+      );
+      showToast('Foto eliminada correctamente.');
+    } catch (err) {
+      console.error('[handleDeletePhoto Error]:', err);
+      showToast('Error al eliminar la foto.', 'error');
+    }
   };
 
   // Asignar o actualizar variantKey para una foto existente
@@ -1348,6 +1687,23 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
             <button
               onClick={() => {
+                setActiveTab('coupons');
+                setSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-xs font-medium tracking-wide transition-all ${
+                activeTab === 'coupons'
+                  ? 'bg-white text-cirqa-negro shadow-md font-semibold'
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Percent className={`w-4 h-4 ${activeTab === 'coupons' ? 'text-cirqa-primario' : 'text-cirqa-arena'}`} />
+                <span>Cupones / Descuentos</span>
+              </div>
+            </button>
+
+            <button
+              onClick={() => {
                 setActiveTab('orders');
                 setSidebarOpen(false);
               }}
@@ -1447,7 +1803,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-light tracking-tight text-cirqa-negro">
-                {activeTab === 'inventory' ? 'Gestión de Inventario' : 'Gestión de Pedidos'}
+                {activeTab === 'inventory' ? 'Gestión de Inventario' : activeTab === 'orders' ? 'Gestión de Pedidos' : 'Gestión de Cupones y Descuentos'}
               </h1>
             </div>
 
@@ -1803,6 +2159,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
             />
           )}
 
+          {activeTab === 'coupons' && (
+            <CouponsTab
+              showToast={showToast}
+            />
+          )}
+
         </main>
       </div>
 
@@ -2063,500 +2425,547 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </button>
               </div>
 
-              {/* SECCIÓN INTERACTIVA: TABLERO VISUAL DE GALERÍA Y AUTOCLASIFICACIÓN */}
-              {(() => {
-                const canonicalColumns = [
-                  {
-                    key: 'clear',
-                    name: 'Clear',
-                    subtitle: 'Transparente · Protección Básica',
-                    badgeColor: '#CBD5E1',
-                  },
-                  {
-                    key: 'dia',
-                    name: 'Día · Amarillo',
-                    subtitle: 'Filtro Azul 450nm · Pantallas',
-                    badgeColor: '#FACC15',
-                  },
-                  {
-                    key: 'transicion',
-                    name: 'Transición · Naranja',
-                    subtitle: 'Filtro Ámbar 500nm · Atardecer',
-                    badgeColor: '#FB923C',
-                  },
-                  {
-                    key: 'noche',
-                    name: 'Noche · Rojo',
-                    subtitle: 'Filtro Melatonina 550nm · Descanso',
-                    badgeColor: '#F87171',
-                  },
-                  {
-                    key: null,
-                    name: 'Sin asignar / Generales',
-                    subtitle: 'Fotos generales sin variante',
-                    badgeColor: '#94A3B8',
-                  },
-                ];
+              {/* ========================================================================= */}
+              {/* MÓDULO 3: PANEL ADMINISTRADOR DE VARIANTES E IMÁGENES                   */}
+              {/* ========================================================================= */}
+              <div className="mt-5 p-5 rounded-3xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-6">
+                {/* Encabezado General */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-cirqa-negro/10">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-cirqa-primario/10 flex items-center justify-center text-cirqa-primario">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-cirqa-negro">
+                        Variantes y Fotos del Producto
+                      </h4>
+                      <p className="text-[10px] text-cirqa-negro/50 font-light">
+                        Configurá las variantes y subí múltiples fotos. Las fotos de modelo se mostrarán automáticamente al final en todas las variantes.
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-mono text-cirqa-negro/60 bg-black/5 px-2.5 py-1 rounded-full font-semibold">
+                      {selectedProduct.images?.length || 0} fotos totales en catálogo
+                    </span>
+                  </div>
+                </div>
 
-                const galleryColumns = canonicalColumns;
-
-                const displayedColumns = activeAdminVariantTab === 'all'
-                  ? galleryColumns
-                  : galleryColumns.filter((col) => (col.key ?? 'unassigned') === activeAdminVariantTab);
-
-                return (
-                  <div className="mt-5 p-5 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-5">
-                    {/* Encabezado de la Galería */}
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-cirqa-negro/10">
-                      <div className="flex items-center gap-2">
-                        <Layers className="w-4 h-4 text-cirqa-primario" />
-                        <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro/90">
-                          Organizador de Fotos por Variante
-                        </span>
-                        <span className="text-[10px] font-mono text-cirqa-negro/50 bg-black/5 px-2 py-0.5 rounded-full">
-                          {selectedProduct.images?.length || 0} fotos en MongoDB
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-cirqa-negro/50 font-light">
-                        Gestioná y subí fotos para cada variante circadiana sin límite de cantidad
+                {/* BARRA DE GESTIÓN Y REORDENAMIENTO DE VARIANTES */}
+                <div className="p-4 rounded-2xl bg-white border border-cirqa-negro/10 shadow-2xs space-y-3">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      <span className="text-xs font-semibold text-cirqa-negro">
+                        Variantes del Producto ({editVariants.length})
+                      </span>
+                      <span className="text-[10px] text-cirqa-negro/40">
+                        — Posición en tienda configurada en tiempo real
                       </span>
                     </div>
-
-                    {/* Pestañas de Variante Circadiana */}
-                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-                      <button
-                        type="button"
-                        onClick={() => setActiveAdminVariantTab('all')}
-                        className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                          activeAdminVariantTab === 'all'
-                            ? 'bg-cirqa-negro text-white shadow-xs'
-                            : 'bg-white text-cirqa-negro/70 hover:bg-black/5 border border-cirqa-negro/10'
-                        }`}
-                      >
-                        <Layers className="w-3.5 h-3.5" />
-                        <span>Todas (Kanban)</span>
-                        <span className="text-[10px] opacity-75 font-mono">({selectedProduct.images?.length || 0})</span>
-                      </button>
-
-                      {galleryColumns.map((col) => {
-                        const count = (selectedProduct.images || []).filter((img) =>
-                          col.key === null
-                            ? (!img.variantKey || img.variantKey === 'null' || !normalizeVariantKey(img.variantKey))
-                            : (normalizeVariantKey(img.variantKey) === normalizeVariantKey(col.key))
-                        ).length;
-                        const isTabActive = activeAdminVariantTab === (col.key ?? 'unassigned');
-
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] text-cirqa-negro/40 uppercase font-semibold mr-1">Agregar:</span>
+                      {CANONICAL_VARIANTS.map((preset) => {
+                        const exists = editVariants.some((v) => normalizeVariantKey(v.key) === preset.key);
                         return (
                           <button
-                            key={col.key || 'unassigned'}
+                            key={preset.key}
                             type="button"
-                            onClick={() => setActiveAdminVariantTab(col.key ?? 'unassigned')}
-                            className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-all cursor-pointer flex items-center gap-1.5 whitespace-nowrap ${
-                              isTabActive
-                                ? 'bg-cirqa-negro text-white shadow-xs'
-                                : 'bg-white text-cirqa-negro/70 hover:bg-black/5 border border-cirqa-negro/10'
+                            disabled={exists}
+                            onClick={() => handleAddPresetVariant(preset)}
+                            className={`px-2 py-1 rounded-lg text-[10px] font-medium border flex items-center gap-1 transition-all ${
+                              exists
+                                ? 'opacity-40 bg-black/5 text-cirqa-negro/40 border-transparent cursor-not-allowed'
+                                : 'bg-white hover:bg-black/5 text-cirqa-negro/80 border-cirqa-negro/15 cursor-pointer active:scale-95'
                             }`}
+                            title={exists ? `"${preset.name}" ya existe` : `Agregar variante ${preset.name}`}
                           >
-                            <span
-                              className="w-2.5 h-2.5 rounded-full border border-black/10 flex-shrink-0"
-                              style={{ backgroundColor: col.badgeColor }}
-                            />
-                            <span>{col.name}</span>
-                            <span
-                              className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
-                                isTabActive ? 'bg-white/20 text-white' : 'bg-black/5 text-cirqa-negro/60'
-                              }`}
-                            >
-                              {count}
-                            </span>
+                            <span className="w-2 h-2 rounded-full border border-black/10" style={{ backgroundColor: preset.colorHex }} />
+                            <span>{preset.name}</span>
+                            {!exists && <Plus className="w-2.5 h-2.5 text-cirqa-primario" />}
                           </button>
                         );
                       })}
+                      <button
+                        type="button"
+                        onClick={handleAddCustomVariant}
+                        className="px-2.5 py-1 rounded-lg text-[10px] font-semibold bg-cirqa-negro text-white hover:bg-black transition-all cursor-pointer flex items-center gap-1 shadow-2xs active:scale-95"
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Personalizada</span>
+                      </button>
                     </div>
+                  </div>
 
-                    {/* Inputs de archivos ocultos */}
-                    <input
-                      ref={galleryFileInputRef}
-                      type="file"
-                      multiple
-                      accept="image/jpeg,image/png,image/webp,image/avif"
-                      onChange={(e) => handleGalleryFilesChange(e, activeAdminVariantTab !== 'all' ? (activeAdminVariantTab === 'unassigned' ? null : activeAdminVariantTab) : undefined)}
-                      className="hidden"
-                    />
-                    <input
-                      ref={columnFileInputRef}
-                      type="file"
-                      multiple
-                      accept="image/jpeg,image/png,image/webp,image/avif"
-                      onChange={(e) => handleGalleryFilesChange(e, columnUploadTargetKey)}
-                      className="hidden"
-                    />
+                  {/* Lista Horizontal de Variantes para Reordenar con Flechas */}
+                  {editVariants.length === 0 ? (
+                    <p className="text-xs text-amber-600 bg-amber-50 p-2.5 rounded-xl border border-amber-200">
+                      No hay variantes definidas. Agregá al menos una variante para organizar las fotos del producto.
+                    </p>
+                  ) : (
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-1">
+                      {editVariants.map((v, vIdx) => {
+                        const vKey = normalizeVariantKey(v.key);
+                        const vPhotos = (selectedProduct.images || []).filter(
+                          (img) => img.tag !== 'model' && normalizeVariantKey(img.variantKey) === vKey
+                        );
 
-                    {/* Banner de subida rápida contextual a la pestaña activa */}
-                    {activeAdminVariantTab !== 'all' && (
-                      <div className="flex items-center justify-between p-3 bg-white rounded-xl border border-cirqa-negro/10 shadow-2xs">
-                        <div className="flex items-center gap-2">
-                          <span
-                            className="w-3.5 h-3.5 rounded-full border border-black/10"
-                            style={{
-                              backgroundColor: galleryColumns.find((c) => (c.key ?? 'unassigned') === activeAdminVariantTab)?.badgeColor || '#475569',
-                            }}
-                          />
+                        return (
+                          <div
+                            key={v.key || vIdx}
+                            className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FBFBFA] border border-cirqa-negro/10 flex-shrink-0 shadow-2xs"
+                          >
+                            <span
+                              className="w-3 h-3 rounded-full border border-black/10 flex-shrink-0"
+                              style={{ backgroundColor: v.colorHex || v.badgeColor || '#E5E7EB' }}
+                            />
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-xs font-bold text-cirqa-negro leading-tight">
+                                {v.name}
+                              </span>
+                              <span className="text-[9px] text-cirqa-negro/50 font-mono">
+                                {vPhotos.length} foto{vPhotos.length !== 1 ? 's' : ''}
+                              </span>
+                            </div>
+
+                            {/* Botones de Reordenamiento de Variante (↑ Subir / ↓ Bajar) */}
+                            <div className="flex items-center gap-0.5 ml-1 border-l border-cirqa-negro/10 pl-1.5">
+                              <button
+                                type="button"
+                                disabled={vIdx === 0}
+                                onClick={() => handleMoveVariantOrder(vIdx, 'up')}
+                                className="p-1 rounded hover:bg-black/10 text-cirqa-negro/60 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                                title="Mover antes (izquierda / arriba)"
+                              >
+                                <ArrowLeft className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                disabled={vIdx === editVariants.length - 1}
+                                onClick={() => handleMoveVariantOrder(vIdx, 'down')}
+                                className="p-1 rounded hover:bg-black/10 text-cirqa-negro/60 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                                title="Mover después (derecha / abajo)"
+                              >
+                                <ArrowRight className="w-3 h-3" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteVariant(vIdx)}
+                                className="p-1 rounded hover:bg-red-50 text-red-500 hover:text-red-700 cursor-pointer transition-colors ml-0.5"
+                                title={`Eliminar variante "${v.name}"`}
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* CONTENEDOR VISUAL POR CADA VARIANTE */}
+                <div className="space-y-4">
+                  {editVariants.map((variant) => {
+                    const vKey = normalizeVariantKey(variant.key);
+                    const variantPhotos = (selectedProduct.images || [])
+                      .filter((img) => img.tag !== 'model' && normalizeVariantKey(img.variantKey) === vKey)
+                      .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+                    const hasPhotos = variantPhotos.length > 0;
+
+                    return (
+                      <div
+                        key={variant.key}
+                        className="bg-white rounded-2xl border border-cirqa-negro/10 overflow-hidden shadow-2xs transition-all hover:border-cirqa-negro/25"
+                      >
+                        {/* Header del Bloque de la Variante */}
+                        <div className="p-3.5 bg-[#FBFBFA] border-b border-cirqa-negro/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className="w-3.5 h-3.5 rounded-full border border-black/15 shadow-2xs flex-shrink-0"
+                              style={{ backgroundColor: variant.colorHex || variant.badgeColor || '#E5E7EB' }}
+                            />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h5 className="text-xs font-bold text-cirqa-negro">
+                                  {variant.name}
+                                </h5>
+                                <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold ${
+                                  hasPhotos ? 'bg-black/5 text-cirqa-negro/70' : 'bg-amber-100 text-amber-800'
+                                }`}>
+                                  {variantPhotos.length} {variantPhotos.length === 1 ? 'foto' : 'fotos'}
+                                </span>
+                              </div>
+                              {variant.subtitle && (
+                                <span className="text-[10px] text-cirqa-negro/40 block font-light">
+                                  {variant.subtitle}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Botón de Subida Directa para esta variante */}
+                          <button
+                            type="button"
+                            disabled={uploadingGallery}
+                            onClick={() => handleTriggerDirectUpload(variant.key, 'front', variant.name)}
+                            className="px-3.5 py-1.5 rounded-xl bg-cirqa-negro hover:bg-black text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
+                          >
+                            <UploadCloud className="w-3.5 h-3.5 text-cirqa-arena" />
+                            <span>Subir fotos a {variant.name}</span>
+                          </button>
+                        </div>
+
+                        {/* Cuerpo del Bloque */}
+                        <div className="p-3.5">
+                          {!hasPhotos ? (
+                            /* AVISO REGLA DE ORO: SI TIENE 0 FOTOS, PERMANECERÁ OCULTA */
+                            <div
+                              onClick={() => handleTriggerDirectUpload(variant.key, 'front', variant.name)}
+                              className="p-4 rounded-xl border border-dashed border-amber-300 bg-amber-50/50 hover:bg-amber-50 text-center cursor-pointer transition-colors space-y-1"
+                            >
+                              <div className="flex items-center justify-center gap-1.5 text-amber-800 text-xs font-semibold">
+                                <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                                <span>Sin fotos: esta variante permanecerá oculta en la tienda hasta que subas al menos 1 imagen</span>
+                              </div>
+                              <p className="text-[11px] text-amber-700/80">
+                                Hacé clic aquí o en "Subir fotos a {variant.name}" para agregar imágenes.
+                              </p>
+                            </div>
+                          ) : (
+                            /* GRILLA DE FOTOS DE LA VARIANTE */
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                              {variantPhotos.map((img, pIdx) => {
+                                const isFirst = pIdx === 0;
+                                const isLast = pIdx === variantPhotos.length - 1;
+                                const isImgPrimary = Boolean(img.isPrimary);
+                                const isImgHover = Boolean(img.isHover || img.tag === 'hover' || img.tag === 'angle');
+
+                                return (
+                                  <div
+                                    key={img._id || pIdx}
+                                    className="p-2.5 rounded-xl bg-[#FBFBFA] border border-cirqa-negro/10 hover:border-cirqa-negro/25 transition-all flex flex-col gap-2 shadow-2xs"
+                                  >
+                                    {/* Miniatura + Orden + Badges */}
+                                    <div className="relative w-full h-32 bg-white rounded-lg border border-cirqa-negro/10 overflow-hidden flex items-center justify-center">
+                                      <img
+                                        src={formatMediaUrl(img.url)}
+                                        alt={`${variant.name} foto ${pIdx + 1}`}
+                                        className="w-full h-full object-contain p-1"
+                                      />
+                                      {/* Indicador de Posición */}
+                                      <span className="absolute top-1.5 left-1.5 bg-black/70 backdrop-blur-xs text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shadow-xs">
+                                        #{pIdx + 1}
+                                      </span>
+
+                                      {/* Badges de Portada / Hover */}
+                                      <div className="absolute top-1.5 right-1.5 flex flex-col gap-1 items-end pointer-events-none">
+                                        {isImgPrimary && (
+                                          <span className="bg-amber-500 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm leading-none uppercase tracking-wider flex items-center gap-0.5">
+                                            <Star className="w-2.5 h-2.5 fill-current" />
+                                            PORTADA
+                                          </span>
+                                        )}
+                                        {isImgHover && (
+                                          <span className="bg-indigo-600 text-white text-[8px] font-black px-1.5 py-0.5 rounded shadow-sm leading-none uppercase tracking-wider flex items-center gap-0.5">
+                                            <Eye className="w-2.5 h-2.5" />
+                                            HOVER
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Botones de Reordenamiento Secuencial (← y →) */}
+                                    <div className="flex items-center justify-between gap-1 pt-0.5">
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          disabled={isFirst}
+                                          onClick={() => handleMovePhotoOrder(img._id, 'left', variant.key)}
+                                          className="px-2 py-1 rounded bg-white hover:bg-black/5 text-cirqa-negro/70 border border-cirqa-negro/10 text-[10px] font-semibold flex items-center gap-0.5 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                                          title="Mover antes (←)"
+                                        >
+                                          <ArrowLeft className="w-3 h-3" />
+                                          <span>Mover</span>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={isLast}
+                                          onClick={() => handleMovePhotoOrder(img._id, 'right', variant.key)}
+                                          className="px-2 py-1 rounded bg-white hover:bg-black/5 text-cirqa-negro/70 border border-cirqa-negro/10 text-[10px] font-semibold flex items-center gap-0.5 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                                          title="Mover después (→)"
+                                        >
+                                          <span>Mover</span>
+                                          <ArrowRight className="w-3 h-3" />
+                                        </button>
+                                      </div>
+
+                                      <button
+                                        type="button"
+                                        onClick={() => handleDeletePhoto(img._id)}
+                                        className="p-1 text-red-500 hover:text-white hover:bg-red-600 rounded transition-colors cursor-pointer border border-red-200 hover:border-red-600"
+                                        title="Eliminar foto"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+
+                                    {/* Selectores de Tipo de Toma y Mover a otra variante */}
+                                    <div className="space-y-1.5 pt-1.5 border-t border-cirqa-negro/10 text-[10px]">
+                                      <div className="flex items-center justify-between gap-1.5">
+                                        <span className="text-[9px] uppercase tracking-wider text-cirqa-negro/40 flex-shrink-0">Toma:</span>
+                                        <select
+                                          value={img.tag || 'front'}
+                                          onChange={(e) => handleUpdatePhotoTag(img._id, e.target.value)}
+                                          className="flex-1 min-w-0 text-[10px] bg-white border border-cirqa-negro/15 rounded px-1.5 py-0.5 text-cirqa-negro focus:outline-none focus:border-cirqa-negro truncate cursor-pointer"
+                                        >
+                                          <option value="front">Frente (Principal)</option>
+                                          <option value="angle">Ángulo / Perfil (Hover)</option>
+                                          <option value="side">Lateral</option>
+                                          <option value="detail">Detalle Técnico</option>
+                                          <option value="gallery">Galería General</option>
+                                        </select>
+                                      </div>
+
+                                      <div className="flex items-center justify-between gap-1.5">
+                                        <span className="text-[9px] uppercase tracking-wider text-cirqa-negro/40 flex-shrink-0">Mover:</span>
+                                        <select
+                                          value={img.variantKey || ''}
+                                          onChange={(e) => handleMovePhotoToVariant(img._id, e.target.value)}
+                                          className="flex-1 min-w-0 text-[10px] bg-white border border-cirqa-negro/15 rounded px-1.5 py-0.5 text-cirqa-negro focus:outline-none focus:border-cirqa-negro truncate cursor-pointer"
+                                        >
+                                          {editVariants.map((ov) => (
+                                            <option key={ov.key} value={ov.key}>
+                                              {ov.name}
+                                            </option>
+                                          ))}
+                                          <option value="model">→ Fotos con Modelo</option>
+                                        </select>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* SECCIÓN SEPARADA AL FINAL: FOTOS CON MODELO */}
+                {(() => {
+                  const modelPhotos = (selectedProduct.images || [])
+                    .filter((img) => img.tag === 'model')
+                    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+
+                  return (
+                    <div className="bg-white rounded-2xl border-2 border-indigo-100 overflow-hidden shadow-2xs">
+                      <div className="p-3.5 bg-indigo-50/60 border-b border-indigo-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                            M
+                          </div>
                           <div>
-                            <span className="text-xs font-bold text-cirqa-negro block">
-                              Variante activa: {galleryColumns.find((c) => (c.key ?? 'unassigned') === activeAdminVariantTab)?.name}
-                            </span>
-                            <span className="text-[10px] text-cirqa-negro/50 block">
-                              Las fotos que cargues se asignarán directamente a esta variante sin límite de cantidad.
+                            <div className="flex items-center gap-2">
+                              <h5 className="text-xs font-bold text-cirqa-negro">
+                                Fotos con Modelo (Se muestran al final en todas las variantes)
+                              </h5>
+                              <span className="text-[10px] font-mono px-2 py-0.5 rounded-full font-semibold bg-indigo-100 text-indigo-900">
+                                {modelPhotos.length} {modelPhotos.length === 1 ? 'foto' : 'fotos'}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-cirqa-negro/50 block font-light">
+                              Estas fotos son generales del producto (`tag: 'model'`, `variantKey: null`). El cliente las verá siempre después de las fotos específicas del cristal seleccionado.
                             </span>
                           </div>
                         </div>
 
                         <button
                           type="button"
-                          onClick={() => handleTriggerColumnUpload(activeAdminVariantTab === 'unassigned' ? null : activeAdminVariantTab)}
-                          className="px-3.5 py-1.5 bg-cirqa-negro hover:bg-black text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer"
+                          disabled={uploadingGallery}
+                          onClick={() => handleTriggerDirectUpload(null, 'model', 'Modelo')}
+                          className="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50"
                         >
                           <UploadCloud className="w-3.5 h-3.5" />
-                          <span>Subir fotos a {galleryColumns.find((c) => (c.key ?? 'unassigned') === activeAdminVariantTab)?.name}</span>
+                          <span>Subir fotos de Modelo</span>
                         </button>
                       </div>
-                    )}
 
-                    {/* Previews de Subida Pendiente (Con Autoclasificación en Vivo) */}
-                    {galleryPreviews.length > 0 ? (
-                      <div className="p-4 bg-white rounded-2xl border border-cirqa-primario/30 shadow-xs space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <div className="flex items-center gap-2">
-                            <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-                            <span className="text-xs font-semibold text-cirqa-negro">
-                              {galleryPreviews.length} foto(s) lista(s) para subir
-                            </span>
-                            <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">
-                              Autoclasificación por nombre aplicada
-                            </span>
+                      <div className="p-3.5">
+                        {modelPhotos.length === 0 ? (
+                          <div
+                            onClick={() => handleTriggerDirectUpload(null, 'model', 'Modelo')}
+                            className="p-4 rounded-xl border border-dashed border-indigo-200 bg-indigo-50/20 hover:bg-indigo-50/50 text-center cursor-pointer transition-colors space-y-1"
+                          >
+                            <p className="text-xs font-semibold text-indigo-900">
+                              No hay fotos de modelo cargadas
+                            </p>
+                            <p className="text-[11px] text-indigo-700/70">
+                              Hacé clic aquí para subir fotos de modelos usando este armazón.
+                            </p>
                           </div>
-                          <span className="text-[10px] text-cirqa-negro/50">
-                            Revisá la categoría y tag antes de confirmar:
-                          </span>
-                        </div>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                            {modelPhotos.map((img, mIdx) => {
+                              const isFirst = mIdx === 0;
+                              const isLast = mIdx === modelPhotos.length - 1;
 
-                        {/* Grilla interactiva de previews con selectores por archivo */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 max-h-56 overflow-y-auto pr-1">
-                          {galleryPreviews.map((prev, idx) => (
-                            <div
-                              key={idx}
-                              className="p-2 rounded-xl bg-[#FBFBFA] border border-cirqa-negro/10 flex items-center gap-2.5"
-                            >
-                              <div className="w-12 h-12 rounded-lg bg-white border border-cirqa-negro/10 overflow-hidden flex-shrink-0">
-                                <img src={prev.url} alt={prev.name} className="w-full h-full object-cover" />
-                              </div>
-
-                              <div className="flex-1 min-w-0 space-y-1">
-                                <span className="text-[11px] font-medium text-cirqa-negro block truncate" title={prev.name}>
-                                  {prev.name}
-                                </span>
-
-                                <div className="grid grid-cols-2 gap-1">
-                                  {/* Selector de Tag */}
-                                  <select
-                                    value={prev.tag || 'gallery'}
-                                    onChange={(e) => handleUpdatePreviewMetadata(idx, 'tag', e.target.value)}
-                                    className="text-[9px] bg-white border border-cirqa-negro/15 rounded px-1 py-0.5 focus:outline-none"
-                                  >
-                                    {IMAGE_TAG_OPTIONS.map((opt) => (
-                                      <option key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                      </option>
-                                    ))}
-                                  </select>
-
-                                  {/* Selector de Variante */}
-                                  <select
-                                    value={prev.variantKey || ''}
-                                    onChange={(e) => handleUpdatePreviewMetadata(idx, 'variantKey', e.target.value)}
-                                    className="text-[9px] bg-white border border-cirqa-negro/15 rounded px-1 py-0.5 focus:outline-none truncate"
-                                  >
-                                    <option value="">Base / General</option>
-                                    {activeGalleryVariants.map((v) => (
-                                      <option key={v.key} value={v.key}>
-                                        {v.name}
-                                      </option>
-                                    ))}
-                                  </select>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-cirqa-negro/10">
-                          <button
-                            type="button"
-                            onClick={clearGalleryUploadSelection}
-                            disabled={uploadingGallery}
-                            className="px-3 py-1.5 text-xs text-cirqa-negro/60 hover:text-cirqa-negro hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
-                          >
-                            Cancelar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleUploadGalleryPhotos}
-                            disabled={uploadingGallery}
-                            className="px-4 py-1.5 bg-cirqa-primario hover:bg-cirqa-negro text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5 transition-all cursor-pointer disabled:opacity-50"
-                          >
-                            {uploadingGallery ? (
-                              <>
-                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>Subiendo y clasificando...</span>
-                              </>
-                            ) : (
-                              <>
-                                <UploadCloud className="w-3.5 h-3.5" />
-                                <span>Confirmar y Subir a MongoDB</span>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Dropzone General de Subida Rápida con Autoclasificación */
-                      <div
-                        onClick={() => galleryFileInputRef.current?.click()}
-                        className="border-2 border-dashed border-cirqa-negro/15 hover:border-cirqa-primario/60 bg-white/70 hover:bg-white rounded-2xl p-4 text-center cursor-pointer transition-all group"
-                      >
-                        <UploadCloud className="w-6 h-6 text-cirqa-negro/35 group-hover:text-cirqa-primario mx-auto mb-1.5 transition-colors" />
-                        <p className="text-xs font-medium text-cirqa-negro/80">
-                          Subida Rápida con Autoclasificación Inteligente
-                        </p>
-                        <p className="text-[10px] text-cirqa-negro/50 mt-0.5">
-                          Soltá o seleccioná tus fotos. Si el nombre incluye "noche", "dia", "transicion", "clear", "frente" o "perfil", se asigna automáticamente.
-                        </p>
-                      </div>
-                    )}
-
-                    {/* TABLERO DE COLUMNAS POR VARIANTE (KANBAN VISUAL) */}
-                    <div className="space-y-2">
-                      <span className="text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/60 block">
-                        Columnas de Fotos por Variante:
-                      </span>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[380px] overflow-y-auto pr-1">
-                        {displayedColumns.map((col) => {
-                          const colImages = (selectedProduct.images || [])
-                            .filter((img) =>
-                              col.key === null
-                                ? (!img.variantKey || img.variantKey === 'null' || !normalizeVariantKey(img.variantKey))
-                                : (normalizeVariantKey(img.variantKey) === normalizeVariantKey(col.key))
-                            )
-                            .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
-
-                          return (
-                            <div
-                              key={col.key || 'base-column'}
-                              onDragOver={(e) => e.preventDefault()}
-                              onDrop={(e) => {
-                                e.preventDefault();
-                                if (draggedImageId) {
-                                  handleUpdateImageVariantKey(draggedImageId, col.key);
-                                  setDraggedImageId(null);
-                                }
-                              }}
-                              className="flex flex-col bg-white rounded-2xl border border-cirqa-negro/10 shadow-2xs overflow-hidden transition-all hover:border-cirqa-negro/25"
-                            >
-                              {/* Header de la Columna */}
-                              <div className="p-3 bg-[#FBFBFA] border-b border-cirqa-negro/10 flex items-center justify-between">
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <span
-                                    className="w-3 h-3 rounded-full border border-black/10 flex-shrink-0"
-                                    style={{ backgroundColor: col.badgeColor }}
-                                  />
-                                  <div className="truncate">
-                                    <span className="text-xs font-bold text-cirqa-negro block truncate">
-                                      {col.name}
-                                    </span>
-                                    <span className="text-[9px] text-cirqa-negro/40 block font-mono">
-                                      {col.subtitle}
+                              return (
+                                <div
+                                  key={img._id || mIdx}
+                                  className="p-2.5 rounded-xl bg-[#FBFBFA] border border-cirqa-negro/10 hover:border-indigo-300 transition-all flex flex-col gap-2 shadow-2xs"
+                                >
+                                  <div className="relative w-full h-32 bg-white rounded-lg border border-cirqa-negro/10 overflow-hidden flex items-center justify-center">
+                                    <img
+                                      src={formatMediaUrl(img.url)}
+                                      alt={`Modelo foto ${mIdx + 1}`}
+                                      className="w-full h-full object-contain p-1"
+                                    />
+                                    <span className="absolute top-1.5 left-1.5 bg-indigo-950/80 backdrop-blur-xs text-white text-[9px] font-mono font-bold px-1.5 py-0.5 rounded shadow-xs">
+                                      Modelo #{mIdx + 1}
                                     </span>
                                   </div>
-                                </div>
 
-                                <div className="flex items-center gap-1.5 flex-shrink-0">
-                                  <span className="text-[10px] font-mono text-cirqa-negro/50 bg-black/5 px-1.5 py-0.5 rounded">
-                                    {colImages.length}
-                                  </span>
-                                  <button
-                                    type="button"
-                                    onClick={() => handleTriggerColumnUpload(col.key)}
-                                    title={`Subir foto directa a ${col.name}`}
-                                    className="p-1 rounded-md text-cirqa-negro/50 hover:text-cirqa-negro hover:bg-black/5 transition-colors cursor-pointer"
-                                  >
-                                    <Plus className="w-3.5 h-3.5" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Contenido / Tarjetas de Fotos dentro de la Columna */}
-                              <div className="p-2.5 flex-1 min-h-[120px] space-y-2">
-                                {colImages.length === 0 ? (
-                                  <div
-                                    onClick={() => handleTriggerColumnUpload(col.key)}
-                                    className="h-full min-h-[100px] border border-dashed border-cirqa-negro/15 rounded-xl flex flex-col items-center justify-center p-3 text-center cursor-pointer hover:bg-[#FBFBFA] transition-colors"
-                                  >
-                                    <UploadCloud className="w-4 h-4 text-cirqa-negro/30 mb-1" />
-                                    <span className="text-[10px] text-cirqa-negro/50 font-light">
-                                      Sin fotos en esta variante
-                                    </span>
-                                    <span className="text-[9px] text-cirqa-primario font-medium mt-0.5">
-                                      Arrastrá aquí o hacé clic
-                                    </span>
-                                  </div>
-                                ) : (
-                                  colImages.map((img, idx) => {
-                                    const isImgPrimary = Boolean(img.isPrimary);
-                                    const isImgHover = Boolean(img.isHover || img.tag === 'hover');
-
-                                    return (
-                                      <div
-                                        key={img._id || idx}
-                                        draggable={true}
-                                        onDragStart={() => setDraggedImageId(img._id)}
-                                        className={`p-2.5 rounded-xl border transition-all cursor-grab active:cursor-grabbing flex flex-col gap-2 ${
-                                          isImgPrimary
-                                            ? 'bg-amber-500/5 border-amber-500/40 shadow-xs'
-                                            : isImgHover
-                                            ? 'bg-indigo-500/5 border-indigo-500/40 shadow-xs'
-                                            : 'bg-[#FBFBFA] border-cirqa-negro/10 hover:border-cirqa-negro/25 hover:shadow-2xs'
-                                        }`}
+                                  <div className="flex items-center justify-between gap-1 pt-0.5">
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        disabled={isFirst}
+                                        onClick={() => handleMovePhotoOrder(img._id, 'left', 'model')}
+                                        className="px-2 py-1 rounded bg-white hover:bg-black/5 text-cirqa-negro/70 border border-cirqa-negro/10 text-[10px] font-semibold flex items-center gap-0.5 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                                        title="Mover antes (←)"
                                       >
-                                        {/* Fila 1: Miniatura + Badges Visuales + Doble Selector (Portada & Hover) + Botón Eliminar */}
-                                        <div className="flex items-center justify-between gap-2">
-                                          <div className="flex items-center gap-2.5 min-w-0">
-                                            {/* Miniatura con Badges Visuales Superpuestos */}
-                                            <div className="relative w-14 h-14 rounded-lg bg-white border border-cirqa-negro/10 overflow-hidden flex-shrink-0 flex items-center justify-center">
-                                              <img
-                                                src={formatMediaUrl(img.url)}
-                                                alt={`Foto ${idx + 1}`}
-                                                className="w-full h-full object-contain select-none"
-                                              />
-                                              {/* Badges Visuales: Dorado para PORTADA, Azul/Violeta para HOVER */}
-                                              <div className="absolute top-1 left-1 flex flex-col gap-0.5 pointer-events-none z-10">
-                                                {isImgPrimary && (
-                                                  <span
-                                                    className="bg-amber-500 text-white text-[7px] font-black px-1.5 py-0.5 rounded shadow-sm leading-none uppercase tracking-wider flex items-center gap-0.5"
-                                                    title="Foto de Portada Principal"
-                                                  >
-                                                    <Star className="w-2 h-2 fill-current" />
-                                                    PORTADA
-                                                  </span>
-                                                )}
-                                                {isImgHover && (
-                                                  <span
-                                                    className="bg-indigo-600 text-white text-[7px] font-black px-1.5 py-0.5 rounded shadow-sm leading-none uppercase tracking-wider flex items-center gap-0.5"
-                                                    title="Foto mostrada al pasar el cursor (Hover)"
-                                                  >
-                                                    <Eye className="w-2 h-2" />
-                                                    HOVER
-                                                  </span>
-                                                )}
-                                              </div>
-                                            </div>
-
-                                            {/* Doble Selector Visual en Miniaturas */}
-                                            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-1.5">
-                                              {/* Botón Estrella (★ Portada) */}
-                                              <button
-                                                type="button"
-                                                onClick={() => handleSetPrimaryImage(img._id)}
-                                                title={isImgPrimary ? 'Esta es la foto de portada actual' : 'Marcar como foto de portada principal'}
-                                                className={`px-2 py-1 text-[10px] rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                                                  isImgPrimary
-                                                    ? 'text-amber-900 bg-amber-100 border border-amber-400 font-bold shadow-2xs'
-                                                    : 'text-cirqa-negro/60 hover:text-amber-700 hover:bg-amber-50 bg-white border border-cirqa-negro/10'
-                                                }`}
-                                              >
-                                                <Star className={`w-3 h-3 ${isImgPrimary ? 'fill-current text-amber-500' : ''}`} />
-                                                <span>{isImgPrimary ? '★ Portada' : 'Portada'}</span>
-                                              </button>
-
-                                              {/* Botón Puntero / Ojo (👆 / 👁️ Foto Hover) */}
-                                              <button
-                                                type="button"
-                                                onClick={() => handleSetHoverImage(img._id)}
-                                                title={
-                                                  isImgHover
-                                                    ? 'Foto actual de hover (clic para desmarcar)'
-                                                    : 'Marcar como foto mostrada al pasar el mouse (hover)'
-                                                }
-                                                className={`px-2 py-1 text-[10px] rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer ${
-                                                  isImgHover
-                                                    ? 'text-indigo-900 bg-indigo-100 border border-indigo-400 font-bold shadow-2xs'
-                                                    : 'text-cirqa-negro/60 hover:text-indigo-700 hover:bg-indigo-50 bg-white border border-cirqa-negro/10'
-                                                }`}
-                                              >
-                                                <MousePointer className={`w-3 h-3 ${isImgHover ? 'text-indigo-600' : ''}`} />
-                                                <span>{isImgHover ? '👆 Hover' : 'Hover'}</span>
-                                              </button>
-                                            </div>
-                                          </div>
-
-                                          {/* Botón Eliminar Foto */}
-                                          <button
-                                            type="button"
-                                            onClick={() => handleDeleteImage(img._id)}
-                                            className="px-2 py-1 text-[10px] font-medium text-red-600 hover:text-white bg-red-50 hover:bg-red-600 border border-red-200 hover:border-red-600 rounded-lg transition-all flex items-center gap-1 flex-shrink-0 cursor-pointer shadow-2xs active:scale-95"
-                                            title="Eliminar esta foto permanentemente"
-                                          >
-                                            <Trash2 className="w-3 h-3" />
-                                            <span className="hidden sm:inline">Borrar</span>
-                                          </button>
-                                        </div>
-
-                                      {/* Fila 2: Selectores de Clasificación y Ubicación */}
-                                      <div className="space-y-1.5 pt-1.5 border-t border-cirqa-negro/5 text-[10px]">
-                                        <div className="flex items-center justify-between gap-1.5">
-                                          <span className="text-[9px] uppercase tracking-wider text-cirqa-negro/40 flex-shrink-0">Vista:</span>
-                                          <select
-                                            value={img.tag || 'gallery'}
-                                            onChange={(e) => handleUpdateImageTag(img._id, e.target.value)}
-                                            className="flex-1 min-w-0 text-[10px] bg-white border border-cirqa-negro/15 rounded-md px-1.5 py-0.5 text-cirqa-negro focus:outline-none focus:border-cirqa-negro truncate cursor-pointer"
-                                          >
-                                            {IMAGE_TAG_OPTIONS.map((opt) => (
-                                              <option key={opt.value} value={opt.value}>
-                                                {opt.label}
-                                              </option>
-                                            ))}
-                                          </select>
-                                        </div>
-
-                                        <div className="flex items-center justify-between gap-1.5">
-                                          <span className="text-[9px] uppercase tracking-wider text-cirqa-negro/40 flex-shrink-0">Mover:</span>
-                                          <select
-                                            value={img.variantKey || ''}
-                                            onChange={(e) => handleUpdateImageVariantKey(img._id, e.target.value)}
-                                            className="flex-1 min-w-0 text-[10px] bg-white border border-cirqa-negro/15 rounded-md px-1.5 py-0.5 text-cirqa-negro focus:outline-none focus:border-cirqa-negro truncate cursor-pointer"
-                                          >
-                                            <option value="">Sin asignar / General</option>
-                                            <option value="clear">Clear</option>
-                                            <option value="dia">Día · Amarillo</option>
-                                            <option value="transicion">Transición · Naranja</option>
-                                            <option value="noche">Noche · Rojo</option>
-                                          </select>
-                                        </div>
-                                      </div>
+                                        <ArrowLeft className="w-3 h-3" />
+                                        <span>Mover</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        disabled={isLast}
+                                        onClick={() => handleMovePhotoOrder(img._id, 'right', 'model')}
+                                        className="px-2 py-1 rounded bg-white hover:bg-black/5 text-cirqa-negro/70 border border-cirqa-negro/10 text-[10px] font-semibold flex items-center gap-0.5 disabled:opacity-20 cursor-pointer disabled:cursor-not-allowed"
+                                        title="Mover después (→)"
+                                      >
+                                        <span>Mover</span>
+                                        <ArrowRight className="w-3 h-3" />
+                                      </button>
                                     </div>
-                                  );
-                                })
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeletePhoto(img._id)}
+                                      className="p-1 text-red-500 hover:text-white hover:bg-red-600 rounded transition-colors cursor-pointer border border-red-200 hover:border-red-600"
+                                      title="Eliminar foto de modelo"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+
+                                  <div className="pt-1.5 border-t border-cirqa-negro/10 text-[10px]">
+                                    <div className="flex items-center justify-between gap-1.5">
+                                      <span className="text-[9px] uppercase tracking-wider text-cirqa-negro/40 flex-shrink-0">Mover a:</span>
+                                      <select
+                                        value="model"
+                                        onChange={(e) => handleMovePhotoToVariant(img._id, e.target.value)}
+                                        className="flex-1 min-w-0 text-[10px] bg-white border border-cirqa-negro/15 rounded px-1.5 py-0.5 text-cirqa-negro focus:outline-none focus:border-cirqa-negro truncate cursor-pointer"
+                                      >
+                                        <option value="model">Foto con Modelo (Actual)</option>
+                                        {editVariants.map((ov) => (
+                                          <option key={ov.key} value={ov.key}>
+                                            → Mover a {ov.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                );
-              })()}
+                  );
+                })()}
+
+                {/* SECCIÓN FOTOS SIN ASIGNAR (SI EXISTEN FOTOS HUÉRFANAS) */}
+                {(() => {
+                  const unassignedPhotos = (selectedProduct.images || []).filter(
+                    (img) => img.tag !== 'model' && (!img.variantKey || img.variantKey === 'null')
+                  );
+
+                  if (unassignedPhotos.length === 0) return null;
+
+                  return (
+                    <div className="bg-white rounded-2xl border border-cirqa-negro/10 overflow-hidden shadow-2xs">
+                      <div className="p-3.5 bg-gray-50 border-b border-cirqa-negro/10 flex items-center justify-between gap-2">
+                        <div>
+                          <h5 className="text-xs font-bold text-cirqa-negro">
+                            Fotos sin variante asignada ({unassignedPhotos.length})
+                          </h5>
+                          <span className="text-[10px] text-cirqa-negro/50 font-light">
+                            Asigná estas fotos a una de las variantes para que se muestren en la tienda.
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="p-3.5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                        {unassignedPhotos.map((img, uIdx) => (
+                          <div
+                            key={img._id || uIdx}
+                            className="p-2.5 rounded-xl bg-[#FBFBFA] border border-cirqa-negro/10 flex flex-col gap-2"
+                          >
+                            <div className="w-full h-28 bg-white rounded-lg border border-cirqa-negro/10 overflow-hidden flex items-center justify-center">
+                              <img
+                                src={formatMediaUrl(img.url)}
+                                alt="Foto sin asignar"
+                                className="w-full h-full object-contain p-1"
+                              />
+                            </div>
+
+                            <div className="space-y-1 text-[10px]">
+                              <span className="text-[9px] uppercase tracking-wider text-cirqa-negro/40 block">Asignar a:</span>
+                              <select
+                                value=""
+                                onChange={(e) => handleMovePhotoToVariant(img._id, e.target.value)}
+                                className="w-full text-[10px] bg-white border border-cirqa-negro/15 rounded px-1.5 py-1 text-cirqa-negro focus:outline-none cursor-pointer"
+                              >
+                                <option value="">Seleccionar variante...</option>
+                                {editVariants.map((v) => (
+                                  <option key={v.key} value={v.key}>
+                                    {v.name}
+                                  </option>
+                                ))}
+                                <option value="model">Foto con Modelo</option>
+                              </select>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleDeletePhoto(img._id)}
+                              className="mt-1 py-1 text-red-500 hover:text-white hover:bg-red-600 rounded text-[10px] transition-colors cursor-pointer border border-red-200"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Input Oculto de Subida Directa */}
+                <input
+                  ref={directUploadInputRef}
+                  type="file"
+                  multiple
+                  accept="image/jpeg,image/png,image/webp,image/avif"
+                  onChange={handleDirectUploadSelected}
+                  className="hidden"
+                />
+              </div>
 
               {/* Mensaje de Error en Modal */}
               {modalError && (
@@ -2670,195 +3079,25 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
                 {/* ======================================================= */}
                 {/* GESTIÓN DE VARIANTES DINÁMICAS (CRISTALES, COLORES, ETC)*/}
-                {/* ======================================================= */}
-                <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro block">
-                        ¿Este producto tiene variantes?
-                      </span>
-                      <span className="text-[10px] text-cirqa-negro/50 font-light">
-                        Permite configurar cristales circadianos, colores de marco o talles en el configurador.
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setEditHasVariants(!editHasVariants)}
-                      className="p-1 focus:outline-none"
-                    >
-                      {editHasVariants ? (
-                        <ToggleRight className="w-7 h-7 text-emerald-600" />
-                      ) : (
-                        <ToggleLeft className="w-7 h-7 text-cirqa-negro/30" />
-                      )}
-                    </button>
+                <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <span className="text-xs font-semibold uppercase tracking-wider text-cirqa-negro block">
+                      Variantes del Producto ({editVariants.length} configuradas)
+                    </span>
+                    <span className="text-[10px] text-cirqa-negro/50 font-light">
+                      El orden, fotos y variantes se gestionan directamente arriba en "Variantes y Fotos del Producto".
+                    </span>
                   </div>
-
-                  {editHasVariants && (
-                    <div className="space-y-4 pt-2 border-t border-cirqa-negro/10">
-                      {/* Título del Selector en el Front */}
-                      <div>
-                        <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
-                          Título del Selector (Paso 2)
-                        </label>
-                        <input
-                          type="text"
-                          value={editVariantAxisTitle}
-                          onChange={(e) => setEditVariantAxisTitle(e.target.value)}
-                          placeholder="ej. Seleccionar Cristal Circadiano o Seleccionar Color"
-                          className="w-full px-3.5 py-2 rounded-xl border border-cirqa-negro/15 bg-white text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario"
-                        />
-                      </div>
-
-                      {/* Barra de Presets Rápidos */}
-                      <div className="space-y-3">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                          <span className="text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/70">
-                            Opciones de Variantes ({editVariants.length})
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleAddVariant}
-                            className="self-start sm:self-auto px-3 py-1 bg-cirqa-negro text-white rounded-lg text-xs font-medium hover:bg-black/80 flex items-center gap-1 shadow-xs cursor-pointer"
-                          >
-                            <Plus className="w-3.5 h-3.5" />
-                            <span>Añadir Variante Manual</span>
-                          </button>
-                        </div>
-
-                        {/* Botones de Presets de 1 Clic */}
-                        <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-xl bg-white border border-cirqa-negro/10">
-                          <span className="text-[10px] font-mono uppercase tracking-wider text-cirqa-negro/50 font-semibold mr-1">
-                            Presets:
-                          </span>
-                          <button
-                            type="button"
-                            onClick={handleLoadCircadianPresets}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-amber-500/10 hover:bg-amber-500/20 text-amber-900 border border-amber-500/20 flex items-center gap-1.5 transition-colors cursor-pointer"
-                            title="Carga Clear (#F3F4F6), Día (#F3B93A), Transición (#D97706) y Noche (#991B1B)"
-                          >
-                            <Sparkles className="w-3 h-3 text-amber-600" />
-                            <span>Cristales Circadianos CIRQA</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={handleLoadFrameColorsPresets}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-stone-100 hover:bg-stone-200 text-stone-800 border border-stone-300 flex items-center gap-1.5 transition-colors cursor-pointer"
-                            title="Carga Negro Mate (#1C1917), Carey Clásico (#78350F) y Cristal Transparente (#E5E7EB)"
-                          >
-                            <Glasses className="w-3 h-3 text-stone-700" />
-                            <span>Colores de Armazón</span>
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={handleSetSimpleProduct}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-medium bg-gray-100 hover:bg-gray-200 text-gray-700 border border-gray-300 flex items-center gap-1.5 transition-colors cursor-pointer"
-                            title="Desactiva variantes y vacía la lista"
-                          >
-                            <X className="w-3 h-3 text-gray-500" />
-                            <span>Producto Simple (Sin variantes)</span>
-                          </button>
-                        </div>
-
-                        {editVariants.length === 0 ? (
-                          <div className="p-4 border border-dashed border-cirqa-negro/15 rounded-xl text-center text-xs text-cirqa-negro/50">
-                            No hay variantes creadas. Presiona "Añadir Variante" o "Cargar 4 Cristales CIRQA".
-                          </div>
-                        ) : (
-                          <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
-                            {editVariants.map((v, idx) => (
-                              <div
-                                key={idx}
-                                className="p-3 bg-white rounded-xl border border-cirqa-negro/10 shadow-xs space-y-2"
-                              >
-                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                                  {/* Color Picker / Badge */}
-                                  <div className="sm:col-span-1 flex items-center justify-center">
-                                    <input
-                                      type="color"
-                                      value={v.badgeColor || '#FFFFFF'}
-                                      onChange={(e) => handleUpdateVariantField(idx, 'badgeColor', e.target.value)}
-                                      className="w-7 h-7 rounded-full border border-cirqa-negro/20 cursor-pointer p-0 overflow-hidden"
-                                      title="Color de muestra"
-                                    />
-                                  </div>
-
-                                  {/* Nombre */}
-                                  <div className="sm:col-span-4">
-                                    <input
-                                      type="text"
-                                      placeholder="Nombre (ej. Día)"
-                                      value={v.name}
-                                      onChange={(e) => handleUpdateVariantField(idx, 'name', e.target.value)}
-                                      className="w-full px-2.5 py-1.5 rounded-lg border border-cirqa-negro/15 text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario font-medium"
-                                    />
-                                  </div>
-
-                                  {/* Subtítulo */}
-                                  <div className="sm:col-span-3">
-                                    <input
-                                      type="text"
-                                      placeholder="Subtítulo (ej. PANTALLAS)"
-                                      value={v.subtitle || ''}
-                                      onChange={(e) => handleUpdateVariantField(idx, 'subtitle', e.target.value)}
-                                      className="w-full px-2.5 py-1.5 rounded-lg border border-cirqa-negro/15 text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario text-[11px]"
-                                    />
-                                  </div>
-
-                                  {/* Precio Adicional */}
-                                  <div className="sm:col-span-3">
-                                    <div className="relative flex items-center">
-                                      <span className="absolute left-2 text-[10px] text-cirqa-negro/40">+$</span>
-                                      <input
-                                        type="number"
-                                        min="0"
-                                        step="100"
-                                        placeholder="Precio extra"
-                                        value={v.priceModifier || 0}
-                                        onChange={(e) => handleUpdateVariantField(idx, 'priceModifier', Number(e.target.value) || 0)}
-                                        className="w-full pl-6 pr-2 py-1.5 rounded-lg border border-cirqa-negro/15 text-xs font-mono text-cirqa-negro focus:outline-none focus:border-cirqa-primario"
-                                      />
-                                    </div>
-                                  </div>
-
-                                  {/* Eliminar */}
-                                  <div className="sm:col-span-1 flex justify-end">
-                                    <button
-                                      type="button"
-                                      onClick={() => handleRemoveVariant(idx)}
-                                      className="p-1.5 text-cirqa-negro/30 hover:text-cirqa-carmin hover:bg-black/5 rounded-lg transition-colors cursor-pointer"
-                                      title="Eliminar variante"
-                                    >
-                                      <Trash2 className="w-4 h-4" />
-                                    </button>
-                                  </div>
-                                </div>
-                                <div className="flex items-center justify-between text-[10px] text-cirqa-negro/40 pt-1 border-t border-cirqa-negro/5">
-                                  <span>Clave: <code className="font-mono text-cirqa-negro/60">{v.key || 'auto'}</code></span>
-                                  <label className="flex items-center gap-1 cursor-pointer">
-                                    <input
-                                      type="radio"
-                                      name="defaultVariantRadio"
-                                      checked={Boolean(v.isDefault)}
-                                      onChange={() => {
-                                        setEditVariants(editVariants.map((item, i) => ({
-                                          ...item,
-                                          isDefault: i === idx,
-                                        })));
-                                      }}
-                                    />
-                                    <span>Seleccionada por defecto</span>
-                                  </label>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-cirqa-negro/70 whitespace-nowrap">Selector en Tienda:</span>
+                    <input
+                      type="text"
+                      value={editVariantAxisTitle}
+                      onChange={(e) => setEditVariantAxisTitle(e.target.value)}
+                      placeholder="Seleccionar Cristal Circadiano"
+                      className="px-3 py-1.5 rounded-xl border border-cirqa-negro/15 bg-white text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario"
+                    />
+                  </div>
                 </div>
 
                 <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-t border-cirqa-negro/10">

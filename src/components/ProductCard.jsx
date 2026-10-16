@@ -6,6 +6,7 @@ import {
   getPrimaryProductImage,
   getHoverProductImage,
   getImagesForVariant,
+  getActiveProductVariants,
   matchVariantKey,
   DEFAULT_CIRCADIAN_VARIANTS,
 } from '../utils/productImages';
@@ -27,34 +28,24 @@ export default function ProductCard({
   const [internalVariantKey, setInternalVariantKey] = useState(null);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Opciones de variantes o cristales circadianos
-  const variantOptions =
-    product.hasVariants && Array.isArray(product.variants) && product.variants.length > 0
-      ? product.variants.map((v) => ({
-          key: v.key,
-          name: v.name,
-          tag: v.subtitle || '',
-          color: v.badgeColor || '#FFFFFF',
-          priceModifier: Number(v.priceModifier) || 0,
-        }))
-      : FILTERS.map((f) => ({
-          key: f.id,
-          name: f.name,
-          tag: f.tag,
-          color: f.hexCode,
-          priceModifier: 0,
-        }));
+  // Opciones de variantes que cumplen la Regla de Oro (tienen al menos 1 foto propia asignada)
+  const activeVariants = getActiveProductVariants(product);
+  const variantOptions = activeVariants.map((v) => ({
+    key: v.key,
+    name: v.name,
+    tag: v.subtitle || '',
+    color: v.colorHex || v.badgeColor || '#FFFFFF',
+    priceModifier: Number(v.priceModifier) || 0,
+  }));
 
   const activeVariantKey =
     externalVariantKey ||
     internalVariantKey ||
-    product.lensDefault ||
     variantOptions[0]?.key ||
-    'dia';
+    'clear';
 
   const activeOptionObj =
     variantOptions.find((o) => matchVariantKey(o.key, activeVariantKey)) ||
-    FILTERS.find((f) => matchVariantKey(f.id, activeVariantKey)) ||
     variantOptions[0] ||
     FILTERS[0];
 
@@ -167,7 +158,7 @@ export default function ProductCard({
               Cristal:
             </span>
             <div className="flex items-center gap-1.5">
-              {variantOptions.slice(0, 4).map((variant) => {
+              {variantOptions.map((variant) => {
                 const isSelected = matchVariantKey(activeVariantKey, variant.key);
                 return (
                   <button

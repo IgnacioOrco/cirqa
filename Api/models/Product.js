@@ -5,12 +5,12 @@ import mongoose from 'mongoose';
  */
 const imageSchema = new mongoose.Schema({
   url: { type: String, required: true },
-  tag: { 
-    type: String, 
-    enum: ['front', 'side', 'angle', 'model', 'lifestyle', 'gallery', 'detail', 'hover', 'unassigned'], 
-    default: 'front' 
+  tag: {
+    type: String,
+    enum: ['front', 'side', 'angle', 'model', 'lifestyle', 'gallery', 'detail', 'hover', 'unassigned'],
+    default: 'front'
   },
-  variantKey: { type: String, default: null }, // 'clear', 'dia', 'transicion', 'noche' o null
+  variantKey: { type: String, default: null }, // ej: 'clear', 'dia', 'transicion', 'noche' o clave custom
   isPrimary: { type: Boolean, default: false },
   isHover: { type: Boolean, default: false },
   order: { type: Number, default: 0 }
@@ -21,43 +21,24 @@ const productImageSchema = imageSchema;
 /**
  * Subdocumento de Variante Dinámica de Producto
  */
-const productVariantSchema = new mongoose.Schema(
+const variantSchema = new mongoose.Schema(
   {
-    key: {
-      type: String,
-      required: [true, 'La clave de variante es obligatoria (ej: clear, dia, noche)'],
-      trim: true,
-      lowercase: true,
-    },
-    name: {
-      type: String,
-      required: [true, 'El nombre de la variante es obligatorio (ej: Clear, Día, Transición)'],
-      trim: true,
-    },
-    subtitle: {
-      type: String,
-      default: '',
-      trim: true,
-    },
-    badgeColor: {
-      type: String,
-      default: '#FFFFFF',
-      trim: true,
-    },
-    priceModifier: {
-      type: Number,
-      default: 0,
-    },
-    isDefault: {
-      type: Boolean,
-      default: false,
-    },
+    key: { type: String, required: true, trim: true, lowercase: true }, // ej: 'clear', 'dia', 'transicion', 'noche'
+    name: { type: String, required: true, trim: true }, // ej: 'Clear', 'Día', 'Transición', 'Noche'
+    subtitle: { type: String, default: '', trim: true },
+    colorHex: { type: String, default: '#E5E7EB', trim: true },
+    badgeColor: { type: String, default: '#E5E7EB', trim: true },
+    priceModifier: { type: Number, default: 0 },
+    stock: { type: Number, default: 10 },
+    isAvailable: { type: Boolean, default: true },
+    order: { type: Number, default: 0 },
   },
   {
     _id: true,
-    strict: false,
   }
 );
+
+const productVariantSchema = variantSchema;
 
 /**
  * Esquema Principal del Producto

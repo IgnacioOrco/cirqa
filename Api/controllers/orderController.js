@@ -2,6 +2,8 @@ import mongoose from 'mongoose';
 import { MercadoPagoConfig, Preference } from 'mercadopago';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
+import Coupon from '../models/Coupon.js';
+import { calculateCouponDiscount } from './couponController.js';
 import zipnovaService, { createShipment } from '../services/zipnovaService.js';
 
 /**
@@ -48,19 +50,33 @@ export const createOrderPreference = async (req, res, next) => {
       });
     }
 
-    const mpItems = order.items.map((item) => {
-      const pictureUrl = item.product?.images?.[0]?.url || item.image || undefined;
+    const couponDiscount = Number(order.couponDiscount || 0);
+    const netProductsTotal = Math.max(0, Number(order.subtotal || 0) - couponDiscount);
 
-      return {
-        id: item.product?._id ? item.product._id.toString() : String(item.modelCode || 'cirqa-item'),
-        title: item.name,
-        description: `Armazón CIRQA: ${item.name}`,
-        picture_url: pictureUrl,
-        quantity: Number(item.quantity) || 1,
-        unit_price: Number(item.price),
-        currency_id: order.currency || 'ARS',
-      };
-    });
+    const mpItems = couponDiscount > 0
+      ? [
+          {
+            id: 'cirqa-order-net',
+            title: `Pedido CIRQA (${order.items.length} producto${order.items.length > 1 ? 's' : ''})`,
+            description: order.items.map((i) => `${i.quantity}x ${i.name}`).join(', '),
+            quantity: 1,
+            unit_price: netProductsTotal,
+            currency_id: order.currency || 'ARS',
+          },
+        ]
+      : order.items.map((item) => {
+          const pictureUrl = item.product?.images?.[0]?.url || item.image || undefined;
+
+          return {
+            id: item.product?._id ? item.product._id.toString() : String(item.modelCode || 'cirqa-item'),
+            title: item.name,
+            description: `Armazón CIRQA: ${item.name}`,
+            picture_url: pictureUrl,
+            quantity: Number(item.quantity) || 1,
+            unit_price: Number(item.price),
+            currency_id: order.currency || 'ARS',
+          };
+        });
 
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
     const apiUrl = process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`;
@@ -327,24 +343,12 @@ export const createPreference = async (req, res, next) => {
     };
 
     const isDestCABA = checkIsCABA(zip, prov);
-
-    // 3. Subtotal estricto calculado desde los precios oficiales de la base de datos
-    const subtotal = calculatedSubtotal;
     let numericShippingCost = isDestCABA ? 0 : (Number(shippingCost) || 0);
     let shippingCarrier = isDestCABA ? 'Motomensajería' : (req.body.shipping?.carrier || 'Correo Andreani / OCA');
     let shippingServiceType = isDestCABA ? 'express_caba_24h' : (req.body.shipping?.service || req.body.shipping?.serviceType || 'standard');
     let shippingMethodTitle = isDestCABA
       ? 'Envío Gratis CABA · Motomensajería Express'
       : (String(req.body.shippingMethod || req.body.shipping?.name || 'Envío a Domicilio · Correo Andreani / OCA').trim());
-
-    // 4. Lógica de Descuento: 15% OFF EXCLUSIVO sobre el valor de productos para Transferencia Bancaria
-    // El cálculo del 15% se efectúa estrictamente sobre el subtotal de productos, NUNCA sobre el costo de envío.
-    const discountAmount = isTransfer ? Math.round(subtotal * 0.15) : 0;
-    const totalAmount = (subtotal - discountAmount) + numericShippingCost;
-
-    const year = new Date().getFullYear();
-    const randomCode = Math.floor(100000 + Math.random() * 900000);
-    const orderNumber = `CQ-${year}-${randomCode}`;
 
     const normalizedCustomer = {
       name: String(customer.name || '').trim(),
@@ -364,12 +368,49 @@ export const createPreference = async (req, res, next) => {
       },
     };
 
-    // 5. Crear el documento de la Orden en MongoDB con los ítems validados
+    // 4. Validación y cálculo de Cupón de Descuento
+    const rawCouponCode = req.body.couponCode || req.body.coupon;
+    let appliedCoupon = null;
+    let couponDiscount = 0;
+
+    if (rawCouponCode && typeof rawCouponCode === 'string') {
+      const cleanCode = rawCouponCode.trim().toUpperCase();
+      const foundCoupon = await Coupon.findOne({ code: cleanCode });
+      if (foundCoupon) {
+        const calcResult = calculateCouponDiscount(foundCoupon, validatedItems, subtotal, normalizedCustomer.email);
+        if (calcResult.valid && calcResult.discountAmount > 0) {
+          appliedCoupon = foundCoupon;
+          couponDiscount = calcResult.discountAmount;
+        }
+      }
+    }
+
+    // 5. Lógica de Descuento: Transferencia Bancaria (15% OFF) y Acumulación
+    const subtotalAfterCoupon = Math.max(0, subtotal - couponDiscount);
+    let transferDiscount = 0;
+
+    if (isTransfer) {
+      if (!appliedCoupon || appliedCoupon.combinableWithTransfer !== false) {
+        transferDiscount = Math.round(subtotalAfterCoupon * 0.15);
+      }
+    }
+
+    const discountAmount = Math.min(subtotal, couponDiscount + transferDiscount);
+    const totalAmount = Math.max(0, subtotal - discountAmount) + numericShippingCost;
+
+    const year = new Date().getFullYear();
+    const randomCode = Math.floor(100000 + Math.random() * 900000);
+    const orderNumber = `CQ-${year}-${randomCode}`;
+
+    // 6. Crear el documento de la Orden en MongoDB con los ítems validados
     const order = new Order({
       orderNumber,
       customer: normalizedCustomer,
       items: validatedItems,
       subtotal,
+      couponCode: appliedCoupon ? appliedCoupon.code : null,
+      couponDiscount,
+      transferDiscount,
       discountAmount,
       shippingCost: numericShippingCost,
       shippingMethod: shippingMethodTitle,
@@ -399,6 +440,22 @@ export const createPreference = async (req, res, next) => {
 
     await order.save();
 
+    // 7. Incrementar uso del cupón y registrar historial
+    if (appliedCoupon) {
+      appliedCoupon.usedCount = (appliedCoupon.usedCount || 0) + 1;
+      if (!Array.isArray(appliedCoupon.usageHistory)) {
+        appliedCoupon.usageHistory = [];
+      }
+      appliedCoupon.usageHistory.push({
+        orderId: order._id,
+        orderNumber: order.orderNumber,
+        customerEmail: normalizedCustomer.email,
+        discountApplied: couponDiscount,
+        usedAt: new Date(),
+      });
+      await appliedCoupon.save();
+    }
+
     // =========================================================================
     // FLUJO A: TRANSFERENCIA BANCARIA (Con 15% OFF, reserva de stock y retorno)
     // =========================================================================
@@ -418,6 +475,9 @@ export const createPreference = async (req, res, next) => {
         orderNumber: order.orderNumber,
         isTransfer: true,
         subtotal,
+        couponCode: order.couponCode,
+        couponDiscount,
+        transferDiscount,
         discountAmount,
         shippingCost: numericShippingCost,
         totalAmount,
@@ -427,6 +487,9 @@ export const createPreference = async (req, res, next) => {
           isTransfer: true,
           status: order.status,
           subtotal,
+          couponCode: order.couponCode,
+          couponDiscount,
+          transferDiscount,
           discountAmount,
           shippingCost: numericShippingCost,
           totalAmount,
@@ -446,16 +509,30 @@ export const createPreference = async (req, res, next) => {
       const client = getMercadoPagoClient();
       const preference = new Preference(client);
 
+      const netProductsTotal = Math.max(0, subtotal - couponDiscount);
+      const preferenceItems = couponDiscount > 0
+        ? [
+            {
+              id: 'cirqa-cart-net',
+              title: `Pedido CIRQA (${validatedItems.length} producto${validatedItems.length > 1 ? 's' : ''})`,
+              unit_price: netProductsTotal,
+              quantity: 1,
+              currency_id: 'ARS',
+              description: validatedItems.map((item) => `${item.quantity}x ${item.name}${item.filter ? ` (${item.filter})` : ''}`).join(', '),
+            },
+          ]
+        : validatedItems.map((item) => ({
+            id: item.product.toString(),
+            title: item.name,
+            unit_price: Number(item.price),
+            quantity: Number(item.quantity),
+            currency_id: 'ARS',
+            picture_url: item.image || undefined,
+            description: `Armazón CIRQA: ${item.name}${item.filter ? ` · Cristal ${item.filter}` : ''}`,
+          }));
+
       const preferencePayload = {
-        items: validatedItems.map((item) => ({
-          id: item.product.toString(),
-          title: item.name,
-          unit_price: Number(item.price),
-          quantity: Number(item.quantity),
-          currency_id: 'ARS',
-          picture_url: item.image || undefined,
-          description: `Armazón CIRQA: ${item.name}${item.filter ? ` · Cristal ${item.filter}` : ''}`,
-        })),
+        items: preferenceItems,
         shipments: {
           cost: Number(numericShippingCost || 0),
           mode: 'not_specified',
@@ -518,7 +595,10 @@ export const createPreference = async (req, res, next) => {
       initPoint,
       sandboxInitPoint,
       subtotal,
-      discountAmount: 0,
+      couponCode: order.couponCode,
+      couponDiscount,
+      transferDiscount,
+      discountAmount,
       shippingCost: numericShippingCost,
       totalAmount,
       data: {
@@ -527,7 +607,10 @@ export const createPreference = async (req, res, next) => {
         initPoint,
         sandboxInitPoint,
         subtotal,
-        discountAmount: 0,
+        couponCode: order.couponCode,
+        couponDiscount,
+        transferDiscount,
+        discountAmount,
         shippingCost: numericShippingCost,
         totalAmount,
       },

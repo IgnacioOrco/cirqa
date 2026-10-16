@@ -256,11 +256,91 @@ export const autoAssignMissingVariantKeys = (images) => {
 };
 
 /**
- * Asignación Inteligente y Soporte Ilimitado de Fotos por Variante
+ * Variantes Activas de un Producto para la Tienda y el Configurador
+ * REGLAS OBLIGATORIAS:
+ * 1) Una variante SOLO se muestra si:
+ *    a) Está activa en el producto (isAvailable !== false) Y
+ *    b) Tiene al menos 1 foto propia asignada (img.variantKey === variant.key y img.tag !== 'model').
+ * 2) El orden respeta estrictamente el campo 'order' de product.variants configurado en el Admin.
+ * 3) Si un producto solo tiene fotos cargadas en 2 variantes (ej: Clear y Día),
+ *    SOLO se retornan y renderizan esas 2 variantes.
+ */
+export const getActiveProductVariants = (product) => {
+  if (!product) return [];
+
+  const rawImages = Array.isArray(product.images) ? product.images : [];
+  const declaredVariants = Array.isArray(product.variants) && product.variants.length > 0
+    ? product.variants
+    : [];
+
+  if (declaredVariants.length > 0) {
+    const activeWithPhotos = declaredVariants.filter((variant) => {
+      if (variant.isAvailable === false) return false;
+      const vKey = normalizeVariantKey(variant.key || variant.name);
+      if (!vKey) return false;
+
+      const hasPhoto = rawImages.some((img) => {
+        if (!img || img.tag === 'model') return false;
+        const imgVKey = normalizeVariantKey(img.variantKey || inferImageVariantKey(img));
+        return imgVKey === vKey;
+      });
+
+      return hasPhoto;
+    });
+
+    if (activeWithPhotos.length > 0) {
+      return [...activeWithPhotos].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+    }
+  }
+
+  // Si no hay variants explícitas en el documento, reconstruir a partir de las imágenes con fotos
+  const foundKeys = new Set();
+  rawImages.forEach((img) => {
+    if (img && img.tag !== 'model') {
+      const k = normalizeVariantKey(img.variantKey || inferImageVariantKey(img));
+      if (k) foundKeys.add(k);
+    }
+  });
+
+  if (foundKeys.size > 0) {
+    const list = Array.from(foundKeys).map((k, idx) => {
+      const preset = DEFAULT_CIRCADIAN_VARIANTS.find((v) => normalizeVariantKey(v.key) === k);
+      return {
+        key: k,
+        name: preset ? preset.name : (k.charAt(0).toUpperCase() + k.slice(1)),
+        subtitle: preset ? preset.subtitle : '',
+        badgeColor: preset ? preset.badgeColor : '#E5E7EB',
+        colorHex: preset ? preset.badgeColor : '#E5E7EB',
+        order: idx,
+        isAvailable: true,
+      };
+    });
+    return list.sort((a, b) => a.order - b.order);
+  }
+
+  // Fallback para modelos clásicos con variantes predeterminadas
+  const classicMatch = MODELS.find((m) => m.id === product.id || m.code === product.modelCode || m.name === product.name);
+  if (classicMatch && Array.isArray(classicMatch.variants) && classicMatch.variants.length > 0) {
+    return classicMatch.variants;
+  }
+
+  return DEFAULT_CIRCADIAN_VARIANTS;
+};
+
+/**
+ * Fotos Exclusivas por Variante + Fotos de Modelo Siempre al Final
+ * PROHIBIDO limitar con .slice(0, 2): Devolver TODAS las fotos de la variante.
+ *
+ * Al seleccionar una variante (ej: clear):
+ * 1. Filtrar todas las fotos donde normalizeVariantKey(img.variantKey) === normalizeVariantKey(variantKey) y img.tag !== 'model'.
+ * 2. Ordenar esas fotos estrictamente por img.order (ascendente).
+ * 3. Filtrar todas las imágenes de modelo del producto (img.tag === 'model'), ordenadas por su propio img.order (ascendente).
+ * 4. Concatenar: [...fotosDeLaVarianteSeleccionada, ...fotosDeModelo].
+ *
  * @param {Object} product - Producto a inspeccionar
  * @param {string|null} variantKey - Clave de variante ('clear', 'dia', 'transicion', 'noche')
- * @param {Object} options - Opciones adicionales (forAdmin, allowFallback)
- * @returns {Array} Array de imágenes filtradas y ordenadas para la variante
+ * @param {Object} options - Opciones adicionales
+ * @returns {Array} Array de imágenes exclusivo y ordenado
  */
 export const getImagesForVariant = (product, variantKey = null, options = {}) => {
   if (!product) {
@@ -268,79 +348,70 @@ export const getImagesForVariant = (product, variantKey = null, options = {}) =>
   }
 
   const rawImages = Array.isArray(product.images) ? product.images : [];
-  let allImages = rawImages
+  const normalizedImages = rawImages
     .filter((img) => img && (img.url || img.imageUrl))
-    .map((img, idx) => ({
-      _id: img._id || `img-${idx}`,
-      url: normalizeImageUrl(img.url || img.imageUrl),
-      tag: img.tag || inferImageTag(img, idx),
-      variantKey: img.variantKey && img.variantKey !== 'null' && img.variantKey !== 'undefined'
+    .map((img, idx) => {
+      const explicitVK = img.variantKey && img.variantKey !== 'null' && img.variantKey !== 'undefined'
         ? normalizeVariantKey(img.variantKey)
-        : null,
-      isPrimary: Boolean(img.isPrimary),
-      isHover: Boolean(img.isHover || img.tag === 'hover'),
-      order: typeof img.order === 'number' ? img.order : idx,
-    }));
+        : null;
+      const inferredVK = inferImageVariantKey(img);
+      const resolvedVK = explicitVK || inferredVK || null;
+      const explicitTag = img.tag || inferImageTag(img, idx);
+      const isModel = explicitTag === 'model' || explicitTag === 'lifestyle';
 
-  allImages.sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+      return {
+        _id: img._id || `img-${idx}`,
+        url: normalizeImageUrl(img.url || img.imageUrl),
+        tag: isModel ? 'model' : explicitTag,
+        variantKey: isModel ? null : resolvedVK,
+        isPrimary: Boolean(img.isPrimary),
+        isHover: Boolean(img.isHover || explicitTag === 'hover'),
+        order: typeof img.order === 'number' ? img.order : idx,
+      };
+    });
 
-  // 1. Normalizar targetKey = normalizeVariantKey(variantKey). Si !targetKey, devolver todas las imágenes ordenadas.
-  const targetKey = normalizeVariantKey(variantKey);
+  // Fotos de Modelo: Van SIEMPRE al final en todas las variantes
+  const modelPhotos = normalizedImages
+    .filter((img) => img.tag === 'model')
+    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+
+  let targetKey = normalizeVariantKey(variantKey);
+
+  // Si no se proveyó variantKey, tomar la primera variante activa que devuelva getActiveProductVariants
   if (!targetKey) {
-    if (allImages.length > 0) return allImages;
+    const activeVariants = getActiveProductVariants(product);
+    if (activeVariants.length > 0) {
+      targetKey = normalizeVariantKey(activeVariants[0].key);
+    }
+  }
+
+  if (!targetKey) {
+    if (normalizedImages.length > 0) return normalizedImages;
     if (product.image_url) {
       return [{ url: normalizeImageUrl(product.image_url), tag: 'front', isPrimary: true, isHover: false, order: 0, variantKey: null }];
     }
     return [{ url: FALLBACK_IMAGE, tag: 'front', isPrimary: true, isHover: false, order: 0, variantKey: null }];
   }
 
-  // 2. Filtrar las imágenes que ya tienen normalizeVariantKey(img.variantKey) === targetKey
-  const strictMatches = allImages.filter(
-    (img) => img.variantKey && normalizeVariantKey(img.variantKey) === targetKey
-  );
+  // 1. Filtrar fotos exclusivas de la variante seleccionada (img.tag !== 'model')
+  const variantPhotos = normalizedImages
+    .filter((img) => img.tag !== 'model' && normalizeVariantKey(img.variantKey) === targetKey)
+    .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
 
-  const rolePriority = (tag) => {
-    if (tag === 'front') return 1;
-    if (tag === 'angle' || tag === 'side' || tag === 'hover') return 2;
-    if (tag === 'model' || tag === 'lifestyle') return 3;
-    if (tag === 'gallery' || tag === 'detail') return 4;
-    return 5;
-  };
-
-  // 3. Regla Principal (Sin límite de cantidad):
-  // Si strictMatches.length > 0, devolver TODAS las imágenes de strictMatches ordenadas por rol
-  // ('front' primero, luego 'angle'/'side', luego 'model'/'lifestyle', luego 'gallery') y por 'order'.
-  // NUNCA recortar con .slice(0, 2).
-  if (strictMatches.length > 0) {
-    const sortedStrict = [...strictMatches].sort((a, b) => {
-      const prioDiff = rolePriority(a.tag) - rolePriority(b.tag);
-      if (prioDiff !== 0) return prioDiff;
-      return (a.order ?? 0) - (b.order ?? 0);
-    });
-    return sortedStrict;
+  // 2. Si hay fotos propias de la variante, concatenar con fotos de modelo al final
+  if (variantPhotos.length > 0) {
+    return [...variantPhotos, ...modelPhotos];
   }
 
-  // 4. Regla de Emparejamiento por Rol para Imágenes sin variantKey (Fallback inteligente)
-  const orphanImages = allImages.filter(
-    (img) => !img.variantKey || !normalizeVariantKey(img.variantKey)
-  );
-
+  // Fallback inteligente para fotos huérfanas sin variantKey en productos pre-migración
+  const orphanImages = normalizedImages.filter((img) => img.tag !== 'model' && !img.variantKey);
   if (orphanImages.length > 0) {
     let fronts = orphanImages.filter((img) => img.tag === 'front');
-    // Si hay un solo 'front' (como en Q 002) o menos de 4 frentes, complementar con 'gallery'
     if (fronts.length <= 1) {
-      const galleryFronts = orphanImages.filter(
-        (img) => img.tag === 'gallery' && img.tag !== 'angle' && img.tag !== 'side' && img.tag !== 'model' && img.tag !== 'lifestyle'
-      );
+      const galleryFronts = orphanImages.filter((img) => img.tag === 'gallery');
       fronts = [...fronts, ...galleryFronts];
     }
-
-    const angles = orphanImages.filter(
-      (img) => img.tag === 'angle' || img.tag === 'side' || img.tag === 'hover'
-    );
-    const models = orphanImages.filter(
-      (img) => img.tag === 'model' || img.tag === 'lifestyle'
-    );
+    const angles = orphanImages.filter((img) => img.tag === 'angle' || img.tag === 'side' || img.tag === 'hover');
 
     const VARIANT_ORDER = ['clear', 'dia', 'transicion', 'noche'];
     let variantIndex = VARIANT_ORDER.indexOf(targetKey);
@@ -351,26 +422,25 @@ export const getImagesForVariant = (product, variantKey = null, options = {}) =>
     }
 
     if (variantIndex >= 0) {
-      const variantGroup = [];
-      if (fronts[variantIndex]) variantGroup.push(fronts[variantIndex]);
-      if (angles[variantIndex]) variantGroup.push(angles[variantIndex]);
-      if (models[variantIndex]) variantGroup.push(models[variantIndex]);
-
-      if (variantGroup.length > 0) {
-        return variantGroup;
+      const orphanGroup = [];
+      if (fronts[variantIndex]) orphanGroup.push(fronts[variantIndex]);
+      if (angles[variantIndex]) orphanGroup.push(angles[variantIndex]);
+      if (orphanGroup.length > 0) {
+        return [...orphanGroup, ...modelPhotos];
       }
     }
   }
 
-  // Fallback si no hay imágenes para la variante puntual
   if (options.allowFallback === false || options.forAdmin) {
     return [];
   }
 
-  // En la tienda pública, devolver como fallback la portada general si existe
-  if (allImages.length > 0) {
-    const primaryGeneral = allImages.find((img) => img.isPrimary) || allImages[0];
-    return [primaryGeneral];
+  if (modelPhotos.length > 0) {
+    return modelPhotos;
+  }
+
+  if (normalizedImages.length > 0) {
+    return normalizedImages;
   }
 
   if (product.image_url) {
@@ -381,40 +451,25 @@ export const getImagesForVariant = (product, variantKey = null, options = {}) =>
 };
 
 /**
- * Regla 1: Selección Determinista de Portada
- * Prioridad Absoluta a fotos de la variante activa cargadas por la administración:
- * - Si variantKey está presente, prioriza foto frontal (tag === 'front') o primaria de esa variante.
- * - Si no, foto con isPrimary === true del producto.
- * - En su defecto, primera foto por 'order' ascendente.
+ * Portada Determinista del Catálogo (ProductCard y Catalog):
+ * Usa como variante inicial la primera variante activa que devuelva getActiveProductVariants(product).
+ * La imagen principal de la card será la primera foto (order: 0 o isPrimary) de esa primera variante activa.
  */
 export const getPrimaryProductImage = (product, variantKey = null) => {
   if (!product) return FALLBACK_IMAGE;
 
-  if (variantKey) {
-    const varImages = getImagesForVariant(product, variantKey);
-    if (varImages && varImages.length > 0) {
-      const varPrimary = varImages.find((img) => Boolean(img.isPrimary));
-      if (varPrimary) return normalizeImageUrl(varPrimary.url || varPrimary.imageUrl);
-
-      const varFront = varImages.find((img) => (img.tag || inferImageTag(img)) === 'front');
-      if (varFront) return normalizeImageUrl(varFront.url || varFront.imageUrl);
-
-      return normalizeImageUrl(varImages[0].url || varImages[0].imageUrl);
+  let activeKey = variantKey ? normalizeVariantKey(variantKey) : null;
+  if (!activeKey) {
+    const activeVariants = getActiveProductVariants(product);
+    if (activeVariants.length > 0) {
+      activeKey = normalizeVariantKey(activeVariants[0].key);
     }
   }
 
-  if (Array.isArray(product.images) && product.images.length > 0) {
-    const validImages = product.images.filter((img) => img && (img.url || img.imageUrl));
-    if (validImages.length > 0) {
-      const primaryImg = validImages.find((img) => Boolean(img.isPrimary));
-      if (primaryImg) return normalizeImageUrl(primaryImg.url || primaryImg.imageUrl);
-
-      const frontImg = validImages.find((img) => (img.tag || inferImageTag(img)) === 'front');
-      if (frontImg) return normalizeImageUrl(frontImg.url || frontImg.imageUrl);
-
-      const sorted = [...validImages].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-      return normalizeImageUrl(sorted[0].url || sorted[0].imageUrl);
-    }
+  const varImages = getImagesForVariant(product, activeKey);
+  if (varImages && varImages.length > 0) {
+    const primaryImg = varImages.find((img) => Boolean(img.isPrimary)) || varImages[0];
+    if (primaryImg) return normalizeImageUrl(primaryImg.url || primaryImg.imageUrl);
   }
 
   if (product.image_url) {
@@ -425,65 +480,38 @@ export const getPrimaryProductImage = (product, variantKey = null) => {
 };
 
 /**
- * Regla 2: Selección Determinista de Hover (Foto Lateral/Perfil del MISMO Modelo y Variante)
+ * Hover Determinista del Catálogo:
+ * Usa como hover la segunda foto (order: 1 o isHover) de esa misma primera variante activa.
  */
 export const getHoverProductImage = (product, primaryUrl = null, variantKey = null) => {
   if (!product) return FALLBACK_IMAGE;
-  const resolvedPrimary = primaryUrl || getPrimaryProductImage(product, variantKey);
 
-  if (variantKey) {
-    const varImages = getImagesForVariant(product, variantKey);
-    if (varImages && varImages.length > 0) {
-      // Hover: la que tenga isHover: true o tag === 'angle' o tag === 'side', o la segunda foto de esa variante
-      const hoverImg = varImages.find(
-        (img) => Boolean(img.isHover) && normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary
-      );
-      if (hoverImg) return normalizeImageUrl(hoverImg.url || hoverImg.imageUrl);
-
-      const sideImg = varImages.find(
-        (img) => {
-          const tag = img.tag || inferImageTag(img);
-          return (tag === 'angle' || tag === 'side') &&
-            normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary;
-        }
-      );
-      if (sideImg) return normalizeImageUrl(sideImg.url || sideImg.imageUrl);
-
-      const secondImg = varImages.find((img) => normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary);
-      if (secondImg) return normalizeImageUrl(secondImg.url || secondImg.imageUrl);
-
-      if (varImages.length > 1) {
-        return normalizeImageUrl(varImages[1].url || varImages[1].imageUrl);
-      }
-      return normalizeImageUrl(varImages[0].url || varImages[0].imageUrl);
+  let activeKey = variantKey ? normalizeVariantKey(variantKey) : null;
+  if (!activeKey) {
+    const activeVariants = getActiveProductVariants(product);
+    if (activeVariants.length > 0) {
+      activeKey = normalizeVariantKey(activeVariants[0].key);
     }
   }
 
-  if (Array.isArray(product.images) && product.images.length > 0) {
-    const validImages = product.images.filter((img) => img && (img.url || img.imageUrl));
-    if (validImages.length > 0) {
-      const hoverImg = validImages.find(
-        (img) => Boolean(img.isHover) && normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary
-      );
-      if (hoverImg) return normalizeImageUrl(hoverImg.url || hoverImg.imageUrl);
+  const resolvedPrimary = primaryUrl || getPrimaryProductImage(product, activeKey);
+  const varImages = getImagesForVariant(product, activeKey);
 
-      const sideImg = validImages.find(
-        (img) => {
-          const tag = img.tag || inferImageTag(img);
-          return (tag === 'angle' || tag === 'side') &&
-            normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary;
-        }
-      );
-      if (sideImg) return normalizeImageUrl(sideImg.url || sideImg.imageUrl);
+  if (varImages && varImages.length > 0) {
+    // 1. Imagen marcada con isHover que sea distinta a la primaria
+    const hoverImg = varImages.find(
+      (img) => Boolean(img.isHover) && normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary
+    );
+    if (hoverImg) return normalizeImageUrl(hoverImg.url || hoverImg.imageUrl);
 
-      const secondImg = validImages.find((img) => normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary);
-      if (secondImg) return normalizeImageUrl(secondImg.url || secondImg.imageUrl);
+    // 2. Segunda foto de esa misma variante (order: 1)
+    const secondImg = varImages.find(
+      (img) => normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary
+    );
+    if (secondImg) return normalizeImageUrl(secondImg.url || secondImg.imageUrl);
 
-      const sorted = [...validImages].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
-      if (sorted.length > 1) {
-        const fallbackSecond = sorted.find((img) => normalizeImageUrl(img.url || img.imageUrl) !== resolvedPrimary) || sorted[1];
-        return normalizeImageUrl(fallbackSecond.url || fallbackSecond.imageUrl);
-      }
+    if (varImages.length > 1) {
+      return normalizeImageUrl(varImages[1].url || varImages[1].imageUrl);
     }
   }
 

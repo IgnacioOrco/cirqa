@@ -4,17 +4,63 @@ import fs from 'node:fs';
 import Product from '../models/Product.js';
 
 export const normalizeVariant = (v) => {
-  if (!v) return null;
+  if (!v || v === 'null' || v === 'undefined' || v === 'none' || v === 'model') return null;
   const clean = v.toString().trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (!clean || clean === 'null' || clean === 'undefined') return null;
   if (clean.includes('clear') || clean.includes('transp') || clean.includes('neutr')) return 'clear';
   if (clean.includes('dia') || clean.includes('day') || clean.includes('amarill') || clean.includes('yellow')) return 'dia';
   if (clean.includes('transic') || clean.includes('naranj') || clean.includes('orang') || clean.includes('amber')) return 'transicion';
   if (clean.includes('noch') || clean.includes('night') || clean.includes('roj') || clean.includes('red') || clean.includes('sunset')) return 'noche';
-  return clean;
+  return clean.replace(/[^a-z0-9-_]/g, '-');
 };
 
 export const VALID_IMAGE_TAGS = ['front', 'side', 'angle', 'model', 'lifestyle', 'gallery', 'detail', 'hover', 'unassigned'];
+
+export const VARIANT_PRESETS = {
+  clear: { name: 'Clear', colorHex: '#E5E7EB', subtitle: 'Transparente / Neutro' },
+  dia: { name: 'Día', colorHex: '#FACC15', subtitle: 'Amarillo / Bloqueo 40%' },
+  transicion: { name: 'Transición', colorHex: '#F97316', subtitle: 'Naranja / Bloqueo 70%' },
+  noche: { name: 'Noche', colorHex: '#EF4444', subtitle: 'Rojo / Bloqueo 99%' }
+};
+
+export const ensureVariantExists = (product, variantKey) => {
+  if (!variantKey || variantKey === 'model') return;
+  const normalized = normalizeVariant(variantKey);
+  if (!normalized) return;
+
+  if (!Array.isArray(product.variants)) {
+    product.variants = [];
+  }
+
+  const exists = product.variants.some((v) => normalizeVariant(v.key) === normalized);
+  if (!exists) {
+    const preset = VARIANT_PRESETS[normalized] || {
+      name: normalized.charAt(0).toUpperCase() + normalized.slice(1),
+      colorHex: '#94A3B8',
+      subtitle: ''
+    };
+    product.variants.push({
+      key: normalized,
+      name: preset.name,
+      subtitle: preset.subtitle || '',
+      colorHex: preset.colorHex || '#E5E7EB',
+      badgeColor: preset.colorHex || '#E5E7EB',
+      priceModifier: 0,
+      stock: 10,
+      isAvailable: true,
+      order: product.variants.length
+    });
+    product.markModified('variants');
+  }
+};
+
+export const syncVariantsFromImages = (product) => {
+  if (!Array.isArray(product.images)) return;
+  product.images.forEach((img) => {
+    if (img.tag !== 'model' && img.variantKey) {
+      ensureVariantExists(product, img.variantKey);
+    }
+  });
+};
 
 /**
  * @desc    Listar todos los productos
@@ -135,17 +181,25 @@ export const createProduct = async (req, res, next) => {
     // Formatear variantes dinámicas si se envían
     let formattedVariants = [];
     if (Array.isArray(variants) && variants.length > 0) {
-      formattedVariants = variants.map((v, idx) => ({
-        key: (v.key || v.name || `var-${idx + 1}`).toLowerCase().trim().replace(/[\s\W-]+/g, '-'),
-        name: (v.name || `Variante ${idx + 1}`).trim(),
-        subtitle: (v.subtitle || '').trim(),
-        badgeColor: (v.badgeColor || '#FFFFFF').trim(),
-        priceModifier: Number(v.priceModifier) || 0,
-        isDefault: Boolean(v.isDefault),
-      }));
+      formattedVariants = variants.map((v, idx) => {
+        const normKey = normalizeVariant(v.key || v.name) || (v.key || v.name || `var-${idx + 1}`).toLowerCase().trim().replace(/[\s\W-]+/g, '-');
+        return {
+          ...(v._id ? { _id: v._id } : {}),
+          key: normKey,
+          name: (v.name || (VARIANT_PRESETS[normKey]?.name) || `Variante ${idx + 1}`).trim(),
+          subtitle: (v.subtitle || (VARIANT_PRESETS[normKey]?.subtitle) || '').trim(),
+          colorHex: (v.colorHex || v.badgeColor || VARIANT_PRESETS[normKey]?.colorHex || '#E5E7EB').trim(),
+          badgeColor: (v.badgeColor || v.colorHex || VARIANT_PRESETS[normKey]?.colorHex || '#E5E7EB').trim(),
+          priceModifier: Number(v.priceModifier) || 0,
+          stock: v.stock !== undefined ? Number(v.stock) : 10,
+          isAvailable: v.isAvailable !== undefined ? Boolean(v.isAvailable) : true,
+          order: typeof v.order === 'number' ? v.order : idx,
+        };
+      });
     }
 
     // Formatear imágenes iniciales si vienen como strings u objetos (incluyendo variantKey)
+    const validTags = VALID_IMAGE_TAGS;
     let formattedImages = [];
     if (Array.isArray(images) && images.length > 0) {
       formattedImages = images.map((img, idx) => {
@@ -155,16 +209,19 @@ export const createProduct = async (req, res, next) => {
             tag: idx === 0 ? 'front' : 'gallery',
             variantKey: null,
             isPrimary: idx === 0,
+            isHover: false,
             order: idx,
           };
         }
+        const tag = validTags.includes(img.tag) ? img.tag : 'front';
         return {
+          ...(img._id ? { _id: img._id } : {}),
           url: img.url,
-          tag: VALID_IMAGE_TAGS.includes(img.tag) ? img.tag : 'gallery',
-          variantKey: normalizeVariant(img.variantKey),
+          tag,
+          variantKey: tag === 'model' ? null : normalizeVariant(img.variantKey),
           isPrimary: Boolean(img.isPrimary),
           isHover: Boolean(img.isHover || img.tag === 'hover'),
-          order: img.order !== undefined ? Number(img.order) : idx,
+          order: typeof img.order === 'number' ? img.order : idx,
         };
       });
     } else if (image_url) {
@@ -180,6 +237,31 @@ export const createProduct = async (req, res, next) => {
       ];
     }
 
+    // Auto-registrar variantes en formattedVariants si alguna imagen tiene variantKey no registrada
+    formattedImages.forEach((img) => {
+      if (img.tag !== 'model' && img.variantKey) {
+        const vKey = normalizeVariant(img.variantKey);
+        if (vKey && !formattedVariants.some((v) => normalizeVariant(v.key) === vKey)) {
+          const preset = VARIANT_PRESETS[vKey] || {
+            name: vKey.charAt(0).toUpperCase() + vKey.slice(1),
+            colorHex: '#94A3B8',
+            subtitle: ''
+          };
+          formattedVariants.push({
+            key: vKey,
+            name: preset.name,
+            subtitle: preset.subtitle,
+            colorHex: preset.colorHex,
+            badgeColor: preset.colorHex,
+            priceModifier: 0,
+            stock: 10,
+            isAvailable: true,
+            order: formattedVariants.length,
+          });
+        }
+      }
+    });
+
     const product = await Product.create({
       name: name.trim(),
       modelCode: finalModelCode,
@@ -189,7 +271,7 @@ export const createProduct = async (req, res, next) => {
       basePrice: finalPrice,
       stock: finalStock,
       isActive: isActive !== undefined ? Boolean(isActive) : true,
-      hasVariants: Boolean(hasVariants),
+      hasVariants: Boolean(hasVariants || formattedVariants.length > 0),
       variantAxisTitle: (variantAxisTitle || 'Seleccionar Variante').trim(),
       variants: formattedVariants,
       images: formattedImages,
@@ -372,31 +454,43 @@ export const updateProduct = async (req, res, next) => {
 
     // Normalizar array de variantes si viene en req.body
     if (Array.isArray(req.body.variants)) {
-      product.variants = req.body.variants.map((v, idx) => ({
-        _id: v._id,
-        key: (v.key || v.name || `var-${idx + 1}`).toLowerCase().trim().replace(/[\s\W-]+/g, '-'),
-        name: (v.name || `Variante ${idx + 1}`).trim(),
-        subtitle: (v.subtitle || '').trim(),
-        badgeColor: (v.badgeColor || '#FFFFFF').trim(),
-        priceModifier: Number(v.priceModifier) || 0,
-        isDefault: Boolean(v.isDefault),
-      }));
+      product.variants = req.body.variants.map((v, idx) => {
+        const normKey = normalizeVariant(v.key || v.name) || (v.key || v.name || `var-${idx + 1}`).toLowerCase().trim().replace(/[\s\W-]+/g, '-');
+        return {
+          ...(v._id ? { _id: v._id } : {}),
+          key: normKey,
+          name: (v.name || VARIANT_PRESETS[normKey]?.name || `Variante ${idx + 1}`).trim(),
+          subtitle: (v.subtitle || VARIANT_PRESETS[normKey]?.subtitle || '').trim(),
+          colorHex: (v.colorHex || v.badgeColor || VARIANT_PRESETS[normKey]?.colorHex || '#E5E7EB').trim(),
+          badgeColor: (v.badgeColor || v.colorHex || VARIANT_PRESETS[normKey]?.colorHex || '#E5E7EB').trim(),
+          priceModifier: Number(v.priceModifier) || 0,
+          stock: v.stock !== undefined ? Number(v.stock) : 10,
+          isAvailable: v.isAvailable !== undefined ? Boolean(v.isAvailable) : true,
+          order: typeof v.order === 'number' ? v.order : idx,
+        };
+      });
       product.markModified('variants');
     }
 
     // Soporte explícito para actualizar array images con todos sus metadatos
     const validTags = VALID_IMAGE_TAGS;
     if (Array.isArray(req.body.images)) {
-      product.images = req.body.images.map((img, idx) => ({
-        _id: img._id || undefined,
-        url: img.url,
-        tag: validTags.includes(img.tag) ? img.tag : 'front',
-        variantKey: normalizeVariant(img.variantKey),
-        isPrimary: Boolean(img.isPrimary),
-        isHover: Boolean(img.isHover),
-        order: typeof img.order === 'number' ? img.order : idx,
-      }));
+      product.images = req.body.images.map((img, idx) => {
+        const tag = validTags.includes(img.tag) ? img.tag : 'front';
+        return {
+          ...(img._id ? { _id: img._id } : {}),
+          url: img.url,
+          tag,
+          variantKey: tag === 'model' ? null : normalizeVariant(img.variantKey),
+          isPrimary: Boolean(img.isPrimary),
+          isHover: Boolean(img.isHover),
+          order: typeof img.order === 'number' ? img.order : idx,
+        };
+      });
       product.markModified('images');
+
+      // Auto-registrar variantes si hay imágenes con variantKey que no estén en product.variants
+      syncVariantsFromImages(product);
 
       const primary = product.images.find((img) => img.isPrimary) || product.images[0];
       if (primary) {
@@ -548,8 +642,12 @@ export const updateProductImage = async (req, res, next) => {
 export const uploadProductImagesController = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { tag, isPrimary, isHover, variantKey } = req.body;
-    const normalizedVariantKey = normalizeVariant(variantKey || req.query?.variantKey);
+    const { tag, isPrimary, isHover } = req.body;
+    const validTags = VALID_IMAGE_TAGS;
+    const requestedTag = validTags.includes(tag) ? tag : (req.query?.tag && validTags.includes(req.query.tag) ? req.query.tag : 'front');
+    const finalTag = requestedTag;
+    const rawVariantKey = req.body.variantKey !== undefined ? req.body.variantKey : req.query?.variantKey;
+    const normalizedVariantKey = finalTag === 'model' ? null : normalizeVariant(rawVariantKey);
 
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({
@@ -576,8 +674,16 @@ export const uploadProductImagesController = async (req, res, next) => {
       product.images = [];
     }
 
-    const maxOrder = product.images.reduce((max, img) => Math.max(max, img.order || 0), -1);
-    const validTags = VALID_IMAGE_TAGS;
+    // Si esa variantKey aún no existe en product.variants, agregarla automáticamente
+    if (normalizedVariantKey) {
+      ensureVariantExists(product, normalizedVariantKey);
+    }
+
+    // Calcular max order dentro de su propio grupo (variantKey o model)
+    const groupImages = product.images.filter((img) => 
+      finalTag === 'model' ? img.tag === 'model' : normalizeVariant(img.variantKey) === normalizedVariantKey
+    );
+    const groupMaxOrder = groupImages.reduce((max, img) => Math.max(max, typeof img.order === 'number' ? img.order : -1), -1);
 
     req.files.forEach((file, index) => {
       const shouldBePrimary = isPrimary !== undefined 
@@ -586,11 +692,11 @@ export const uploadProductImagesController = async (req, res, next) => {
 
       product.images.push({
         url: `/uploads/${file.filename}`,
-        tag: validTags.includes(tag) ? tag : 'front',
+        tag: finalTag,
         variantKey: normalizedVariantKey,
         isPrimary: shouldBePrimary,
         isHover: isHover === 'true' || isHover === true,
-        order: maxOrder + 1 + index,
+        order: groupMaxOrder + 1 + index,
       });
     });
 
@@ -699,11 +805,19 @@ export const deleteProductImage = async (req, res, next) => {
       return true;
     });
 
-    // 2. Reordenamiento secuencial obligatorio: Recorrer el array resultante de imágenes y reasignar la propiedad order de forma consecutiva empezando desde 0
-    product.images = product.images.map((img, index) => ({
-      ...(img.toObject ? img.toObject() : img),
-      order: index,
-    }));
+    // 2. Reordenamiento secuencial obligatorio: Recorrer el array resultante de imágenes y reasignar la propiedad order de forma consecutiva empezando desde 0 dentro de su propio grupo (variantKey o model), sin desplazar fotos de otras variantes ni tocar product.variants
+    const groupCounters = {};
+    product.images = product.images.map((img) => {
+      const imgObj = img.toObject ? img.toObject() : img;
+      const groupKey = imgObj.tag === 'model' ? '__model__' : (normalizeVariant(imgObj.variantKey) || '__unassigned__');
+      if (groupCounters[groupKey] === undefined) {
+        groupCounters[groupKey] = 0;
+      }
+      return {
+        ...imgObj,
+        order: groupCounters[groupKey]++,
+      };
+    });
 
     // Si eliminamos la foto principal y aún quedan fotos, o no queda ninguna marcada como principal, reasignar la primera como principal
     if (product.images.length > 0) {
@@ -799,13 +913,25 @@ export const updateImageMetadata = async (req, res, next) => {
     if (tag) {
       if (validTags.includes(tag)) {
         targetImage.tag = tag;
+        if (tag === 'model') {
+          targetImage.variantKey = null;
+        }
       } else if (tag === 'hover') {
         targetImage.isHover = true;
       }
     }
 
-    if (variantKey !== undefined || req.body.variantKey !== undefined) {
-      targetImage.variantKey = normalizeVariant(req.body.variantKey !== undefined ? req.body.variantKey : variantKey);
+    if (targetImage.tag !== 'model') {
+      if (variantKey !== undefined || req.body.variantKey !== undefined) {
+        const rawVK = req.body.variantKey !== undefined ? req.body.variantKey : variantKey;
+        const normVK = normalizeVariant(rawVK);
+        targetImage.variantKey = normVK;
+        if (normVK) {
+          ensureVariantExists(product, normVK);
+        }
+      }
+    } else {
+      targetImage.variantKey = null;
     }
 
     if (order !== undefined) {

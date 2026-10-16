@@ -24,7 +24,7 @@ import {
   Percent,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { orderService, shippingService, formatMediaUrl } from '../services/api';
+import { orderService, shippingService, couponService, formatMediaUrl } from '../services/api';
 
 const PROVINCIAS_ARG = [
   'Ciudad Autónoma de Buenos Aires',
@@ -183,6 +183,12 @@ export default function CheckoutDrawer() {
   const [transferSuccessOrder, setTransferSuccessOrder] = useState(null);
   const [copiedField, setCopiedField] = useState(null);
 
+  // Estado de Cupones de Descuento
+  const [couponInput, setCouponInput] = useState('');
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponError, setCouponError] = useState(null);
+  const [isValidatingCoupon, setIsValidatingCoupon] = useState(false);
+
   // Detección en tiempo real de CABA
   const isCustomerCABA = isCABA(formData.zipCode, formData.province);
 
@@ -197,12 +203,89 @@ export default function CheckoutDrawer() {
     ? 0
     : (selectedShippingOption ? Number(selectedShippingOption.cost ?? selectedShippingOption.price ?? 0) : 0);
 
-  // 3. Descuento del 15% OFF EXCLUSIVO sobre el valor de los productos para Transferencia
-  // El 15% se calcula estrictamente sobre el subtotal de productos, NUNCA sobre el costo de envío
-  const discountAmount = paymentMethod === 'transfer' ? Math.round(subtotal * 0.15) : 0;
+  // 3. Descuento por Cupón
+  const couponDiscount = appliedCoupon ? Math.min(subtotal, Number(appliedCoupon.discountAmount) || 0) : 0;
+  const subtotalAfterCoupon = Math.max(0, subtotal - couponDiscount);
 
-  // 4. Total Final a pagar: (subtotal - descuento) + envío (Si es CABA, el envío suma $0 reales)
-  const total = (subtotal - discountAmount) + shippingCost;
+  // 4. Descuento Transferencia Bancaria (15% OFF) y Acumulación
+  let transferDiscount = 0;
+  if (paymentMethod === 'transfer') {
+    if (!appliedCoupon || appliedCoupon.combinableWithTransfer !== false) {
+      transferDiscount = Math.round(subtotalAfterCoupon * 0.15);
+    }
+  }
+
+  // 5. Descuento total combinado
+  const totalDiscount = Math.min(subtotal, couponDiscount + transferDiscount);
+  const discountAmount = totalDiscount;
+
+  // 6. Total Final a pagar: (subtotal - totalDiscount) + envío
+  const total = Math.max(0, subtotal - totalDiscount) + shippingCost;
+
+  // Función para validar y aplicar cupón
+  const handleApplyCoupon = async (e) => {
+    if (e) e.preventDefault();
+    if (!couponInput.trim()) return;
+
+    setIsValidatingCoupon(true);
+    setCouponError(null);
+
+    try {
+      const res = await couponService.validate({
+        code: couponInput.trim(),
+        items: activeItems,
+        subtotal,
+        customerEmail: formData.email,
+      });
+
+      if (res.valid) {
+        setAppliedCoupon({
+          code: res.coupon.code,
+          discountAmount: res.discountAmount,
+          description: res.coupon.description,
+          discountType: res.coupon.discountType,
+          combinableWithTransfer: res.coupon.combinableWithTransfer,
+        });
+        setCouponInput('');
+        setCouponError(null);
+      } else {
+        setCouponError(res.message || 'Código de descuento no válido.');
+      }
+    } catch (err) {
+      setCouponError(err.response?.data?.message || err.message || 'No se pudo aplicar el cupón.');
+    } finally {
+      setIsValidatingCoupon(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponError(null);
+  };
+
+  // Re-validar cupón si cambia subtotal o items
+  useEffect(() => {
+    if (appliedCoupon) {
+      couponService.validate({
+        code: appliedCoupon.code,
+        items: activeItems,
+        subtotal,
+        customerEmail: formData.email,
+      }).then((res) => {
+        if (res.valid) {
+          setAppliedCoupon({
+            code: res.coupon.code,
+            discountAmount: res.discountAmount,
+            description: res.coupon.description,
+            discountType: res.coupon.discountType,
+            combinableWithTransfer: res.coupon.combinableWithTransfer,
+          });
+        } else {
+          setAppliedCoupon(null);
+        }
+      }).catch(() => {});
+    }
+  }, [subtotal, activeItems.length]);
 
   // Cotización automática y reactiva con detección inmediata de CABA y Andreani / OCA
   useEffect(() => {
@@ -397,8 +480,6 @@ export default function CheckoutDrawer() {
       ? (selectedShippingOption?.name || 'Envío Gratis CABA · Motomensajería Express (24 hs)')
       : (selectedShippingOption?.name || 'Envío a Domicilio · Correo Andreani / OCA');
     const subtotalAmount = subtotal;
-    const discount = selectedMethod === 'transfer' ? Math.round(subtotalAmount * 0.15) : 0;
-    const totalCalc = (subtotalAmount - discount) + shippingPrice;
 
     const shippingPayload = isDestCABA
       ? {
@@ -426,10 +507,13 @@ export default function CheckoutDrawer() {
 
     return {
       paymentMethod: selectedMethod === 'transfer' ? 'transfer' : 'mercadopago',
+      couponCode: appliedCoupon?.code || null,
+      couponDiscount,
+      transferDiscount,
       subtotal: subtotalAmount,
-      discountAmount: discount,
+      discountAmount: totalDiscount,
       shippingCost: shippingPrice,
-      totalAmount: totalCalc,
+      totalAmount: total,
       customer: {
         name: formData.name.trim(),
         email: formData.email.trim().toLowerCase(),
@@ -1277,22 +1361,105 @@ export default function CheckoutDrawer() {
           {/* ========================================================= */}
           {/* 4. FOOTER: RESUMEN Y BOTÓN DE ACCIÓN                      */}
           {/* ========================================================= */}
-          <div className="p-6 border-t border-cirqa-negro/10 bg-[#FBFBFA] flex-shrink-0 space-y-3">
+          <div className="p-6 border-t border-cirqa-negro/10 bg-[#FBFBFA] flex-shrink-0 space-y-3.5">
+            {/* Input / Badge de Cupón de Descuento */}
+            <div className="p-3 rounded-2xl bg-white border border-cirqa-negro/10 shadow-2xs">
+              {!appliedCoupon ? (
+                <form onSubmit={handleApplyCoupon} className="space-y-1.5">
+                  <label className="text-[11px] font-semibold text-cirqa-negro/80 flex items-center gap-1.5">
+                    <Percent className="w-3.5 h-3.5 text-cirqa-primario" />
+                    ¿Tenés un código de descuento?
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={couponInput}
+                      onChange={(e) => {
+                        setCouponInput(e.target.value.toUpperCase());
+                        if (couponError) setCouponError(null);
+                      }}
+                      placeholder="Ingresá tu código (ej: CIRQA10)"
+                      className="flex-grow px-3 py-2 text-xs font-mono uppercase bg-[#FBFBFA] border border-cirqa-negro/15 rounded-xl focus:outline-none focus:border-cirqa-negro transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleApplyCoupon}
+                      disabled={isValidatingCoupon || !couponInput.trim()}
+                      className="px-4 py-2 bg-cirqa-negro hover:bg-black text-white text-xs font-semibold rounded-xl transition-all disabled:opacity-40 cursor-pointer flex items-center gap-1.5"
+                    >
+                      {isValidatingCoupon ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Aplicar'}
+                    </button>
+                  </div>
+                  {couponError && (
+                    <p className="text-[11px] text-red-600 font-medium flex items-center gap-1 pt-0.5">
+                      <AlertCircle className="w-3 h-3 flex-shrink-0" />
+                      {couponError}
+                    </p>
+                  )}
+                </form>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold shadow-2xs">
+                      %
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono font-bold text-xs text-emerald-950 tracking-wider">
+                          {appliedCoupon.code}
+                        </span>
+                        <span className="text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-semibold">
+                          Aplicado
+                        </span>
+                      </div>
+                      {appliedCoupon.description ? (
+                        <p className="text-[10px] text-emerald-700 font-light mt-0.5">{appliedCoupon.description}</p>
+                      ) : (
+                        <p className="text-[10px] text-emerald-700 font-medium mt-0.5">
+                          Descuento de ${couponDiscount.toLocaleString('es-AR')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="text-[11px] text-red-600 hover:text-red-800 font-semibold cursor-pointer px-2 py-1 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    Quitar
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Subtotal Regular */}
             <div className="flex items-center justify-between text-xs text-cirqa-negro/70">
-              <span>Subtotal Productos</span>
+              <span>Subtotal</span>
               <span className="font-mono font-medium">$ {subtotal.toLocaleString('es-AR')}</span>
             </div>
 
+            {/* Descuento por Cupón */}
+            {appliedCoupon && couponDiscount > 0 && (
+              <div className="flex items-center justify-between text-xs text-emerald-700 font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                  Cupón ({appliedCoupon.code})
+                </span>
+                <span className="font-mono font-bold">
+                  -$ {couponDiscount.toLocaleString('es-AR')}
+                </span>
+              </div>
+            )}
+
             {/* Descuento 15% Transferencia */}
-            {paymentMethod === 'transfer' && (
-              <div className="flex items-center justify-between text-xs text-emerald-700 font-medium">
+            {paymentMethod === 'transfer' && transferDiscount > 0 && (
+              <div className="flex items-center justify-between text-xs text-emerald-700 font-semibold">
                 <span className="flex items-center gap-1.5">
                   <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
                   Descuento Transferencia (15% OFF)
                 </span>
                 <span className="font-mono font-bold">
-                  -$ {discountAmount.toLocaleString('es-AR')}
+                  -$ {transferDiscount.toLocaleString('es-AR')}
                 </span>
               </div>
             )}
@@ -1319,12 +1486,12 @@ export default function CheckoutDrawer() {
             </div>
 
             {/* Total a Pagar */}
-            <div className="flex items-center justify-between text-base font-medium text-cirqa-negro pt-2 border-t border-cirqa-negro/10">
+            <div className="flex items-center justify-between text-base font-medium text-cirqa-negro pt-2.5 border-t border-cirqa-negro/10">
               <div>
-                <span className="block font-semibold">Total a Pagar</span>
-                {paymentMethod === 'transfer' && (
+                <span className="block font-bold">Total a pagar</span>
+                {totalDiscount > 0 && (
                   <span className="text-[10px] text-emerald-700 font-medium block">
-                    Ahorro del 15% aplicado (-${discountAmount.toLocaleString('es-AR')})
+                    Ahorro total de ${totalDiscount.toLocaleString('es-AR')} aplicado
                   </span>
                 )}
               </div>

@@ -595,8 +595,24 @@ export const formatMediaUrl = (url) => {
   return url;
 };
 
-// Adjuntar orderService al objeto api default para flexibilidad de importación
+/**
+ * Servicio de Cupones y Códigos de Descuento
+ */
+export const couponService = {
+  /**
+   * Validar un código de descuento en el checkout
+   * @param {{ code: string, items: Array, subtotal: number, customerEmail?: string }} payload
+   */
+  validate: (payload) => api.post('/api/coupons/validate', payload),
+  getAll: () => api.get('/api/coupons'),
+  create: (data) => api.post('/api/coupons', data),
+  update: (id, data) => api.put(`/api/coupons/${id}`, data),
+  delete: (id) => api.delete(`/api/coupons/${id}`),
+};
+
+// Adjuntar orderService y couponService al objeto api default para flexibilidad de importación
 api.orderService = orderService;
+api.couponService = couponService;
 
 export default api;
 

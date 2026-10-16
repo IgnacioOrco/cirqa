@@ -82,7 +82,24 @@ const orderSchema = new mongoose.Schema(
       min: [0, 'El subtotal no puede ser negativo'],
     },
 
-    // Descuento: 15% OFF para transferencia bancaria (0 para Mercado Pago)
+    // Código de cupón aplicado y desglose de descuentos
+    couponCode: {
+      type: String,
+      default: null,
+      trim: true,
+      uppercase: true,
+    },
+    couponDiscount: {
+      type: Number,
+      default: 0,
+      min: [0, 'El descuento por cupón no puede ser negativo'],
+    },
+    transferDiscount: {
+      type: Number,
+      default: 0,
+      min: [0, 'El descuento por transferencia no puede ser negativo'],
+    },
+    // Descuento total: Suma de couponDiscount + transferDiscount
     discountAmount: {
       type: Number,
       default: 0,
