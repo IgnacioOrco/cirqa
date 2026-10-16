@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertTriangle, ShieldCheck, Check, Sparkles, Layers, ZoomIn, FileText } from 'lucide-react';
+import { X, AlertTriangle, ShieldCheck, Check, Sparkles, Layers, ZoomIn, FileText, ExternalLink } from 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { formatMediaUrl } from '../services/api';
@@ -435,34 +435,60 @@ export default function ConfiguratorModal({
                   )}
                   <div className="pt-2 border-t border-cirqa-negro/10 flex items-center justify-between">
                     <span className="text-[11px] text-cirqa-negro/60 font-medium">Ensayo y Certificación:</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const targetKey = matchVariantKey(selectedVariant?.key, 'noche') || selectedFilter?.id === 'noche'
-                          ? 'noche'
-                          : matchVariantKey(selectedVariant?.key, 'transicion') || selectedFilter?.id === 'transicion'
-                          ? 'transicion'
-                          : matchVariantKey(selectedVariant?.key, 'clear') || selectedFilter?.id === 'clear'
-                          ? 'clear'
-                          : 'dia';
-                        if (onOpenTrials) {
-                          onOpenTrials(targetKey);
-                        } else {
-                          window.open(
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const targetKey = matchVariantKey(selectedVariant?.key, 'noche') || selectedFilter?.id === 'noche'
+                            ? 'noche'
+                            : matchVariantKey(selectedVariant?.key, 'transicion') || selectedFilter?.id === 'transicion'
+                            ? 'transicion'
+                            : matchVariantKey(selectedVariant?.key, 'clear') || selectedFilter?.id === 'clear'
+                            ? 'clear'
+                            : 'dia';
+                          if (onOpenTrials) {
+                            onOpenTrials(targetKey);
+                          } else {
+                            const pdfUrl =
+                              targetKey === 'noche'
+                                ? '/certificates/CIRQA-Certificado-Filtro-Noche.pdf'
+                                : targetKey === 'transicion'
+                                ? '/certificates/CIRQA-Certificado-Filtro-Transicion.pdf'
+                                : '/certificates/CIRQA-Certificado-Filtro-Dia.pdf';
+                            window.open(pdfUrl, '_blank');
+                          }
+                        }}
+                        className="inline-flex items-center gap-1.5 text-cirqa-primario hover:underline font-semibold text-[11px] cursor-pointer"
+                        title="Ver estudio y certificado oficial en modal interactivo"
+                      >
+                        <FileText className="w-3.5 h-3.5" />
+                        <span>Ver estudio oficial (PDF)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const targetKey = matchVariantKey(selectedVariant?.key, 'noche') || selectedFilter?.id === 'noche'
+                            ? 'noche'
+                            : matchVariantKey(selectedVariant?.key, 'transicion') || selectedFilter?.id === 'transicion'
+                            ? 'transicion'
+                            : matchVariantKey(selectedVariant?.key, 'clear') || selectedFilter?.id === 'clear'
+                            ? 'clear'
+                            : 'dia';
+                          const pdfUrl =
                             targetKey === 'noche'
                               ? '/certificates/CIRQA-Certificado-Filtro-Noche.pdf'
                               : targetKey === 'transicion'
                               ? '/certificates/CIRQA-Certificado-Filtro-Transicion.pdf'
-                              : '/certificates/CIRQA-Certificado-Filtro-Dia.pdf',
-                            '_blank'
-                          );
-                        }
-                      }}
-                      className="inline-flex items-center gap-1.5 text-cirqa-primario hover:underline font-semibold text-[11px] cursor-pointer"
-                    >
-                      <FileText className="w-3.5 h-3.5" />
-                      <span>Ver estudio oficial (PDF)</span>
-                    </button>
+                              : '/certificates/CIRQA-Certificado-Filtro-Dia.pdf';
+                          window.open(pdfUrl, '_blank');
+                        }}
+                        className="p-1 text-cirqa-negro/40 hover:text-cirqa-negro transition-colors cursor-pointer"
+                        title="Abrir PDF directamente en pestaña nueva"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
 

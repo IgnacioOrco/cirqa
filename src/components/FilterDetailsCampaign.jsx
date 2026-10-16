@@ -107,7 +107,7 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
                 </p>
                 <div>
                   <button
-                    onClick={() => onOpenTrials && onOpenTrials('dia')}
+                    onClick={() => (onOpenTrials ? onOpenTrials('dia') : window.open('/certificates/CIRQA-Certificado-Filtro-Dia.pdf', '_blank'))}
                     className="inline-flex items-center gap-2 bg-cirqa-primario hover:brightness-110 active:scale-95 text-white text-[11px] font-bold tracking-widest uppercase px-7 py-4 rounded-full transition-all shadow-md group cursor-pointer"
                   >
                     <span>ACCEDE AL ESTUDIO</span>
@@ -162,7 +162,7 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
                 </p>
                 <div className="flex md:justify-end">
                   <button
-                    onClick={() => onOpenTrials && onOpenTrials('transicion')}
+                    onClick={() => (onOpenTrials ? onOpenTrials('transicion') : window.open('/certificates/CIRQA-Certificado-Filtro-Transicion.pdf', '_blank'))}
                     className="inline-flex items-center gap-2 bg-cirqa-primario hover:brightness-110 active:scale-95 text-white text-[11px] font-bold tracking-widest uppercase px-7 py-4 rounded-full transition-all shadow-md group cursor-pointer"
                   >
                     <span>ACCEDE AL ESTUDIO</span>
@@ -219,7 +219,7 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
                 </p>
                 <div>
                   <button
-                    onClick={() => onOpenTrials && onOpenTrials('noche')}
+                    onClick={() => (onOpenTrials ? onOpenTrials('noche') : window.open('/certificates/CIRQA-Certificado-Filtro-Noche.pdf', '_blank'))}
                     className="inline-flex items-center gap-2 bg-cirqa-primario hover:brightness-110 active:scale-95 text-white text-[11px] font-bold tracking-widest uppercase px-7 py-4 rounded-full transition-all shadow-md group cursor-pointer"
                   >
                     <span>ACCEDE AL ESTUDIO</span>

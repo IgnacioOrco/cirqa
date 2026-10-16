@@ -54,10 +54,16 @@ export default function PhilosophyAndFooter({ onOpenTrials, onOpenPrescription }
           </div>
           <div>
             <button
-              onClick={() => onOpenTrials('dia')}
-              className="text-xs text-cirqa-negro/50 hover:text-cirqa-primario transition-colors text-left font-light block"
+              onClick={() => {
+                if (onOpenTrials) {
+                  onOpenTrials('dia');
+                } else {
+                  window.open('/certificates/CIRQA-Certificado-Filtro-Dia.pdf', '_blank');
+                }
+              }}
+              className="text-xs text-cirqa-negro/50 hover:text-cirqa-primario transition-colors text-left font-light block cursor-pointer"
             >
-              Ensayos Clínicos
+              Ensayos Clínicos & Certificados
             </button>
           </div>
           <div>

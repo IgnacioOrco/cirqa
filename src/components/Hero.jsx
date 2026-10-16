@@ -129,9 +129,15 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz, onOpe
               Protección certificada
             </div>
             <div
-              onClick={() => onOpenTrials && onOpenTrials('dia')}
-              className={onOpenTrials ? "cursor-pointer group" : ""}
-              title="Ver reportes y ensayos clínicos de laboratorio"
+              onClick={() => {
+                if (onOpenTrials) {
+                  onOpenTrials('dia');
+                } else {
+                  window.open('/certificates/CIRQA-Certificado-Filtro-Dia.pdf', '_blank');
+                }
+              }}
+              className="cursor-pointer group select-none"
+              title="Ver reportes y certificados oficiales de laboratorio"
             >
               <span className="text-cirqa-negro font-semibold block group-hover:text-cirqa-primario transition-colors">
                 Certificación ISO

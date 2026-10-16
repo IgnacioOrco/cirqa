@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ArrowRight, AlertTriangle } from 'lucide-react';
+import { ArrowRight, AlertTriangle, FileText, ExternalLink } from 'lucide-react';
 import { FILTERS } from '../data/filters';
 
 const TABLE_COLUMNS = [
@@ -14,6 +14,8 @@ const TABLE_COLUMNS = [
     vlt: '9.53% (Tv < 15%)',
     beneficioClave: 'Maximiza el apoyo al sueño y la producción natural de melatonina',
     drivingWarning: true,
+    pdfUrl: '/certificates/CIRQA-Certificado-Filtro-Noche.pdf',
+    standard: 'ISO 12312-1:2022',
   },
   {
     id: 'transicion',
@@ -26,6 +28,8 @@ const TABLE_COLUMNS = [
     vlt: '49.93%',
     beneficioClave: 'Mejora la concentración y reduce la fatiga visual digital en caída solar',
     drivingWarning: false,
+    pdfUrl: '/certificates/CIRQA-Certificado-Filtro-Transicion.pdf',
+    standard: 'ISO 12312-1:2015',
   },
   {
     id: 'dia',
@@ -38,6 +42,8 @@ const TABLE_COLUMNS = [
     vlt: '76.17%',
     beneficioClave: 'Ofrece una protección cómoda durante todo el día con percepción natural del color',
     drivingWarning: false,
+    pdfUrl: '/certificates/CIRQA-Certificado-Filtro-Dia.pdf',
+    standard: 'ISO 12312-1:2015',
   },
   {
     id: 'clear',
@@ -50,10 +56,12 @@ const TABLE_COLUMNS = [
     vlt: '89.40% (alta fidelidad)',
     beneficioClave: 'Protege contra la luz azul manteniendo los colores claros y precisos',
     drivingWarning: false,
+    pdfUrl: '/certificates/CIRQA-Certificado-Filtro-Dia.pdf',
+    standard: 'ISO 12312-1:2015',
   },
 ];
 
-export default function ComparisonTable({ onSelectFilterForPurchase }) {
+export default function ComparisonTable({ onSelectFilterForPurchase, onOpenTrials }) {
   const [hoveredCol, setHoveredCol] = useState(null);
 
   return (
@@ -188,10 +196,10 @@ export default function ComparisonTable({ onSelectFilterForPurchase }) {
               ))}
             </div>
 
-            {/* Row 5: Action Buttons - Modo Próximamente */}
+            {/* Row 5: Action Buttons - Certificado Oficial y Ensayo */}
             <div className="grid grid-cols-5 pt-6 items-center">
-              <div className="pr-4 text-xs font-medium text-cirqa-negro">
-                Estado
+              <div className="pr-4 text-xs font-semibold text-cirqa-negro">
+                Certificación
               </div>
               {TABLE_COLUMNS.map((col) => (
                 <div
@@ -200,11 +208,18 @@ export default function ComparisonTable({ onSelectFilterForPurchase }) {
                 >
                   <button
                     type="button"
-                    disabled
-                    className="w-full bg-cirqa-negro/20 text-cirqa-negro/50 cursor-not-allowed shadow-none text-[11px] font-bold tracking-wider uppercase py-3.5 px-3 rounded-full flex items-center justify-center gap-1.5"
-                    aria-disabled="true"
+                    onClick={() => {
+                      if (onOpenTrials) {
+                        onOpenTrials(col.id);
+                      } else {
+                        window.open(col.pdfUrl, '_blank');
+                      }
+                    }}
+                    className="w-full bg-cirqa-negro hover:bg-cirqa-primario text-white text-[10px] sm:text-[11px] font-semibold tracking-wider uppercase py-3 px-2 sm:px-3 rounded-full flex items-center justify-center gap-1.5 transition-all shadow-sm hover:shadow-md cursor-pointer active:scale-95"
+                    title={`Ver estudio y certificado oficial para filtro ${col.name}`}
                   >
-                    <span>PRÓXIMAMENTE</span>
+                    <FileText className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>Ver Certificado PDF</span>
                   </button>
                 </div>
               ))}

@@ -171,6 +171,7 @@ export default function Home() {
         {/* BLOQUE 5: Tabla Comparativa (4 Filtros & Compra Ahora) */}
         <ComparisonTable
           onSelectFilterForPurchase={handleOpenConfiguratorWithFilter}
+          onOpenTrials={handleOpenTrials}
         />
 
         {/* BLOQUE 6: Detalle de Filtros (Animación 3 Filtros & Estudio) */}
