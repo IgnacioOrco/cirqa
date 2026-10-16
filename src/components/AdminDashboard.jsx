@@ -97,12 +97,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   // Notificación Toast flotante
   const [toast, setToast] = useState(null);
 
-  const showToast = (message, type = 'success') => {
+  const showToast = useCallback((message, type = 'success') => {
     setToast({ message, type });
     setTimeout(() => {
       setToast(null);
     }, 4000);
-  };
+  }, []);
 
   const handleLogout = useCallback(() => {
     if (propOnLogout) {
