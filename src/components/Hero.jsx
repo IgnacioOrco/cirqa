@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 const HERO_SLIDES = [
   {
@@ -29,7 +30,7 @@ const HERO_SLIDES = [
   },
 ];
 
-export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz }) {
+export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz, onOpenTrials }) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
 
@@ -91,14 +92,14 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz }) {
             El cuerpo entiende de señales, no de buenas intenciones. CIRQA filtra la luz que te desconcentra para que tu ritmo natural haga el resto.
           </p>
 
-          {/* Action Buttons: Apple Pill Style con Acceso Directo al Test Circadiano y Situaciones de Uso */}
+          {/* Action Buttons: Apple Pill Style con Acceso Directo al Catálogo, Test Circadiano y Situaciones de Uso */}
           <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-            <button
-              onClick={onExploreModels}
-              className="bg-cirqa-primario text-white text-[13px] font-semibold tracking-wider uppercase px-7 py-4 rounded-full hover:brightness-110 active:scale-95 transition-all shadow-md cursor-pointer"
+            <Link
+              to="/catalogo"
+              className="bg-cirqa-primario text-white text-[13px] font-semibold tracking-wider uppercase px-7 py-4 rounded-full hover:brightness-110 active:scale-95 transition-all shadow-md cursor-pointer inline-flex items-center justify-center"
             >
-              Ver modelos
-            </button>
+              Ver catálogo
+            </Link>
             {onOpenQuiz && (
               <button
                 onClick={onOpenQuiz}
@@ -127,8 +128,14 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz }) {
               <span className="text-cirqa-negro font-semibold block">100% UV400</span>
               Protección certificada
             </div>
-            <div>
-              <span className="text-cirqa-negro font-semibold block">Certificación ISO</span>
+            <div
+              onClick={() => onOpenTrials && onOpenTrials('dia')}
+              className={onOpenTrials ? "cursor-pointer group" : ""}
+              title="Ver reportes y ensayos clínicos de laboratorio"
+            >
+              <span className="text-cirqa-negro font-semibold block group-hover:text-cirqa-primario transition-colors">
+                Certificación ISO
+              </span>
               Norma 12312-1:2022
             </div>
           </div>

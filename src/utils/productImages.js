@@ -265,6 +265,50 @@ export const autoAssignMissingVariantKeys = (images) => {
  * 3) Si un producto solo tiene fotos cargadas en 2 variantes (ej: Clear y Día),
  *    SOLO se retornan y renderizan esas 2 variantes.
  */
+/**
+ * Devuelve el color canónico exacto como se visualiza en el panel administrador:
+ * Clear: #CBD5E1 | Día: #FACC15 | Transición: #FB923C | Noche: #F87171
+ */
+export const getVariantColor = (v) => {
+  if (!v) return '#CBD5E1';
+  const rawKey = typeof v === 'string' ? v : (v.key || v.id || v.name || '');
+  const key = normalizeVariantKey(rawKey);
+
+  if (typeof v === 'object' && v !== null) {
+    const explicit = v.colorHex || v.badgeColor || v.color;
+    if (
+      explicit &&
+      explicit !== '#FFFFFF' &&
+      explicit !== '#ffffff' &&
+      explicit !== '#E5E7EB' &&
+      explicit !== 'transparent'
+    ) {
+      return explicit;
+    }
+  }
+
+  switch (key) {
+    case 'clear':
+      return '#CBD5E1';
+    case 'dia':
+      return '#FACC15';
+    case 'transicion':
+      return '#FB923C';
+    case 'noche':
+      return '#F87171';
+    default:
+      return '#CBD5E1';
+  }
+};
+
+/**
+ * REGLA DE ORO DE VARIANTES:
+ * 1) En el frontend SOLO se muestran y seleccionan variantes que tengan al menos
+ *    UNA imagen real cargada (con tag distinto de 'model' y con variantKey matching).
+ * 2) Si una variante no tiene fotos cargadas, se ignora completamente.
+ * 3) Si un producto solo tiene fotos cargadas en 2 variantes (ej: Clear y Día),
+ *    SOLO se retornan y renderizan esas 2 variantes.
+ */
 export const getActiveProductVariants = (product) => {
   if (!product) return [];
 
@@ -289,7 +333,16 @@ export const getActiveProductVariants = (product) => {
     });
 
     if (activeWithPhotos.length > 0) {
-      return [...activeWithPhotos].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+      return [...activeWithPhotos]
+        .map((v) => {
+          const color = getVariantColor(v);
+          return {
+            ...v,
+            colorHex: color,
+            badgeColor: color,
+          };
+        })
+        .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
     }
   }
 
@@ -305,12 +358,13 @@ export const getActiveProductVariants = (product) => {
   if (foundKeys.size > 0) {
     const list = Array.from(foundKeys).map((k, idx) => {
       const preset = DEFAULT_CIRCADIAN_VARIANTS.find((v) => normalizeVariantKey(v.key) === k);
+      const color = getVariantColor(k);
       return {
         key: k,
         name: preset ? preset.name : (k.charAt(0).toUpperCase() + k.slice(1)),
         subtitle: preset ? preset.subtitle : '',
-        badgeColor: preset ? preset.badgeColor : '#E5E7EB',
-        colorHex: preset ? preset.badgeColor : '#E5E7EB',
+        badgeColor: color,
+        colorHex: color,
         order: idx,
         isAvailable: true,
       };
@@ -321,7 +375,14 @@ export const getActiveProductVariants = (product) => {
   // Fallback para modelos clásicos con variantes predeterminadas
   const classicMatch = MODELS.find((m) => m.id === product.id || m.code === product.modelCode || m.name === product.name);
   if (classicMatch && Array.isArray(classicMatch.variants) && classicMatch.variants.length > 0) {
-    return classicMatch.variants;
+    return classicMatch.variants.map((v) => {
+      const color = getVariantColor(v);
+      return {
+        ...v,
+        colorHex: color,
+        badgeColor: color,
+      };
+    });
   }
 
   return DEFAULT_CIRCADIAN_VARIANTS;
@@ -539,10 +600,10 @@ export const resolveProductCardImage = (
 };
 
 export const DEFAULT_CIRCADIAN_VARIANTS = [
-  { key: 'clear', name: 'Clear', subtitle: 'USO DIARIO', badgeColor: '#E2E8F0', priceModifier: 0, isDefault: false },
-  { key: 'dia', name: 'Día', subtitle: 'PANTALLAS · FOCO', badgeColor: '#F3B93A', priceModifier: 0, isDefault: true },
-  { key: 'transicion', name: 'Transición', subtitle: 'CAÍDA SOLAR', badgeColor: '#D97706', priceModifier: 0, isDefault: false },
-  { key: 'noche', name: 'Noche', subtitle: 'DESCANSO TOTAL', badgeColor: '#EF4444', priceModifier: 0, isDefault: false },
+  { key: 'clear', name: 'Clear', subtitle: 'USO DIARIO', colorHex: '#CBD5E1', badgeColor: '#CBD5E1', priceModifier: 0, isDefault: false },
+  { key: 'dia', name: 'Día', subtitle: 'PANTALLAS · FOCO', colorHex: '#FACC15', badgeColor: '#FACC15', priceModifier: 0, isDefault: true },
+  { key: 'transicion', name: 'Transición', subtitle: 'CAÍDA SOLAR', colorHex: '#FB923C', badgeColor: '#FB923C', priceModifier: 0, isDefault: false },
+  { key: 'noche', name: 'Noche', subtitle: 'DESCANSO TOTAL', colorHex: '#F87171', badgeColor: '#F87171', priceModifier: 0, isDefault: false },
 ];
 
 /**

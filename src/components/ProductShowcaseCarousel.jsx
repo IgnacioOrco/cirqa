@@ -5,7 +5,14 @@ import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle, ArrowRight } from 'l
 import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { formatMediaUrl } from '../services/api';
-import { resolveProductCardImage, getPrimaryProductImage, getHoverProductImage, matchVariantKey } from '../utils/productImages';
+import {
+  resolveProductCardImage,
+  getPrimaryProductImage,
+  getHoverProductImage,
+  matchVariantKey,
+  getActiveProductVariants,
+  getVariantColor,
+} from '../utils/productImages';
 
 export default function ProductShowcaseCarousel({ onSelectModel }) {
   const containerRef = useRef(null);
@@ -170,20 +177,14 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
               const state = cardStates[product.id] || {};
               const isHovered = hoveredCardId === product.id;
 
-              // Determinar opciones de variantes o filtros circadianos
-              const variantOptions = (product.hasVariants && product.variants?.length > 0)
-                ? product.variants.map((v) => ({
-                    key: v.key,
-                    name: v.name,
-                    tag: v.subtitle || '',
-                    color: v.badgeColor || '#FFFFFF',
-                  }))
-                : FILTERS.map((f) => ({
-                    key: f.id,
-                    name: f.name,
-                    tag: f.tag,
-                    color: f.hexCode,
-                  }));
+              // Determinar opciones de variantes o filtros circadianos con colores canónicos
+              const activeVariants = getActiveProductVariants(product);
+              const variantOptions = (activeVariants.length > 0 ? activeVariants : (product.variants?.length > 0 ? product.variants : FILTERS)).map((v) => ({
+                key: v.key || v.id,
+                name: v.name,
+                tag: v.subtitle || v.tag || '',
+                color: getVariantColor(v),
+              }));
 
               const currentSelectedKey = state.filterId || state.variantKey || product.lensDefault || (variantOptions[0]?.key || 'dia');
               const currentOptionObj =
@@ -304,8 +305,8 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                             title={`Ver ${product.name} con ${opt.name}`}
                           >
                             <span
-                              className="w-2.5 h-2.5 rounded-full border shadow-xs"
-                              style={{ backgroundColor: opt.color, borderColor: `${opt.color}99` }}
+                              className="w-3 h-3 rounded-full border border-black/15 shadow-2xs flex-shrink-0"
+                              style={{ backgroundColor: opt.color, borderColor: isSelected ? '#111111' : `${opt.color}cc` }}
                             />
                             <span className="text-[9px] tracking-tight text-cirqa-negro/80 truncate w-full block">
                               {opt.name}

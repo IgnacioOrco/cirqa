@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, AlertTriangle, ShieldCheck, Check, Sparkles, Layers, ZoomIn } from 'lucide-react';
+import { X, AlertTriangle, ShieldCheck, Check, Sparkles, Layers, ZoomIn, FileText } from 'lucide-react';
 import { useProducts } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { formatMediaUrl } from '../services/api';
@@ -13,6 +13,7 @@ import {
   matchVariantKey,
   inferImageVariantKey,
   inferImageTag,
+  getVariantColor,
 } from '../utils/productImages';
 import { useCart } from '../context/CartContext';
 
@@ -24,6 +25,7 @@ export default function ConfiguratorModal({
   initialVariantKey = null,
   initialVariant = null,
   onOpenPrescription,
+  onOpenTrials,
 }) {
   const { products } = useProducts({ all: false });
   const { openCheckout } = useCart();
@@ -348,10 +350,10 @@ export default function ConfiguratorModal({
                             }`}
                           >
                             <div
-                              className="w-3.5 h-3.5 rounded-full mt-0.5 flex-shrink-0 border"
+                              className="w-3.5 h-3.5 rounded-full mt-0.5 flex-shrink-0 border border-black/15 shadow-2xs"
                               style={{
-                                backgroundColor: variant.badgeColor || '#FFFFFF',
-                                borderColor: `${variant.badgeColor || '#000000'}88`,
+                                backgroundColor: getVariantColor(variant),
+                                borderColor: `${getVariantColor(variant)}cc`,
                               }}
                             />
                             <div className="flex-grow min-w-0">
@@ -392,10 +394,10 @@ export default function ConfiguratorModal({
                             }`}
                           >
                             <div
-                              className="w-3.5 h-3.5 rounded-full mt-0.5 flex-shrink-0 border"
+                              className="w-3.5 h-3.5 rounded-full mt-0.5 flex-shrink-0 border border-black/15 shadow-2xs"
                               style={{
-                                backgroundColor: filter.hexCode || '#FFFFFF',
-                                borderColor: `${filter.hexCode || '#000000'}88`,
+                                backgroundColor: getVariantColor(filter),
+                                borderColor: `${getVariantColor(filter)}cc`,
                               }}
                             />
                             <div className="flex-grow min-w-0">
@@ -431,6 +433,37 @@ export default function ConfiguratorModal({
                       <span>No apto para conducir (Tv &lt; 15%) · Uso nocturno para descanso</span>
                     </div>
                   )}
+                  <div className="pt-2 border-t border-cirqa-negro/10 flex items-center justify-between">
+                    <span className="text-[11px] text-cirqa-negro/60 font-medium">Ensayo y Certificación:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const targetKey = matchVariantKey(selectedVariant?.key, 'noche') || selectedFilter?.id === 'noche'
+                          ? 'noche'
+                          : matchVariantKey(selectedVariant?.key, 'transicion') || selectedFilter?.id === 'transicion'
+                          ? 'transicion'
+                          : matchVariantKey(selectedVariant?.key, 'clear') || selectedFilter?.id === 'clear'
+                          ? 'clear'
+                          : 'dia';
+                        if (onOpenTrials) {
+                          onOpenTrials(targetKey);
+                        } else {
+                          window.open(
+                            targetKey === 'noche'
+                              ? '/certificates/CIRQA-Certificado-Filtro-Noche.pdf'
+                              : targetKey === 'transicion'
+                              ? '/certificates/CIRQA-Certificado-Filtro-Transicion.pdf'
+                              : '/certificates/CIRQA-Certificado-Filtro-Dia.pdf',
+                            '_blank'
+                          );
+                        }
+                      }}
+                      className="inline-flex items-center gap-1.5 text-cirqa-primario hover:underline font-semibold text-[11px] cursor-pointer"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                      <span>Ver estudio oficial (PDF)</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* 4. Formas de Pago Visibles en el Configurador */}

@@ -65,7 +65,7 @@ export default function Navbar({ isDark = false, onOpenQuiz }) {
             </button>
             <Link
               to="/catalogo"
-              className="hover:text-cirqa-primario transition-colors duration-200 hidden md:inline-block"
+              className="hover:text-cirqa-primario transition-colors duration-200 hidden sm:inline-block"
             >
               Catálogo
             </Link>
@@ -74,12 +74,6 @@ export default function Navbar({ isDark = false, onOpenQuiz }) {
               className="hover:text-cirqa-primario transition-colors duration-200 hidden sm:inline-block"
             >
               Tecnología
-            </a>
-            <a
-              href="/#pasarela-productos"
-              className="hover:text-cirqa-primario transition-colors duration-200 hidden sm:inline-block"
-            >
-              Modelos
             </a>
             <a
               href="/#nosotros"

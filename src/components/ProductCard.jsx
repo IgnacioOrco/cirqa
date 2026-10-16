@@ -8,6 +8,7 @@ import {
   getImagesForVariant,
   getActiveProductVariants,
   matchVariantKey,
+  getVariantColor,
   DEFAULT_CIRCADIAN_VARIANTS,
 } from '../utils/productImages';
 import { FILTERS } from '../data/filters';
@@ -34,7 +35,7 @@ export default function ProductCard({
     key: v.key,
     name: v.name,
     tag: v.subtitle || '',
-    color: v.colorHex || v.badgeColor || '#FFFFFF',
+    color: getVariantColor(v),
     priceModifier: Number(v.priceModifier) || 0,
   }));
 

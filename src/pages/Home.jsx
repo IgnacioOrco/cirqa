@@ -118,6 +118,7 @@ export default function Home() {
           onExploreModels={handleScrollToModels}
           onExploreTech={handleScrollToTech}
           onOpenQuiz={() => setQuizOpen(true)}
+          onOpenTrials={handleOpenTrials}
         />
 
         {/* SECCIÓN DIAGNÓSTICO: Test Circadiano "Descubrí tu rutina" */}
@@ -199,6 +200,7 @@ export default function Home() {
         initialFilter={activeConfigFilter}
         initialVariantKey={activeConfigVariantKey}
         onOpenPrescription={handleOpenPrescription}
+        onOpenTrials={handleOpenTrials}
       />
 
       {/* Circadian Quiz Modal */}
