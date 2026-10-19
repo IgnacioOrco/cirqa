@@ -4,28 +4,36 @@ import { Sun, Moon, ShieldCheck, ArrowRight, ChevronLeft, ChevronRight } from 'l
 
 const MANIFESTO_IMAGES = [
   {
-    src: '/assets/MANIFIESTO 1.jpg',
+    src: '/assets/manifiesto-1.webp',
+    srcMobile: '/assets/manifiesto-1-mobile.webp',
+    fallback: '/assets/MANIFIESTO%201.jpg',
     alt: 'Campaña CIRQA — Bienestar y Sincronización Circadiana',
     title: 'Campaña CIRQA 2026',
     subtitle: 'Enfoque Diurno · Sincronía Nocturna',
     badge: 'Edición Oficial',
   },
   {
-    src: '/assets/MANIFIESTO 2.jpg',
+    src: '/assets/manifiesto-2.webp',
+    srcMobile: '/assets/manifiesto-2-mobile.webp',
+    fallback: '/assets/MANIFIESTO%202.jpg',
     alt: 'Modelo CIRQA — Calibración Espectral y Luz Solar',
     title: 'Biología Visual',
     subtitle: 'Sincronización con el Ciclo Solar Natural',
     badge: 'Laboratorio Óptico',
   },
   {
-    src: '/assets/MANIFIESTO 3.jpg',
+    src: '/assets/manifiesto-3.webp',
+    srcMobile: '/assets/manifiesto-3-mobile.webp',
+    fallback: '/assets/MANIFIESTO%203.jpg',
     alt: 'Filtro Óptico CIRQA — Arquitectura del Descanso',
     title: 'Arquitectura del Descanso',
     subtitle: '99% Bloqueo Luz Azul · Melatonina Natural',
     badge: 'ISO 12312-1',
   },
   {
-    src: '/assets/MANIFIESTO 4.jpg',
+    src: '/assets/manifiesto-4.webp',
+    srcMobile: '/assets/manifiesto-4-mobile.webp',
+    fallback: '/assets/MANIFIESTO%204.jpg',
     alt: 'Filtro Día Amarillo frente a monitores',
     title: 'Foco y Claridad Mental',
     subtitle: '84% Bloqueo Digital sin Distorsión de Color',
@@ -154,58 +162,76 @@ export default function AboutManifesto({ onExploreModels }) {
               {/* Campaign Image Slider */}
               <div className="aspect-[4/5] w-full relative overflow-hidden bg-gradient-to-b from-[#201610] to-[#120B07] flex items-center justify-center">
                 <AnimatePresence mode="wait">
-                  <motion.img
+                  <motion.div
                     key={activePhoto.src}
-                    src={encodeURI(activePhoto.src)}
-                    alt={activePhoto.alt}
-                    initial={{ opacity: 0, scale: 1.02 }}
+                    initial={{ opacity: 0, scale: 1.01 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    exit={{ opacity: 0, scale: 0.98 }}
+                    exit={{ opacity: 0, scale: 0.99 }}
                     transition={{ duration: 0.5, ease: 'easeOut' }}
-                    className="w-full h-full object-cover object-center"
-                    onError={(e) => {
-                      e.currentTarget.src = '/assets/hero-model.png';
-                    }}
-                  />
+                    className="w-full h-full"
+                  >
+                    <picture className="w-full h-full block">
+                      <source media="(max-width: 768px)" srcSet={activePhoto.srcMobile} type="image/webp" />
+                      <source srcSet={activePhoto.src} type="image/webp" />
+                      <img
+                        src={activePhoto.src}
+                        alt={activePhoto.alt}
+                        width="1400"
+                        height="1750"
+                        loading="lazy"
+                        decoding="async"
+                        className="w-full h-full object-cover object-center"
+                        onError={(e) => {
+                          if (activePhoto.fallback) {
+                            e.currentTarget.src = activePhoto.fallback;
+                          }
+                        }}
+                      />
+                    </picture>
+                  </motion.div>
                 </AnimatePresence>
                 
                 {/* Subtle vignette overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-cirqa-negro/85 via-transparent to-transparent pointer-events-none" />
 
-                {/* Controles de avance / retroceso */}
+                {/* Controles de avance / retroceso con área táctil accesible min 44x44px */}
                 <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
                   <button
                     type="button"
                     onClick={handlePrev}
-                    className="w-9 h-9 rounded-full bg-cirqa-negro/60 hover:bg-cirqa-negro border border-white/20 text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-lg"
+                    className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-cirqa-negro/60 hover:bg-cirqa-negro border border-white/20 text-white flex items-center justify-center backdrop-blur-md transition-colors cursor-pointer shadow-lg"
                     aria-label="Foto anterior del manifiesto"
                   >
-                    <ChevronLeft className="w-4 h-4" />
+                    <ChevronLeft className="w-5 h-5" />
                   </button>
                   <button
                     type="button"
                     onClick={handleNext}
-                    className="w-9 h-9 rounded-full bg-cirqa-negro/60 hover:bg-cirqa-negro border border-white/20 text-white flex items-center justify-center backdrop-blur-md transition-all cursor-pointer shadow-lg"
+                    className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full bg-cirqa-negro/60 hover:bg-cirqa-negro border border-white/20 text-white flex items-center justify-center backdrop-blur-md transition-colors cursor-pointer shadow-lg"
                     aria-label="Foto siguiente del manifiesto"
                   >
-                    <ChevronRight className="w-4 h-4" />
+                    <ChevronRight className="w-5 h-5" />
                   </button>
                 </div>
 
-                {/* Indicador de Dots */}
-                <div className="absolute top-6 left-6 z-20 flex items-center gap-1.5">
+                {/* Indicador de Dots con área táctil accesible min 44x44px */}
+                <div className="absolute top-4 left-4 z-20 flex items-center">
                   {MANIFESTO_IMAGES.map((_, idx) => (
                     <button
                       key={idx}
                       type="button"
                       onClick={() => setCurrentSlide(idx)}
-                      className={`h-1.5 rounded-full transition-all cursor-pointer ${
-                        currentSlide === idx
-                          ? 'w-6 bg-cirqa-arena'
-                          : 'w-2 bg-white/30 hover:bg-white/60'
-                      }`}
+                      className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer group"
                       aria-label={`Ver diapositiva ${idx + 1}`}
-                    />
+                    >
+                      <span
+                        className={`h-1.5 rounded-full transition-all duration-300 ${
+                          currentSlide === idx
+                            ? 'w-6 bg-cirqa-arena shadow-sm'
+                            : 'w-2 bg-white/30 group-hover:bg-white/60'
+                        }`}
+                      />
+                    </button>
                   ))}
                 </div>
 

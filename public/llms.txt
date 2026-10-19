@@ -1,0 +1,13 @@
+# CIRQA — Wellness Visual & Ritmo Circadiano
+
+> CIRQA es una marca y laboratorio óptico enfocado en ingeniería espectral y bienestar circadiano. Desarrollamos cristales y lentes diseñados para sincronizar el ritmo biológico humano, regular la melatonina y proteger de la fatiga visual digital.
+
+## Enlaces Principales
+- [Inicio](https://www.cirqa.com.ar/): Plataforma principal y manifiesto circadiano de CIRQA.
+- [Catálogo de Productos](https://www.cirqa.com.ar/catalogo): Modelos ópticos de armazones ultralivianos TR-90 y cristales calibrados.
+- [Ensayos Clínicos & Certificaciones](https://www.cirqa.com.ar/certificates/CIRQA-Certificado-Filtro-Dia.pdf): Reportes fotométricos y ensayos bajo norma internacional ISO 12312-1:2022.
+
+## Tecnologías de Filtro Espectral
+- **Filtro Día Amarillo (84%)**: Diseñado para el trabajo diurno frente a pantallas (10:00 - 17:00 hs). Bloquea el 84% de la luz azul preservando la percepción natural del color sin cefaleas.
+- **Filtro Transición Naranja (95%)**: Diseñado para la tarde y transición solar (17:00 - 20:00 hs). Filtra más del 95% de la luz azul en el rango crítico de alta energía.
+- **Filtro Noche Rojo (100%)**: Diseñado para el uso nocturno y desconexión digital (20:00 hs en adelante). Bloquea el 100% de la luz azul y verde estimulante para permitir la síntesis natural de melatonina y sueño profundo.

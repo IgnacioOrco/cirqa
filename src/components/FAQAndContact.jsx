@@ -158,13 +158,13 @@ export default function FAQAndContact() {
             {/* Left Col: Contact Information */}
             <div className="lg:col-span-5 space-y-6">
               <div>
-                <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-cirqa-primario font-semibold block mb-2">
+                <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-[#B73302] font-semibold block mb-2">
                   Atención Directa
                 </span>
                 <h2 className="text-3xl sm:text-4xl font-light text-cirqa-negro tracking-tight">
                   Contactanos.
                 </h2>
-                <p className="text-xs sm:text-sm text-cirqa-negro/60 font-light mt-2 leading-relaxed">
+                <p className="text-xs sm:text-sm text-cirqa-negro/80 font-light mt-2 leading-relaxed">
                   ¿Tenés dudas sobre tu graduación, ensayos clínicos o querés asesoramiento personalizado? Escribinos y te responderemos a la brevedad.
                 </p>
               </div>
@@ -184,7 +184,7 @@ export default function FAQAndContact() {
                     <span className="font-semibold text-cirqa-negro block group-hover:text-cirqa-primario transition-colors">
                       WhatsApp Oficial
                     </span>
-                    <span className="text-[11px] text-cirqa-negro/50">+54 9 11 2507-3598</span>
+                    <span className="text-[11px] text-cirqa-negro/75">+54 9 11 2507-3598</span>
                   </div>
                 </a>
 

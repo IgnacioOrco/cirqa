@@ -214,18 +214,21 @@ export default function CircadianInfographic() {
   return (
     <section id="ritmo-circadiano" className="py-28 bg-cirqa-negro text-white relative overflow-hidden">
       
-      {/* Ambient background dynamic mood lighting with smooth transition */}
+      {/* Ambient background dynamic mood lighting with GPU-composited opacity */}
       <motion.div
-        animate={{
-          backgroundColor: isDay
-            ? 'rgba(243, 185, 58, 0.14)'
-            : isTransition
-            ? 'rgba(232, 74, 15, 0.16)'
-            : 'rgba(172, 25, 23, 0.18)',
-          scale: isDay ? 1.05 : 1,
-        }}
-        transition={{ type: 'spring', stiffness: 100, damping: 20 }}
-        className="absolute top-10 right-1/4 w-[600px] h-[600px] rounded-full blur-[140px] pointer-events-none"
+        animate={{ opacity: isDay ? 1 : 0, scale: isDay ? 1.05 : 1 }}
+        transition={{ duration: 0.6, ease: 'easeInOut' }}
+        className="absolute top-10 right-1/4 w-[600px] h-[600px] rounded-full blur-[140px] pointer-events-none bg-[#F3B93A]/15 will-change-transform"
+      />
+      <motion.div
+        animate={{ opacity: isTransition ? 1 : 0, scale: isTransition ? 1.05 : 1 }}
+        transition={{ duration: 0.6, ease: 'easeInOut' }}
+        className="absolute top-10 right-1/4 w-[600px] h-[600px] rounded-full blur-[140px] pointer-events-none bg-[#E84A0F]/15 will-change-transform"
+      />
+      <motion.div
+        animate={{ opacity: !isDay && !isTransition ? 1 : 0, scale: !isDay && !isTransition ? 1.05 : 1 }}
+        transition={{ duration: 0.6, ease: 'easeInOut' }}
+        className="absolute top-10 right-1/4 w-[600px] h-[600px] rounded-full blur-[140px] pointer-events-none bg-[#AC1917]/20 will-change-transform"
       />
       <div className="absolute bottom-10 left-10 w-96 h-96 bg-cirqa-arena/5 rounded-full blur-3xl pointer-events-none" />
 

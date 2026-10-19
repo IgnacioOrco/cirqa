@@ -57,10 +57,10 @@ export default function Navbar({ isDark = false, onOpenQuiz }) {
           <nav className="flex items-center gap-4 sm:gap-7 text-[11px] sm:text-[12px] font-medium tracking-[0.16em] uppercase">
             <button
               onClick={handleQuizClick}
-              className="inline-flex items-center gap-1.5 text-cirqa-primario font-semibold hover:opacity-80 transition-opacity cursor-pointer group"
+              className="inline-flex items-center gap-1.5 text-[#B73302] font-semibold hover:opacity-80 transition-opacity cursor-pointer group"
               title="Descubrí tu rutina circadiana"
             >
-              <Sparkles className="w-3.5 h-3.5 animate-pulse text-amber-500" />
+              <Sparkles className="w-3.5 h-3.5 animate-pulse text-[#B73302]" />
               <span>Descubrí tu rutina</span>
             </button>
             <Link

@@ -9,7 +9,9 @@ const SITUACIONES = [
     momentLabel: 'MIENTRAS TRABAJÁS',
     time: '10:00 hs — Jornada Diurna',
     badgeFilter: 'FILTRO DÍA AMARILLO (84%)',
-    modelImage: '/assets/SITUACIONES AMARILLO.jpg',
+    modelImage: '/assets/situaciones-amarillo.webp',
+    modelImageMobile: '/assets/situaciones-amarillo-mobile.webp',
+    fallback: '/assets/SITUACIONES%20AMARILLO.jpg',
     accentColor: '#F3B93A',
     description: 'Tu herramienta diaria frente a monitores. Bloquea el 84% de la luz azul preservando la percepción natural del color para trabajar sin cefaleas ni cansancio ocular.',
     specs: ['84% Bloqueo Azul', 'Transmitancia 76.17%', '100% UV400'],
@@ -20,7 +22,9 @@ const SITUACIONES = [
     momentLabel: 'CUANDO CAE EL SOL',
     time: '18:00 hs — Caída Solar',
     badgeFilter: 'FILTRO TRANSICIÓN NARANJA (95%)',
-    modelImage: '/assets/SITUACIONES NARANJA.jpg',
+    modelImage: '/assets/situaciones-naranja.webp',
+    modelImageMobile: '/assets/situaciones-naranja-mobile.webp',
+    fallback: '/assets/SITUACIONES%20NARANJA.jpg',
     accentColor: '#E84A0F',
     description: 'Diseñados para sesiones continuas de pantallas durante el final de la tarde. Filtran el 95% de la luz azul en el rango crítico sin alterar la nitidez ni generar fatiga.',
     specs: ['95% Bloqueo Azul Crítico', 'Protección Retina', '100% UV400'],
@@ -31,7 +35,9 @@ const SITUACIONES = [
     momentLabel: 'ANTES DE IRTE A DORMIR',
     time: '21:30 hs — Desconexión Nocturna',
     badgeFilter: 'FILTRO NOCHE ROJO (100%)',
-    modelImage: '/assets/SITUACIONES ROJO.jpg',
+    modelImage: '/assets/situaciones-rojo.webp',
+    modelImageMobile: '/assets/situaciones-rojo-mobile.webp',
+    fallback: '/assets/SITUACIONES%20ROJO.jpg',
     accentColor: '#EF4444',
     description: 'En tu mesa de luz, listos para la última hora del día. Bloquean el espectro azul y verde de pantallas y luminarias, permitiendo el pico natural de melatonina y facilitando el sueño reparador.',
     specs: ['100% Bloqueo Azul y Verde', 'Inducción Melatonina', 'Sueño REM Profundo'],
@@ -99,18 +105,18 @@ export default function StillLifeCarousel() {
             <button
               onClick={() => scroll('left')}
               disabled={!canScrollLeft}
-              className="w-10 h-10 rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-white hover:bg-white hover:text-cirqa-negro disabled:opacity-30 transition-all shadow-sm cursor-pointer"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-white hover:bg-white hover:text-cirqa-negro disabled:opacity-30 transition-all shadow-sm cursor-pointer"
               aria-label="Anterior momento del día"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <ChevronLeft className="w-5 h-5" />
             </button>
             <button
               onClick={() => scroll('right')}
               disabled={!canScrollRight}
-              className="w-10 h-10 rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-white hover:bg-white hover:text-cirqa-negro disabled:opacity-30 transition-all shadow-sm cursor-pointer"
+              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-white hover:bg-white hover:text-cirqa-negro disabled:opacity-30 transition-all shadow-sm cursor-pointer"
               aria-label="Siguiente momento del día"
             >
-              <ChevronRight className="w-4 h-4" />
+              <ChevronRight className="w-5 h-5" />
             </button>
           </div>
         </div>
@@ -135,12 +141,24 @@ export default function StillLifeCarousel() {
                 className="w-[85vw] sm:w-[380px] md:w-full flex-shrink-0 snap-center md:flex-shrink relative h-[500px] md:h-[580px] lg:h-[620px] rounded-3xl overflow-hidden group shadow-2xl bg-[#111111] flex flex-col justify-between p-6 sm:p-7 border border-white/10 hover:border-white/25 transition-colors duration-500"
               >
                 {/* 1. Fotografía Vertical de Campaña en Fondo Completo */}
-                <img 
-                  src={situation.modelImage} 
-                  alt={situation.title}
-                  className="absolute inset-0 w-full h-full object-cover object-top md:object-center transition-transform duration-700 ease-out group-hover:scale-105"
-                  loading="lazy"
-                />
+                <picture className="absolute inset-0 w-full h-full block">
+                  <source media="(max-width: 768px)" srcSet={situation.modelImageMobile} type="image/webp" />
+                  <source srcSet={situation.modelImage} type="image/webp" />
+                  <img 
+                    src={situation.modelImage} 
+                    alt={situation.title}
+                    width="1200"
+                    height="1600"
+                    className="w-full h-full object-cover object-top md:object-center transition-transform duration-700 ease-out group-hover:scale-105"
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => {
+                      if (situation.fallback) {
+                        e.currentTarget.src = situation.fallback;
+                      }
+                    }}
+                  />
+                </picture>
 
                 {/* 2. Capa de Gradiente Inmersiva para Legibilidad Óptima */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 via-55% to-black/20 pointer-events-none" />

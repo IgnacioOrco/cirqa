@@ -148,7 +148,7 @@ export default function Home() {
                     <span>Hacer test diagnóstico (1 min)</span>
                     <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                   </button>
-                  <span className="text-xs text-white/40 font-mono text-center sm:text-left">
+                  <span className="text-xs text-white/75 font-mono text-center sm:text-left">
                     Sin registro previo · Preselección automática
                   </span>
                 </div>

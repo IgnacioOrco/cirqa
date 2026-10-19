@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agenticresourcediscovery.org/spec/v1/schema.json",
+  "name": "CIRQA Optical Wellness & Circadian Rhythms",
+  "description": "Catálogo digital y especificaciones técnicas de lentes circadianos y armazones ópticos de CIRQA.",
+  "url": "https://www.cirqa.com.ar",
+  "catalog": {
+    "products_url": "https://www.cirqa.com.ar/catalogo",
+    "categories": [
+      {
+        "id": "dia",
+        "name": "Filtro Día Amarillo (84%)",
+        "description": "Lentes para uso en computadoras y oficinas con luz artificial."
+      },
+      {
+        "id": "transicion",
+        "name": "Filtro Transición Naranja (95%)",
+        "description": "Lentes para uso al atardecer y luz artificial intensa."
+      },
+      {
+        "id": "noche",
+        "name": "Filtro Noche Rojo (100%)",
+        "description": "Lentes para descanso nocturno, protección de melatonina y desconexión."
+      }
+    ]
+  }
+}

@@ -86,13 +86,13 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
         {/* Encabezado de la Sección */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
           <div>
-            <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-cirqa-primario font-semibold block mb-2">
+            <span className="text-[10px] sm:text-[11px] uppercase tracking-[0.2em] text-[#B73302] font-semibold block mb-2">
               Pasarela de Productos · Catálogo en Tiempo Real
             </span>
             <h2 className="text-3xl sm:text-4xl font-light text-cirqa-negro tracking-tight">
               Ingeniería Óptica y Diseño.
             </h2>
-            <p className="text-xs sm:text-sm text-cirqa-negro/60 font-light mt-1">
+            <p className="text-xs sm:text-sm text-cirqa-negro/80 font-light mt-1">
               Explorá cada silueta sincronizada directamente con la base de datos y probá los cristales circadianos en fotografía real.
             </p>
           </div>
@@ -110,16 +110,16 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => refetch()}
-                className="w-10 h-10 rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro/70 hover:text-cirqa-negro hover:border-cirqa-negro transition-all shadow-sm"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro/70 hover:text-cirqa-negro hover:border-cirqa-negro transition-all shadow-sm cursor-pointer"
                 title="Sincronizar catálogo"
                 aria-label="Refrescar catálogo"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+                <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               </button>
               <button
                 onClick={() => scroll('left')}
                 disabled={!canScrollLeft}
-                className="w-10 h-10 rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro hover:border-cirqa-negro hover:bg-cirqa-negro hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-cirqa-negro transition-all shadow-sm"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro hover:border-cirqa-negro hover:bg-cirqa-negro hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-cirqa-negro transition-all shadow-sm cursor-pointer"
                 aria-label="Anterior"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -127,7 +127,7 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
               <button
                 onClick={() => scroll('right')}
                 disabled={!canScrollRight}
-                className="w-10 h-10 rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro hover:border-cirqa-negro hover:bg-cirqa-negro hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-cirqa-negro transition-all shadow-sm"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border border-cirqa-negro/15 bg-white flex items-center justify-center text-cirqa-negro hover:border-cirqa-negro hover:bg-cirqa-negro hover:text-white disabled:opacity-30 disabled:hover:bg-white disabled:hover:text-cirqa-negro transition-all shadow-sm cursor-pointer"
                 aria-label="Siguiente"
               >
                 <ChevronRight className="w-4 h-4" />

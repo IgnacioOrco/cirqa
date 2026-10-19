@@ -70,7 +70,7 @@ export default function ComparisonTable({ onSelectFilterForPurchase, onOpenTrial
         
         {/* Section Header */}
         <div className="text-center max-w-3xl mx-auto mb-16">
-          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.24em] text-cirqa-primario block mb-2">
+          <span className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.24em] text-[#B73302] block mb-2">
             ESPECIFICACIONES TÉCNICAS
           </span>
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-light text-cirqa-negro tracking-tight">

@@ -41,13 +41,13 @@ export default function PhilosophyAndFooter({ onOpenTrials, onOpenPrescription }
 
         {/* Col 3: Support & Prescription Access */}
         <div className="md:col-span-2 space-y-2 text-xs font-light">
-          <span className="text-[10px] uppercase tracking-widest text-cirqa-negro/50 font-medium block mb-3">
+          <span className="text-[10px] uppercase tracking-widest text-cirqa-negro/75 font-semibold block mb-3">
             Soporte & Graduación
           </span>
           <div>
             <button
               onClick={() => onOpenPrescription && onOpenPrescription()}
-              className="text-xs text-cirqa-negro/50 hover:text-cirqa-primario transition-colors text-left font-light block"
+              className="text-xs text-cirqa-negro/75 hover:text-cirqa-primario transition-colors text-left font-light block cursor-pointer"
             >
               Tengo mi Receta
             </button>
@@ -61,7 +61,7 @@ export default function PhilosophyAndFooter({ onOpenTrials, onOpenPrescription }
                   window.open('/certificates/CIRQA-Certificado-Filtro-Dia.pdf', '_blank');
                 }
               }}
-              className="text-xs text-cirqa-negro/50 hover:text-cirqa-primario transition-colors text-left font-light block cursor-pointer"
+              className="text-xs text-cirqa-negro/75 hover:text-cirqa-primario transition-colors text-left font-light block cursor-pointer"
             >
               Ensayos Clínicos & Certificados
             </button>
@@ -71,7 +71,7 @@ export default function PhilosophyAndFooter({ onOpenTrials, onOpenPrescription }
               href="https://wa.me/5491125073598"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-xs text-cirqa-negro/50 hover:text-cirqa-primario transition-colors text-left font-light block"
+              className="text-xs text-cirqa-negro/75 hover:text-cirqa-primario transition-colors text-left font-light block"
             >
               Atención WhatsApp
             </a>
@@ -80,13 +80,13 @@ export default function PhilosophyAndFooter({ onOpenTrials, onOpenPrescription }
 
         {/* Col 4: Legal & Standards */}
         <div className="md:col-span-3 space-y-2 text-xs font-light">
-          <span className="text-[10px] uppercase tracking-widest text-cirqa-negro/50 font-medium block mb-3">
+          <span className="text-[10px] uppercase tracking-widest text-cirqa-negro/75 font-semibold block mb-3">
             Homologaciones & Estándares
           </span>
-          <p className="text-[11px] text-cirqa-negro/60 leading-relaxed">
+          <p className="text-[11px] text-cirqa-negro/75 leading-relaxed">
             Filtros testeados y homologados bajo normas internacionales ISO 12312-1:2022, ANSI Z80.3:2018 y AS/NZS 1067:2016.
           </p>
-          <div className="pt-4 text-[10px] text-cirqa-negro/40">
+          <div className="pt-4 text-[11px] text-cirqa-negro/65">
             © {new Date().getFullYear()} CIRQA. Todos los derechos reservados.
           </div>
         </div>

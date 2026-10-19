@@ -6,24 +6,27 @@ import { Link } from 'react-router-dom';
 const HERO_SLIDES = [
   {
     id: 'hero-slide-1',
-    image: '/assets/HOME SLIDER 1A.jpg',
-    fallback: '/assets/hero-model.webp',
+    image: '/assets/home-slider-1a.webp',
+    imageMobile: '/assets/home-slider-1a-mobile.webp',
+    fallback: '/assets/HOME%20SLIDER%201A.jpg',
     alt: 'Campaña CIRQA 2026 — Modelo con cristales circadianos',
     badge: 'Campaña Oficial CIRQA 2026',
     subtitle: 'Claridad en un mundo lleno de ruido',
   },
   {
     id: 'hero-slide-2',
-    image: '/assets/HOME SLIDER 1B.jpg',
-    fallback: '/assets/modelo.png',
+    image: '/assets/home-slider-1b.webp',
+    imageMobile: '/assets/home-slider-1b-mobile.webp',
+    fallback: '/assets/HOME%20SLIDER%201B.jpg',
     alt: 'Modelo CIRQA — Foco y protección visual diurna',
     badge: 'Modelo Q 001 · Filtro Día Amarillo',
     subtitle: 'Foco sostenido sin fatiga digital',
   },
   {
     id: 'hero-slide-3',
-    image: '/assets/HOME SLIDER 1C.jpg',
-    fallback: '/products/_DSC8660.webp',
+    image: '/assets/home-slider-1c.webp',
+    imageMobile: '/assets/home-slider-1c-mobile.webp',
+    fallback: '/assets/HOME%20SLIDER%201C.jpg',
     alt: 'Modelo CIRQA — Sincronía y bienestar circadiano',
     badge: 'Modelo Q 002 · Transición & Noche',
     subtitle: 'Restauración del ritmo biológico',
@@ -170,54 +173,66 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz, onOpe
                 transition={{ duration: 0.5, ease: 'easeOut' }}
                 className="w-full h-full"
               >
-                <img
-                  src={encodeURI(activeSlide.image)}
-                  alt={activeSlide.alt}
-                  className="w-full h-full object-cover object-top md:object-center transition-all duration-700 select-none"
-                  loading="eager"
-                  onError={(e) => {
-                    if (activeSlide.fallback) {
-                      e.currentTarget.src = activeSlide.fallback;
-                    }
-                  }}
-                />
+                <picture className="w-full h-full block">
+                  <source media="(max-width: 768px)" srcSet={activeSlide.imageMobile} type="image/webp" />
+                  <source srcSet={activeSlide.image} type="image/webp" />
+                  <img
+                    src={activeSlide.image}
+                    alt={activeSlide.alt}
+                    width="1400"
+                    height="2100"
+                    fetchPriority={currentSlide === 0 ? 'high' : 'auto'}
+                    loading={currentSlide === 0 ? 'eager' : 'lazy'}
+                    decoding={currentSlide === 0 ? 'sync' : 'async'}
+                    className="w-full h-full object-cover object-top md:object-center transition-all duration-700 select-none"
+                    onError={(e) => {
+                      if (activeSlide.fallback) {
+                        e.currentTarget.src = activeSlide.fallback;
+                      }
+                    }}
+                  />
+                </picture>
               </motion.div>
             </AnimatePresence>
 
-            {/* Botones de Navegación del Slider con backdrop-blur y contraste premium */}
-            <div className="absolute top-5 right-5 z-20 flex items-center gap-2">
+            {/* Botones de Navegación del Slider con área táctil accesible min 44x44px */}
+            <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
               <button
                 type="button"
                 onClick={handlePrev}
-                className="w-9 h-9 rounded-full backdrop-blur-md bg-black/30 hover:bg-black/50 border border-white/20 flex items-center justify-center text-white transition-all shadow-md cursor-pointer"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full backdrop-blur-md bg-black/40 hover:bg-black/60 border border-white/20 flex items-center justify-center text-white transition-colors shadow-md cursor-pointer"
                 aria-label="Foto anterior"
               >
-                <ChevronLeft className="w-4 h-4" />
+                <ChevronLeft className="w-5 h-5" />
               </button>
               <button
                 type="button"
                 onClick={handleNext}
-                className="w-9 h-9 rounded-full backdrop-blur-md bg-black/30 hover:bg-black/50 border border-white/20 flex items-center justify-center text-white transition-all shadow-md cursor-pointer"
+                className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full backdrop-blur-md bg-black/40 hover:bg-black/60 border border-white/20 flex items-center justify-center text-white transition-colors shadow-md cursor-pointer"
                 aria-label="Foto siguiente"
               >
-                <ChevronRight className="w-4 h-4" />
+                <ChevronRight className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Dots Indicadores con backdrop blur */}
-            <div className="absolute top-6 left-6 z-20 flex items-center gap-1.5">
+            {/* Dots Indicadores con área táctil accesible min 44x44px */}
+            <div className="absolute top-4 left-4 z-20 flex items-center">
               {HERO_SLIDES.map((_, idx) => (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => setCurrentSlide(idx)}
-                  className={`h-1.5 rounded-full backdrop-blur-md transition-all cursor-pointer ${
-                    currentSlide === idx
-                      ? 'w-7 bg-white shadow-sm'
-                      : 'w-2.5 bg-white/40 hover:bg-white/70'
-                  }`}
+                  className="w-11 h-11 min-w-[44px] min-h-[44px] flex items-center justify-center cursor-pointer group"
                   aria-label={`Ir al slide ${idx + 1}`}
-                />
+                >
+                  <span
+                    className={`h-1.5 rounded-full transition-all duration-300 ${
+                      currentSlide === idx
+                        ? 'w-7 bg-white shadow-sm'
+                        : 'w-2.5 bg-white/40 group-hover:bg-white/70'
+                    }`}
+                  />
+                </button>
               ))}
             </div>
 

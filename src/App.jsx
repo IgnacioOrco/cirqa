@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
-import Catalog from './pages/Catalog';
-import Login from './pages/Login';
-import AdminDashboard from './pages/AdminDashboard';
-import ComingSoon from './pages/ComingSoon';
-import CheckoutSuccess from './pages/CheckoutSuccess';
-import CheckoutFailure from './pages/CheckoutFailure';
-import CheckoutPending from './pages/CheckoutPending';
+
+// Lazy loading de rutas pesadas y secundarias
+const Catalog = lazy(() => import('./pages/Catalog'));
+const Login = lazy(() => import('./pages/Login'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const ComingSoon = lazy(() => import('./pages/ComingSoon'));
+const CheckoutSuccess = lazy(() => import('./pages/CheckoutSuccess'));
+const CheckoutFailure = lazy(() => import('./pages/CheckoutFailure'));
+const CheckoutPending = lazy(() => import('./pages/CheckoutPending'));
+const CheckoutModal = lazy(() => import('./components/CheckoutModal'));
+
 import PrivateRoute from './components/PrivateRoute';
-import CheckoutModal from './components/CheckoutModal';
 import { CartProvider } from './context/CartContext';
 
 /**
@@ -56,39 +59,41 @@ export default function App() {
   return (
     <CartProvider>
       <BrowserRouter>
-        <Routes>
-          {/* Rutas de Administración accesibles para administradores */}
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/admin"
-            element={
-              <PrivateRoute>
-                <AdminDashboard />
-              </PrivateRoute>
-            }
-          />
+        <Suspense fallback={<div className="min-h-screen bg-white" />}>
+          <Routes>
+            {/* Rutas de Administración accesibles para administradores */}
+            <Route path="/login" element={<Login />} />
+            <Route
+              path="/admin"
+              element={
+                <PrivateRoute>
+                  <AdminDashboard />
+                </PrivateRoute>
+              }
+            />
 
-          {/* Rutas Públicas de Retorno de Checkout Pro (Mercado Pago back_urls) */}
-          <Route path="/checkout/success" element={<CheckoutSuccess />} />
-          <Route path="/checkout/failure" element={<CheckoutFailure />} />
-          <Route path="/checkout/pending" element={<CheckoutPending />} />
+            {/* Rutas Públicas de Retorno de Checkout Pro (Mercado Pago back_urls) */}
+            <Route path="/checkout/success" element={<CheckoutSuccess />} />
+            <Route path="/checkout/failure" element={<CheckoutFailure />} />
+            <Route path="/checkout/pending" element={<CheckoutPending />} />
 
-          {showComingSoon ? (
-            // Modo Próximamente activo: Se muestra la pantalla de prelanzamiento oficial
-            <Route path="*" element={<ComingSoon />} />
-          ) : (
-            // Sitio web completo de CIRQA
-            <>
-              <Route path="/" element={<Home />} />
-              <Route path="/catalogo" element={<Catalog />} />
-              <Route path="/catalog" element={<Navigate to="/catalogo" replace />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </>
-          )}
-        </Routes>
+            {showComingSoon ? (
+              // Modo Próximamente activo: Se muestra la pantalla de prelanzamiento oficial
+              <Route path="*" element={<ComingSoon />} />
+            ) : (
+              // Sitio web completo de CIRQA
+              <>
+                <Route path="/" element={<Home />} />
+                <Route path="/catalogo" element={<Catalog />} />
+                <Route path="/catalog" element={<Navigate to="/catalogo" replace />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </>
+            )}
+          </Routes>
 
-        {/* Modal Global de Checkout */}
-        <CheckoutModal />
+          {/* Modal Global de Checkout */}
+          <CheckoutModal />
+        </Suspense>
 
         {/* Indicador flotante cuando se navega en modo preview */}
         {COMING_SOON_MODE && isPreview && (

@@ -3,51 +3,87 @@ import { productService } from '../services/api';
 import { normalizeProduct, hasAdminImages } from '../utils/productImages';
 import { MODELS } from '../data/models';
 
-/**
- * Hook para obtener la lista de productos dinámica desde MongoDB (/api/products).
- * Filtra estrictamente solo aquellos productos que cuentan con imágenes reales
- * subidas por la administradora en el panel admin, eliminando los productos que
- * utilizaban mockups internos (Q-002, Q-005, Q-Kids).
- *
- * @param {Object} options
- * @param {boolean} options.all - Si es true consulta ?all=true
- * @param {boolean} options.autoFetch - Si debe ejecutar la consulta al montar el componente
- */
-export function useProducts({ all = false, autoFetch = true } = {}) {
-  const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(autoFetch);
-  const [error, setError] = useState(null);
+// Memoria caché en módulo y deduplicador de peticiones en vuelo
+const productsCache = {
+  all: null,
+  public: null,
+  timestamp: { all: 0, public: 0 },
+  inFlight: { all: null, public: null },
+};
+const CACHE_TTL = 90 * 1000; // 90 segundos
 
-  const fetchProducts = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+async function getSharedProducts({ all = false, force = false } = {}) {
+  const key = all ? 'all' : 'public';
+  const now = Date.now();
+
+  // Si existe en caché y no expiró, devolver inmediatamente
+  if (!force && productsCache[key] && now - productsCache.timestamp[key] < CACHE_TTL) {
+    return productsCache[key];
+  }
+
+  // Si ya hay una petición en vuelo para este key, reutilizar su promesa
+  if (productsCache.inFlight[key]) {
+    return productsCache.inFlight[key];
+  }
+
+  productsCache.inFlight[key] = (async () => {
     try {
       const data = await productService.getProducts({ all });
+      let result;
       if (Array.isArray(data) && data.length > 0) {
-        // Filtrar estrictamente productos con fotos subidas por la administradora
         const validProducts = data.filter((p) => {
           if (!all && p.isActive === false) return false;
           return hasAdminImages(p);
         });
-        const normalized = validProducts.map(normalizeProduct);
-        setProducts(normalized);
+        result = validProducts.map(normalizeProduct);
       } else {
-        // Fallback seguro a modelos que cuentan con fotos de administración
-        const fallback = MODELS.filter(hasAdminImages).map(normalizeProduct);
-        setProducts(fallback);
+        result = MODELS.filter(hasAdminImages).map(normalizeProduct);
       }
+      productsCache[key] = result;
+      productsCache.timestamp[key] = Date.now();
+      return result;
     } catch (err) {
       console.warn('[useProducts] Error al conectar con API CIRQA, usando fallback local:', err.message);
+      const fallback = MODELS.filter(hasAdminImages).map(normalizeProduct);
+      productsCache[key] = fallback;
+      productsCache.timestamp[key] = Date.now();
+      return fallback;
+    } finally {
+      productsCache.inFlight[key] = null;
+    }
+  })();
+
+  return productsCache.inFlight[key];
+}
+
+/**
+ * Hook para obtener la lista de productos dinámica desde MongoDB (/api/products).
+ * Con deduplicación de peticiones en vuelo y caché en memoria para no saturar la red ni la API.
+ */
+export function useProducts({ all = false, autoFetch = true } = {}) {
+  const key = all ? 'all' : 'public';
+  const [products, setProducts] = useState(() => productsCache[key] || []);
+  const [loading, setLoading] = useState(() => (productsCache[key] ? false : autoFetch));
+  const [error, setError] = useState(null);
+
+  const fetchProducts = useCallback(async (force = false) => {
+    if (!productsCache[key] || force) {
+      setLoading(true);
+    }
+    setError(null);
+    try {
+      const result = await getSharedProducts({ all, force });
+      setProducts(result);
+    } catch (err) {
       setError(err);
-      setProducts(MODELS.filter(hasAdminImages).map(normalizeProduct));
     } finally {
       setLoading(false);
     }
-  }, [all]);
+  }, [all, key]);
 
   useEffect(() => {
     if (autoFetch) {
-      fetchProducts();
+      fetchProducts(false);
     }
   }, [fetchProducts, autoFetch]);
 
@@ -55,7 +91,7 @@ export function useProducts({ all = false, autoFetch = true } = {}) {
     products,
     loading,
     error,
-    refetch: fetchProducts,
+    refetch: () => fetchProducts(true),
   };
 }
 
