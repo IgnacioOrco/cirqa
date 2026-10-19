@@ -106,7 +106,7 @@ export const createOrderPreference = async (req, res, next) => {
         },
         payment_methods: {
           installments: 6,
-          default_installments: 1,
+          default_installments: 6,
         },
         shipments: {
           cost: Number(order.shippingCost || order.shipping?.cost || 0),
@@ -539,7 +539,7 @@ export const createPreference = async (req, res, next) => {
         },
         payment_methods: {
           installments: 6,
-          default_installments: 1,
+          default_installments: 6,
         },
         back_urls: {
           success: `${clientUrl}/checkout/success?orderId=${order._id}`,
