@@ -5,8 +5,8 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
-const HOST = '149.34.225.201';
-const PORT = 27017;
+const HOST = process.env.MONGO_HOST || '127.0.0.1';
+const PORT = process.env.MONGO_PORT || 27017;
 
 const PRODUCTS_DATA = [
   {

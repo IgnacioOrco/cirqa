@@ -14,20 +14,30 @@ services:
       - MONGO_URI=mongodb://mongo:27017/cirqa
       - JWT_SECRET=cirqa_secret_jwt_key_prod_2026
       - CLIENT_URL=https://www.cirqa.com.ar,https://cirqa.com.ar
+      - NODE_OPTIONS=--max-old-space-size=512
+    deploy:
+      resources:
+        limits:
+          memory: 768M
     volumes:
       # =========================================================================
-      # VOLUMEN PERSISTENTE: Mapea la carpeta ./uploads del host VPS a /app/uploads
+      # VOLUMEN PERSISTENTE: Mapea la carpeta ../uploads del host VPS a /app/uploads
       # Garantiza que las imágenes subidas no se pierdan al rebuildear el contenedor
       # =========================================================================
-      - ./uploads:/app/uploads
+      - ../uploads:/app/uploads
     depends_on:
       - mongo
 
-  # Servicio de Base de Datos MongoDB
+  # Servicio de Base de Datos MongoDB con protección OOM (Exit 137)
   mongo:
     image: mongo:6-jammy
     container_name: cirqa-mongo
     restart: always
+    command: mongod --wiredTigerCacheSizeGB 0.25
+    deploy:
+      resources:
+        limits:
+          memory: 512M
     ports:
       # Bindeo a localhost para proteger contra bots maliciosos en internet
       - "127.0.0.1:27017:27017"
@@ -36,4 +46,5 @@ services:
 
 volumes:
   mongo-data:
-    driver: local
+    name: cirqa_mongo_data
+
