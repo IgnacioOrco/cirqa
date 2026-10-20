@@ -125,8 +125,8 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
                   <img
                     src="/assets/lens-dia.webp"
                     alt="CIRQA con Filtro Amarillo 84%"
-                    width="1142"
-                    height="590"
+                    width="1024"
+                    height="634"
                     className="w-full h-auto object-contain select-none drop-shadow-[0_20px_35px_rgba(0,0,0,0.12)] mix-blend-multiply"
                     loading="lazy"
                     decoding="async"
@@ -183,8 +183,8 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
                   <img
                     src="/assets/lens-transicion.webp"
                     alt="CIRQA con Filtro Naranja 95%"
-                    width="1376"
-                    height="768"
+                    width="1024"
+                    height="634"
                     className="w-full h-auto object-contain select-none drop-shadow-[0_20px_35px_rgba(0,0,0,0.12)] mix-blend-multiply"
                     loading="lazy"
                     decoding="async"
@@ -243,8 +243,8 @@ export default function FilterDetailsCampaign({ onOpenTrials, onThemeChange }) {
                   <img
                     src="/assets/lens-noche.webp"
                     alt="CIRQA con Filtro Rojo 100%"
-                    width="1376"
-                    height="768"
+                    width="1024"
+                    height="634"
                     className="w-full h-auto object-contain select-none drop-shadow-[0_20px_35px_rgba(0,0,0,0.12)] mix-blend-multiply"
                     loading="lazy"
                     decoding="async"
