@@ -29,7 +29,8 @@ services:
     container_name: cirqa-mongo
     restart: always
     ports:
-      - "27017:27017"
+      # Bindeo a localhost para proteger contra bots maliciosos en internet
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo-data:/data/db
 

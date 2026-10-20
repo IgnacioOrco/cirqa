@@ -124,11 +124,12 @@ export const hasAdminImages = (product) => {
   const hasUploadedInGallery = images.some(
     (img) =>
       img &&
-      ((img.url && (img.url.includes('/uploads/') || img.url.startsWith('http'))) ||
-        (img.imageUrl && (img.imageUrl.includes('/uploads/') || img.imageUrl.startsWith('http'))))
+      ((img.url && (img.url.includes('/uploads/') || img.url.startsWith('http') || img.url.startsWith('/'))) ||
+        (img.imageUrl && (img.imageUrl.includes('/uploads/') || img.imageUrl.startsWith('http') || img.imageUrl.startsWith('/'))))
   );
   const hasUploadedDirect = Boolean(
-    product.image_url && (product.image_url.includes('/uploads/') || product.image_url.startsWith('http'))
+    (product.image_url && (product.image_url.includes('/uploads/') || product.image_url.startsWith('http') || product.image_url.startsWith('/'))) ||
+    (product.previewImage && (product.previewImage.includes('/uploads/') || product.previewImage.startsWith('http') || product.previewImage.startsWith('/')))
   );
   return hasUploadedInGallery || hasUploadedDirect;
 };

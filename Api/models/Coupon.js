@@ -86,8 +86,6 @@ const couponSchema = new mongoose.Schema(
   }
 );
 
-// Índice para búsqueda rápida por código
-couponSchema.index({ code: 1 });
 
 const Coupon = mongoose.models.Coupon || mongoose.model('Coupon', couponSchema);
 export default Coupon;

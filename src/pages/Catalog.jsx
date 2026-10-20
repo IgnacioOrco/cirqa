@@ -88,7 +88,7 @@ export default function Catalog() {
 
       <main className="flex-grow pt-28 pb-20">
         <div className="max-w-7xl mx-auto px-6">
-          
+
           {/* Header del Catálogo */}
           <div className="pb-8 border-b border-cirqa-negro/10">
             <div className="flex items-center gap-2 mb-3">
@@ -104,7 +104,7 @@ export default function Catalog() {
             <div className="flex flex-col md:flex-row md:items-end justify-between gap-6">
               <div>
                 <span className="text-[11px] uppercase tracking-[0.25em] text-cirqa-primario font-semibold block mb-2">
-                  Catálogo Oficial · CIRQA Biomimetic
+                  Catálogo Oficial · CIRQA
                 </span>
                 <h1 className="text-3xl sm:text-4xl md:text-5xl font-light tracking-tight text-cirqa-negro">
                   Colección Oficial
@@ -142,11 +142,10 @@ export default function Catalog() {
                     <button
                       key={tab.id}
                       onClick={() => setSelectedFilterTab(tab.id)}
-                      className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${
-                        isSelected
+                      className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all whitespace-nowrap cursor-pointer flex items-center gap-2 ${isSelected
                           ? 'bg-cirqa-negro text-white shadow-sm'
                           : 'bg-black/5 text-cirqa-negro/70 hover:text-cirqa-negro hover:bg-black/10'
-                      }`}
+                        }`}
                     >
                       {tab.id !== 'ALL' && (
                         <span
