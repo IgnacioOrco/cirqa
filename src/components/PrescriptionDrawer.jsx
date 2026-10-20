@@ -94,7 +94,7 @@ export default function PrescriptionDrawer({ isOpen, onClose, selectedModel, sel
                 </div>
                 {/* <span className="text-cirqa-negro font-medium">{customModel?.formattedPrice}</span> */}
                 <span className="text-[10px] uppercase font-semibold tracking-wider text-cirqa-primario">
-                  Pre-lanzamiento
+                  Graduación a medida
                 </span>
               </div>
 

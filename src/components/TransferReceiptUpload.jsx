@@ -155,7 +155,7 @@ export default function TransferReceiptUpload({
 
       const targetEndpoint =
         uploadUrl ||
-        `${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/orders/${orderId}/receipt`;
+        `${import.meta.env.VITE_API_URL || 'https://api.cirqa.com.ar'}/api/orders/${orderId}/receipt`;
 
       const response = await fetch(targetEndpoint, {
         method: 'POST',

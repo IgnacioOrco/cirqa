@@ -334,19 +334,36 @@ export default function CheckoutDrawer() {
           const rawOptions = Array.isArray(res?.options) ? res.options : [];
           
           // Estandarizar bajo nombres comerciales:
-          // "Envío a Domicilio · Correo Andreani / OCA"
-          // "Retiro en Sucursal · Correo Andreani / OCA"
-          const mappedOptions = rawOptions.map((opt) => {
+          // "Envío Gratis a Domicilio (Todo el País)"
+          // "Retiro en Sucursal · Envío Gratis (Todo el País)"
+          const mappedOptions = (rawOptions.length > 0 ? rawOptions : [
+            {
+              id: 'free_home_standard',
+              name: 'Envío Gratis a Domicilio (Todo el País)',
+              description: 'Entrega puerta a puerta certificada en tu domicilio · Sin cargo',
+              carrier: 'Correo Andreani / OCA',
+              cost: 0,
+              price: 0,
+              isFree: true,
+              freeShipping: true,
+              estimatedDays: '3 a 5 días hábiles',
+              type: 'home',
+            }
+          ]).map((opt) => {
             const isPickup = opt.type === 'pickup' || (opt.name || '').toLowerCase().includes('punto') || (opt.name || '').toLowerCase().includes('sucursal');
             return {
               ...opt,
+              cost: 0,
+              price: 0,
+              isFree: true,
+              freeShipping: true,
               name: isPickup
-                ? 'Retiro en Sucursal · Correo Andreani / OCA'
-                : 'Envío a Domicilio · Correo Andreani / OCA',
+                ? 'Retiro en Sucursal · Envío Gratis (Todo el País)'
+                : 'Envío Gratis a Domicilio (Todo el País)',
               carrier: 'Correo Andreani / OCA',
               description: opt.description
                 ? opt.description.replace(/Zipnova/gi, 'Andreani / OCA')
-                : (isPickup ? `Sucursal cercana a CP ${cleanZip}` : 'Entrega puerta a puerta certificada'),
+                : (isPickup ? `Sucursal cercana a CP ${cleanZip} · Sin cargo` : 'Entrega puerta a puerta certificada bonificada'),
             };
           });
 
@@ -363,25 +380,29 @@ export default function CheckoutDrawer() {
         } catch (err) {
           if (isCancelled) return;
           console.warn('[Shipping Quote Error]:', err);
-          // Fallback seguro con Andreani / OCA
+          // Fallback seguro con Andreani / OCA - Envío Gratis a Todo el País
           const fallbackOptions = [
             {
-              id: 'andreani_home_fb',
-              name: 'Envío a Domicilio · Correo Andreani / OCA',
-              description: 'Entrega puerta a puerta certificada en tu domicilio',
+              id: 'free_home_fb',
+              name: 'Envío Gratis a Domicilio (Todo el País)',
+              description: 'Entrega puerta a puerta certificada en tu domicilio · Sin cargo',
               carrier: 'Correo Andreani / OCA',
-              cost: 4900,
-              price: 4900,
+              cost: 0,
+              price: 0,
+              isFree: true,
+              freeShipping: true,
               estimatedDays: '3 a 5 días hábiles',
               type: 'home',
             },
             {
-              id: 'andreani_pickup_fb',
-              name: 'Retiro en Sucursal · Correo Andreani / OCA',
-              description: `Sucursal cercana a CP ${cleanZip}`,
+              id: 'free_pickup_fb',
+              name: 'Retiro en Sucursal · Envío Gratis (Todo el País)',
+              description: `Sucursal cercana a CP ${cleanZip} · Sin cargo`,
               carrier: 'Correo Andreani / OCA',
-              cost: 3800,
-              price: 3800,
+              cost: 0,
+              price: 0,
+              isFree: true,
+              freeShipping: true,
               estimatedDays: '2 a 4 días hábiles',
               type: 'pickup',
             },
@@ -610,16 +631,20 @@ export default function CheckoutDrawer() {
         return;
       }
 
-      // CASO B: MERCADO PAGO CHECKOUT PRO
-      const initPoint =
+      // CASO B: MERCADO PAGO CHECKOUT PRO (Prioridad absoluta producción)
+      const prodInitPoint =
         response?.initPoint ||
         response?.data?.initPoint ||
         response?.init_point ||
-        response?.data?.init_point ||
+        response?.data?.init_point;
+
+      const sandboxInitPoint =
         response?.sandboxInitPoint ||
         response?.data?.sandboxInitPoint ||
         response?.sandbox_init_point ||
         response?.data?.sandbox_init_point;
+
+      const initPoint = prodInitPoint || sandboxInitPoint;
 
       if (!initPoint) {
         throw new Error(

@@ -5,8 +5,8 @@ export default function AnnouncementBar() {
   const announcements = [
     '6 CUOTAS SIN INTERÉS',
     '15% OFF CON TRANSFERENCIA',
-    'ENVÍO GRATIS A CABA (24 HS)',
-    'ENVÍOS A TODO EL PAÍS POR ANDREANI/OCA',
+    'ENVÍO GRATIS A TODO EL PAÍS',
+    'ENTREGAS CERTIFICADAS POR ANDREANI / OCA',
   ];
 
   const marqueeText = announcements.join('   ·   ');
@@ -39,11 +39,11 @@ export default function AnnouncementBar() {
                 </span>
                 <span className="text-white/40">·</span>
                 <span>
-                  <strong className="text-amber-300 font-semibold">ENVÍO GRATIS A CABA</strong> (24 HS)
+                  <strong className="text-emerald-400 font-semibold">ENVÍO GRATIS</strong> A TODO EL PAÍS
                 </span>
                 <span className="text-white/40">·</span>
                 <span className="text-white/80">
-                  ENVÍOS A TODO EL PAÍS POR <strong className="text-white font-semibold">ANDREANI / OCA</strong>
+                  ENTREGAS CERTIFICADAS POR <strong className="text-white font-semibold">ANDREANI / OCA</strong>
                 </span>
                 <span className="text-white/40">·</span>
               </span>

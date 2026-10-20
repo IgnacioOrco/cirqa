@@ -91,10 +91,10 @@ export const createOrderPreference = async (req, res, next) => {
           name: order.customer?.name || 'Cliente CIRQA',
           email: order.customer?.email,
           phone: order.customer?.phone ? { number: order.customer.phone } : undefined,
-          identification: order.customer?.dni
+          identification: (order.customer?.dni && String(order.customer.dni).replace(/\D/g, '').length >= 6)
             ? {
                 type: 'DNI',
-                number: String(order.customer.dni),
+                number: String(order.customer.dni).replace(/\D/g, ''),
               }
             : undefined,
           address: order.customer?.shippingAddress
@@ -244,42 +244,28 @@ export const createPreference = async (req, res, next) => {
     const validatedItems = [];
 
     for (const item of items) {
-      const rawId = item.productId || item._id || item.product || item.id;
+      const rawId = item.product || item.productId || item._id || item.id;
       let product = null;
-
-      // 1. Búsqueda por ObjectId si es válido
-      if (rawId && mongoose.Types.ObjectId.isValid(rawId)) {
-        product = await Product.findById(rawId);
+      if (rawId) {
+        product = await Product.findById(rawId).catch(() => null);
       }
-
-      // 2. Fallback por modelCode, slug o nombre si no se encontró por ID
-      if (!product && (item.modelCode || item.slug || item.id || rawId || item.name)) {
-        const lookupCode = (item.modelCode || item.slug || item.id || rawId || '')
-          .toString()
-          .split('_')[0]
-          .trim();
-
-        const cleanLookup = lookupCode.replace(/\s+/g, '-');
-        const regexPattern = lookupCode ? lookupCode.replace(/[- ]/g, '[- ]?') : '';
-
-        const orConditions = [];
-        if (regexPattern) {
-          orConditions.push({ modelCode: new RegExp(`^${regexPattern}$`, 'i') });
-          orConditions.push({ name: new RegExp(`^${regexPattern}$`, 'i') });
-        }
-        if (lookupCode) {
-          orConditions.push({ slug: lookupCode.toLowerCase() });
-        }
-        if (cleanLookup) {
-          orConditions.push({ slug: cleanLookup.toLowerCase() });
-        }
-        if (item.name) {
-          orConditions.push({ name: new RegExp(`^${item.name.trim()}$`, 'i') });
-        }
-
-        if (orConditions.length > 0) {
-          product = await Product.findOne({ $or: orConditions });
-        }
+      if (!product && (item.modelCode || item.name)) {
+        product = await Product.findOne({
+          $or: [
+            { modelCode: item.modelCode || "" },
+            { name: item.name || "" }
+          ]
+        }).catch(() => null);
+      }
+      if (!product && (item.slug || item.id)) {
+        const altLookup = (item.slug || item.id || '').toString().toLowerCase();
+        product = await Product.findOne({
+          $or: [
+            { slug: altLookup },
+            { modelCode: new RegExp(`^${altLookup}$`, 'i') },
+            { name: new RegExp(`^${altLookup}$`, 'i') }
+          ]
+        }).catch(() => null);
       }
 
       if (!product) {
@@ -553,8 +539,8 @@ export const createPreference = async (req, res, next) => {
           name: normalizedCustomer.name,
           email: normalizedCustomer.email,
           phone: normalizedCustomer.phone ? { number: normalizedCustomer.phone } : undefined,
-          identification: normalizedCustomer.dni
-            ? { type: 'DNI', number: String(normalizedCustomer.dni) }
+          identification: (normalizedCustomer.dni && String(normalizedCustomer.dni).replace(/\D/g, '').length >= 6)
+            ? { type: 'DNI', number: String(normalizedCustomer.dni).replace(/\D/g, '') }
             : undefined,
           address: normalizedCustomer.shippingAddress
             ? {
