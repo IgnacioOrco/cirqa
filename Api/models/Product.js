@@ -79,6 +79,11 @@ const productSchema = new mongoose.Schema(
       min: [0, 'El stock no puede ser un valor negativo'],
       default: 0,
     },
+    material: {
+      type: String,
+      default: 'Acetato de celulosa',
+      trim: true,
+    },
     isActive: {
       type: Boolean,
       default: true,

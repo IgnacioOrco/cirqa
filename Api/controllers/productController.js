@@ -127,6 +127,7 @@ export const createProduct = async (req, res, next) => {
     const {
       name,
       modelCode,
+      material,
       price,
       basePrice,
       stock,
@@ -267,6 +268,7 @@ export const createProduct = async (req, res, next) => {
       modelCode: finalModelCode,
       slug: computedSlug,
       description: description ? description.trim() : '',
+      material: req.body.material !== undefined ? String(req.body.material).trim() : 'Acetato de celulosa',
       price: finalPrice,
       basePrice: finalPrice,
       stock: finalStock,
@@ -426,6 +428,7 @@ export const updateProduct = async (req, res, next) => {
     }
 
     if (req.body.name !== undefined) product.name = req.body.name.trim();
+    if (req.body.material !== undefined) product.material = String(req.body.material).trim();
     if (req.body.description !== undefined) product.description = req.body.description;
     if (req.body.category !== undefined) product.category = req.body.category;
     if (req.body.stock !== undefined) product.stock = Number(req.body.stock);

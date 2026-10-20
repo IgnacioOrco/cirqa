@@ -25,7 +25,41 @@ export const quoteShippingController = async (req, res, next) => {
       });
     }
 
-    const options = await quoteShipping({ postalCode: cleanZip, items });
+    let rawOptions = [];
+    try {
+      rawOptions = await quoteShipping({ postalCode: cleanZip, items });
+    } catch (logisticsErr) {
+      console.warn('[Logistics API notice]: Quote fallback applied:', logisticsErr.message);
+      rawOptions = [];
+    }
+
+    const options = (rawOptions && rawOptions.length > 0)
+      ? rawOptions.map((opt) => {
+          const rawCost = Number(opt.cost ?? opt.price ?? opt.originalCost ?? 0);
+          return {
+            ...opt,
+            originalCost: rawCost,
+            cost: 0,
+            isFree: true,
+            label: 'Envío Gratis a todo el país',
+          };
+        })
+      : [
+          {
+            id: 'cirqa_free_national',
+            carrier: 'Correo Andreani / OCA',
+            serviceType: 'standard_home',
+            name: 'Envío Gratis a Domicilio · Correo Andreani / OCA',
+            description: 'Envío 100% Bonificado a todo el país',
+            cost: 0,
+            originalCost: 4500,
+            estimatedDays: '3 a 6 días hábiles',
+            type: 'home',
+            isFree: true,
+            label: 'Envío Gratis a todo el país',
+          },
+        ];
+
     const pkgSpecs = calculatePackageSpecs(items);
 
     return res.status(200).json({
@@ -36,7 +70,25 @@ export const quoteShippingController = async (req, res, next) => {
     });
   } catch (error) {
     console.error('[Shipping Quote Error]:', error);
-    next(error);
+    return res.status(200).json({
+      success: true,
+      postalCode: req.body?.postalCode ? String(req.body.postalCode).trim() : '1000',
+      options: [
+        {
+          id: 'cirqa_free_contingency',
+          carrier: 'Correo Andreani / OCA',
+          serviceType: 'standard_home',
+          name: 'Envío Gratis a Domicilio · Correo Andreani / OCA',
+          description: 'Envío 100% Bonificado a todo el país',
+          cost: 0,
+          originalCost: 0,
+          estimatedDays: '3 a 6 días hábiles',
+          type: 'home',
+          isFree: true,
+          label: 'Envío Gratis a todo el país',
+        },
+      ],
+    });
   }
 };
 

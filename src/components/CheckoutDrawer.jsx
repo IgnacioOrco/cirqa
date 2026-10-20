@@ -198,10 +198,8 @@ export default function CheckoutDrawer() {
     0
   );
 
-  // 2. Costo de Envío: Si es CABA, el costo de envío es $0 reales
-  const shippingCost = isCustomerCABA
-    ? 0
-    : (selectedShippingOption ? Number(selectedShippingOption.cost ?? selectedShippingOption.price ?? 0) : 0);
+  // 2. Costo de Envío: 100% bonificado para el cliente a todo el país ($0 reales)
+  const shippingCost = 0;
 
   // 3. Descuento por Cupón
   const couponDiscount = appliedCoupon ? Math.min(subtotal, Number(appliedCoupon.discountAmount) || 0) : 0;
@@ -219,8 +217,8 @@ export default function CheckoutDrawer() {
   const totalDiscount = Math.min(subtotal, couponDiscount + transferDiscount);
   const discountAmount = totalDiscount;
 
-  // 6. Total Final a pagar: (subtotal - totalDiscount) + envío
-  const total = Math.max(0, subtotal - totalDiscount) + shippingCost;
+  // 6. Total Final a pagar: (subtotal - totalDiscount) sin cargo de envío
+  const total = Math.max(0, subtotal - totalDiscount);
 
   // Función para validar y aplicar cupón
   const handleApplyCoupon = async (e) => {
@@ -475,35 +473,24 @@ export default function CheckoutDrawer() {
 
   const buildOrderPayload = (selectedMethod) => {
     const isDestCABA = isCABA(formData.zipCode, formData.province);
-    const shippingPrice = isDestCABA ? 0 : Number(selectedShippingOption?.cost ?? selectedShippingOption?.price ?? 0);
-    const shippingMethodTitle = isDestCABA
-      ? (selectedShippingOption?.name || 'Envío Gratis CABA · Motomensajería Express (24 hs)')
-      : (selectedShippingOption?.name || 'Envío a Domicilio · Correo Andreani / OCA');
+    const shippingPrice = 0;
+    const shippingMethodTitle = selectedShippingOption?.name || (isDestCABA
+      ? 'Envío Gratis CABA · Motomensajería Express (24 hs)'
+      : 'Envío Bonificado a todo el país · Correo Andreani / OCA');
     const subtotalAmount = subtotal;
 
-    const shippingPayload = isDestCABA
-      ? {
-          carrier: 'Motomensajería',
-          service: 'express_caba_24h',
-          price: 0,
-          cost: 0,
-          status: 'PENDIENTE',
-          deliveryStatus: 'pending',
-          trackingNumber: '',
-          zipnovaShipmentId: '',
-          labelUrl: '',
-        }
-      : {
-          carrier: selectedShippingOption?.carrier || 'Correo Andreani / OCA',
-          service: selectedShippingOption?.service || selectedShippingOption?.serviceType || 'standard',
-          price: shippingPrice,
-          cost: shippingPrice,
-          status: 'PENDIENTE',
-          deliveryStatus: 'pending',
-          trackingNumber: '',
-          zipnovaShipmentId: '',
-          labelUrl: '',
-        };
+    const shippingPayload = {
+      carrier: selectedShippingOption?.carrier || (isDestCABA ? 'Motomensajería' : 'Correo Andreani / OCA'),
+      service: selectedShippingOption?.service || selectedShippingOption?.serviceType || (isDestCABA ? 'express_caba_24h' : 'standard'),
+      price: 0,
+      cost: 0,
+      originalCost: Number(selectedShippingOption?.originalCost ?? selectedShippingOption?.cost ?? 0),
+      status: 'PENDIENTE',
+      deliveryStatus: 'pending',
+      trackingNumber: '',
+      zipnovaShipmentId: '',
+      labelUrl: '',
+    };
 
     return {
       paymentMethod: selectedMethod === 'transfer' ? 'transfer' : 'mercadopago',
@@ -1053,13 +1040,9 @@ export default function CheckoutDrawer() {
                   </div>
                   {selectedShippingOption && (
                     <span
-                      className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
-                        selectedShippingOption.isFree
-                          ? 'text-emerald-700 bg-emerald-50 border-emerald-300 font-bold'
-                          : 'text-cirqa-negro/70 bg-cirqa-negro/5 border-cirqa-negro/10'
-                      }`}
+                      className="text-[10px] font-mono px-2 py-0.5 rounded-full border text-emerald-700 bg-emerald-50 border-emerald-300 font-bold"
                     >
-                      {selectedShippingOption.isFree ? 'Envío Gratis CABA' : 'Andreani / OCA Oficial'}
+                      Envío 100% Bonificado
                     </span>
                   )}
                 </div>
@@ -1068,7 +1051,7 @@ export default function CheckoutDrawer() {
                   <div className="p-3.5 rounded-2xl bg-[#FBFBFA] border border-dashed border-cirqa-negro/15 text-xs text-cirqa-negro/60 flex items-center gap-2.5">
                     <MapPin className="w-4 h-4 text-cirqa-negro/40 flex-shrink-0" />
                     <p className="text-[11px] font-light">
-                      Ingresá tu <strong>Código Postal</strong> para activar <strong>Envío Gratis en CABA (24 hs)</strong> o cotizar despacho por <strong>Andreani / OCA</strong> a todo el país.
+                      Ingresá tu <strong>Código Postal</strong> para activar el <strong>Envío Gratis a todo el país</strong> y calcular tiempos estimados.
                     </p>
                   </div>
                 ) : isQuotingShipping && shippingOptions.length === 0 ? (
@@ -1464,25 +1447,24 @@ export default function CheckoutDrawer() {
               </div>
             )}
 
-            {/* Envío Zipnova */}
+            {/* Envío Bonificado */}
             <div className="flex items-center justify-between text-xs text-cirqa-negro/70">
               <span className="flex items-center gap-1.5">
-                <Truck className="w-3.5 h-3.5 text-cirqa-primario" />
+                <Truck className="w-3.5 h-3.5 text-emerald-600" />
                 <span>
                   {selectedShippingOption
                     ? selectedShippingOption.name
-                    : 'Envío Zipnova'}
+                    : 'Envío a todo el país'}
                 </span>
               </span>
-              {selectedShippingOption ? (
-                <span className="font-mono font-medium text-cirqa-negro">
-                  +$ {shippingCost.toLocaleString('es-AR')}
+              <div className="text-right">
+                <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md inline-block">
+                  GRATIS $0
                 </span>
-              ) : (
-                <span className="text-[11px] text-cirqa-negro/50 italic font-mono">
-                  A calcular con CP
+                <span className="block text-[10px] text-emerald-700 font-medium">
+                  Envío bonificado a todo el país
                 </span>
-              )}
+              </div>
             </div>
 
             {/* Total a Pagar */}

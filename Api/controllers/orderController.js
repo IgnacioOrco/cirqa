@@ -109,7 +109,7 @@ export const createOrderPreference = async (req, res, next) => {
           default_installments: 6,
         },
         shipments: {
-          cost: Number(order.shippingCost || order.shipping?.cost || 0),
+          cost: 0,
           mode: 'not_specified',
         },
         back_urls: {
@@ -343,12 +343,13 @@ export const createPreference = async (req, res, next) => {
     };
 
     const isDestCABA = checkIsCABA(zip, prov);
-    let numericShippingCost = isDestCABA ? 0 : (Number(shippingCost) || 0);
+    // Envío 100% bonificado para clientes a todo el país ($0 costo final al comprador)
+    const numericShippingCost = 0;
     let shippingCarrier = isDestCABA ? 'Motomensajería' : (req.body.shipping?.carrier || 'Correo Andreani / OCA');
     let shippingServiceType = isDestCABA ? 'express_caba_24h' : (req.body.shipping?.service || req.body.shipping?.serviceType || 'standard');
     let shippingMethodTitle = isDestCABA
       ? 'Envío Gratis CABA · Motomensajería Express'
-      : (String(req.body.shippingMethod || req.body.shipping?.name || 'Envío a Domicilio · Correo Andreani / OCA').trim());
+      : (String(req.body.shippingMethod || req.body.shipping?.name || 'Envío Bonificado a todo el país · Correo Andreani / OCA').trim());
 
     const normalizedCustomer = {
       name: String(customer.name || '').trim(),
@@ -396,7 +397,7 @@ export const createPreference = async (req, res, next) => {
     }
 
     const discountAmount = Math.min(subtotal, couponDiscount + transferDiscount);
-    const totalAmount = Math.max(0, subtotal - discountAmount) + numericShippingCost;
+    const totalAmount = Math.max(0, subtotal - discountAmount);
 
     const year = new Date().getFullYear();
     const randomCode = Math.floor(100000 + Math.random() * 900000);
@@ -534,7 +535,7 @@ export const createPreference = async (req, res, next) => {
       const preferencePayload = {
         items: preferenceItems,
         shipments: {
-          cost: Number(numericShippingCost || 0),
+          cost: 0,
           mode: 'not_specified',
         },
         payment_methods: {

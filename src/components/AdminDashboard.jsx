@@ -433,6 +433,10 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setEditIsActive(product.isActive !== false);
     setEditDescription(product.description || '');
     setEditModelCode(product.modelCode || product.code || '');
+    const extractedMaterial = product.material ||
+      (product.description && product.description.match(/Material:\s*([^.\n]+)/i)?.[1]?.trim()) ||
+      'Acetato de celulosa';
+    setEditMaterial(extractedMaterial);
     setEditHasVariants(true);
     setEditVariantAxisTitle(product.variantAxisTitle || 'Seleccionar Cristal Circadiano');
     setEditVariants(initialVariants);
