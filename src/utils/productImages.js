@@ -313,7 +313,7 @@ export const getVariantColor = (v) => {
 export const getActiveProductVariants = (product) => {
   if (!product) return [];
 
-  const rawImages = Array.isArray(product.images) ? product.images : [];
+  const rawImages = Array.isArray(product.images) ? autoAssignMissingVariantKeys(product.images) : [];
   const declaredVariants = Array.isArray(product.variants) && product.variants.length > 0
     ? product.variants
     : [];

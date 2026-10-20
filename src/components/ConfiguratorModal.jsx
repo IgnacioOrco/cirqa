@@ -200,7 +200,7 @@ export default function ConfiguratorModal({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-4 sm:p-6 md:p-10">
+        <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-2 sm:p-6 md:p-10">
           {/* Backdrop con blur delicado */}
           <motion.div
             initial={{ opacity: 0 }}
@@ -217,10 +217,10 @@ export default function ConfiguratorModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 24 }}
             transition={{ type: 'spring', damping: 26, stiffness: 260 }}
-            className="relative w-full max-w-5xl max-h-[92vh] flex flex-col bg-white rounded-3xl border border-cirqa-negro/10 shadow-2xl overflow-hidden z-10 my-auto"
+            className="relative w-full max-w-5xl max-h-[96dvh] sm:max-h-[92vh] flex flex-col bg-white rounded-2xl sm:rounded-3xl border border-cirqa-negro/10 shadow-2xl overflow-hidden z-10 my-auto"
           >
             {/* Header del Modal */}
-            <div className="px-6 sm:px-8 py-5 border-b border-cirqa-negro/10 flex items-center justify-between bg-cirqa-surface flex-shrink-0">
+            <div className="px-4 sm:px-8 py-3.5 sm:py-5 border-b border-cirqa-negro/10 flex items-center justify-between bg-cirqa-surface flex-shrink-0">
               <div>
                 <span className="text-[10px] uppercase tracking-widest text-cirqa-primario font-semibold block">
                   Configurador de Lentes · Catálogo Oficial
@@ -239,10 +239,10 @@ export default function ConfiguratorModal({
             </div>
 
             {/* Cuerpo del Modal: 2 Columnas + Bloque Inferior Extendido */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 p-6 sm:p-8 lg:p-10 items-start overflow-y-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 p-4 sm:p-8 lg:p-10 items-start overflow-y-auto">
               
               {/* Columna Izquierda: Escenario Visual Limpio con Efecto Flotante 3D */}
-              <div className="lg:col-span-6 flex flex-col items-center justify-center bg-white rounded-3xl p-6 sm:p-8 border border-cirqa-negro/10 relative overflow-hidden group">
+              <div className="lg:col-span-6 flex flex-col items-center justify-center bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 border border-cirqa-negro/10 relative overflow-hidden group">
                 
                 {/* Resplandor ambiental adaptativo */}
                 <div
@@ -253,7 +253,7 @@ export default function ConfiguratorModal({
                 {/* Visor Principal con Integración Flotante 3D Realista */}
                 <div
                   onClick={() => setIsZoomOpen(true)}
-                  className="w-full max-w-md h-56 sm:h-64 flex flex-col items-center justify-center relative z-10 bg-transparent cursor-zoom-in select-none"
+                  className="w-full max-w-md h-48 sm:h-64 flex flex-col items-center justify-center relative z-10 bg-transparent cursor-zoom-in select-none"
                   title="Hacé clic para ampliar en alta resolución"
                 >
                   <div className="relative w-full h-full flex items-center justify-center">
@@ -297,7 +297,7 @@ export default function ConfiguratorModal({
                           key={img._id || `variant-thumb-${idx}`}
                           type="button"
                           onClick={() => setActiveImageIndex(idx)}
-                          className={`w-14 h-14 sm:w-16 sm:h-16 rounded-2xl p-1.5 transition-all cursor-pointer flex items-center justify-center relative overflow-hidden ${
+                          className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl p-1.5 transition-all cursor-pointer flex items-center justify-center relative overflow-hidden ${
                             isSelected
                               ? 'border-2 border-cirqa-negro bg-white shadow-md scale-105 ring-2 ring-cirqa-negro/10'
                               : 'border border-cirqa-negro/15 bg-white/70 hover:border-cirqa-negro/40 hover:bg-white'
@@ -317,7 +317,7 @@ export default function ConfiguratorModal({
                 )}
 
                 {/* Dimensiones Ópticas Limpias */}
-                <div className="mt-4 pt-4 border-t border-cirqa-negro/10 w-full flex items-center justify-around text-[11px] text-cirqa-negro/70 font-normal">
+                <div className="mt-3.5 pt-3.5 pb-1 border-t border-cirqa-negro/10 w-full flex items-center justify-around text-[10px] sm:text-[11px] text-cirqa-negro/70 font-normal">
                   <span>Lente: <strong className="text-cirqa-negro">{currentModel.lensWidth || 53}mm</strong></span>
                   <span>Puente: <strong className="text-cirqa-negro">{currentModel.bridgeWidth || 19}mm</strong></span>
                   <span>Patilla: <strong className="text-cirqa-negro">{currentModel.templeLength || 142}mm</strong></span>
@@ -343,7 +343,7 @@ export default function ConfiguratorModal({
                             key={variant.key}
                             type="button"
                             onClick={() => handleSelectVariant(variant)}
-                            className={`p-3.5 rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
+                            className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
                               isSelected
                                 ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-sm ring-1 ring-cirqa-primario/20'
                                 : 'border-cirqa-negro/15 bg-white hover:border-cirqa-negro/30'
@@ -387,7 +387,7 @@ export default function ConfiguratorModal({
                             key={filter.id}
                             type="button"
                             onClick={() => handleSelectFilter(filter)}
-                            className={`p-3.5 rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
+                            className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
                               isSelected
                                 ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-sm ring-1 ring-cirqa-primario/20'
                                 : 'border-cirqa-negro/15 bg-white hover:border-cirqa-negro/30'
@@ -420,7 +420,7 @@ export default function ConfiguratorModal({
                 </div>
 
                 {/* 2. Corrección Oficial de Materiales y Protección */}
-                <div className="p-4 bg-cirqa-surface rounded-2xl border border-cirqa-negro/10 text-xs space-y-2">
+                <div className="p-3.5 sm:p-4 bg-cirqa-surface rounded-xl sm:rounded-2xl border border-cirqa-negro/10 text-xs space-y-2">
                   <div className="text-cirqa-negro/85 leading-snug">
                     <strong className="text-cirqa-negro font-bold">MATERIAL:</strong> Acetato de celulosa de alta densidad · TR-90 Ultraliviano · Aleación metálica flexible.
                   </div>
@@ -433,7 +433,7 @@ export default function ConfiguratorModal({
                       <span>No apto para conducir (Tv &lt; 15%) · Uso nocturno para descanso</span>
                     </div>
                   )}
-                  <div className="pt-2 border-t border-cirqa-negro/10 flex items-center justify-between">
+                  <div className="pt-2 border-t border-cirqa-negro/10 flex flex-wrap items-center justify-between gap-2">
                     <span className="text-[11px] text-cirqa-negro/60 font-medium">Ensayo y Certificación:</span>
                     <div className="flex items-center gap-2">
                       <button
@@ -493,7 +493,7 @@ export default function ConfiguratorModal({
                 </div>
 
                 {/* 4. Formas de Pago Visibles en el Configurador */}
-                <div className="p-4 rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-1.5">
+                <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-1.5">
                   <div className="flex items-baseline justify-between">
                     <span className="text-2xl font-bold font-mono text-cirqa-negro">
                       {formattedPrice}
@@ -530,8 +530,8 @@ export default function ConfiguratorModal({
 
               {/* Bloque Inferior: Detalles del Diseño & Calce Extendido a lo largo del detalle */}
               {(currentModel.description || currentModel.frameShape) && (
-                <div className="lg:col-span-12 w-full pt-6 mt-2 border-t border-cirqa-negro/10">
-                  <div className="p-5 sm:p-7 bg-[#FAF9F5] rounded-3xl border border-cirqa-negro/10 space-y-4">
+                <div className="lg:col-span-12 w-full pt-4 sm:pt-6 mt-2 border-t border-cirqa-negro/10 pb-8">
+                  <div className="p-4 sm:p-7 bg-[#FAF9F5] rounded-2xl sm:rounded-3xl border border-cirqa-negro/10 space-y-4">
                     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-cirqa-negro/10 pb-3.5">
                       <div className="flex items-center gap-2.5">
                         <span className="text-[11px] uppercase tracking-[0.2em] text-cirqa-negro/60 font-bold block">
