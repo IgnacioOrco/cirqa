@@ -214,14 +214,14 @@ export default function ConfiguratorModal({
 
           {/* Contenedor del Modal */}
           <motion.div
-            initial={{ opacity: 0, scale: 0.94, y: 24 }}
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.94, y: 24 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: 'spring', damping: 26, stiffness: 260 }}
-            className="relative w-full max-w-5xl max-h-[96dvh] sm:max-h-[92vh] flex flex-col bg-white rounded-2xl sm:rounded-3xl border border-cirqa-negro/10 shadow-2xl overflow-hidden z-10 my-auto"
+            className="relative w-full max-w-5xl h-[94dvh] sm:h-auto max-h-[96dvh] sm:max-h-[92vh] flex flex-col bg-white rounded-t-3xl sm:rounded-3xl border border-cirqa-negro/10 shadow-2xl overflow-hidden z-10 my-auto"
           >
             {/* Header del Modal */}
-            <div className="px-4 sm:px-8 py-3.5 sm:py-5 border-b border-cirqa-negro/10 flex items-center justify-between bg-cirqa-surface flex-shrink-0">
+            <div className="px-4 sm:px-8 py-3.5 sm:py-5 border-b border-cirqa-negro/10 flex items-center justify-between bg-cirqa-surface flex-shrink-0 z-20">
               <div>
                 <span className="text-[10px] uppercase tracking-widest text-cirqa-primario font-semibold block">
                   Configurador de Lentes · Catálogo Oficial
@@ -232,104 +232,108 @@ export default function ConfiguratorModal({
               </div>
               <button
                 onClick={onClose}
-                className="p-2 text-cirqa-negro/60 hover:text-cirqa-negro rounded-full hover:bg-black/5 transition-colors focus:outline-none cursor-pointer"
+                className="w-9 h-9 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-cirqa-negro/60 hover:text-cirqa-negro hover:bg-black/5 active:scale-95 transition-all focus:outline-none cursor-pointer touch-manipulation"
                 aria-label="Cerrar configurador"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Cuerpo del Modal: 2 Columnas + Bloque Inferior Extendido */}
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 sm:gap-8 p-4 sm:p-8 lg:p-10 items-start overflow-y-auto">
+            {/* Cuerpo del Modal: Scrollable contenedor interno independiente */}
+            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-6 lg:p-8 space-y-5 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-8 items-start">
               
               {/* Columna Izquierda: Escenario Visual Limpio con Efecto Flotante 3D */}
-              <div className="lg:col-span-6 flex flex-col items-center justify-center bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-6 lg:p-8 border border-cirqa-negro/10 relative overflow-hidden group">
+              <div className="lg:col-span-6 flex flex-col gap-3.5 w-full">
                 
-                {/* Resplandor ambiental adaptativo */}
-                <div
-                  className="absolute w-56 h-56 rounded-full blur-3xl opacity-15 transition-colors duration-500 pointer-events-none"
-                  style={{ backgroundColor: glowColor }}
-                />
+                {/* Showcase de Imagen con Fondo Suave */}
+                <div className="w-full bg-[#FAF9F6] rounded-2xl sm:rounded-3xl p-4 sm:p-6 border border-cirqa-negro/10 relative flex flex-col items-center justify-center overflow-hidden group">
+                  {/* Resplandor ambiental adaptativo */}
+                  <div
+                    className="absolute w-48 sm:w-56 h-48 sm:h-56 rounded-full blur-3xl opacity-20 transition-colors duration-500 pointer-events-none"
+                    style={{ backgroundColor: glowColor }}
+                  />
 
-                {/* Visor Principal con Integración Flotante 3D Realista */}
-                <div
-                  onClick={() => setIsZoomOpen(true)}
-                  className="w-full max-w-md h-48 sm:h-64 flex flex-col items-center justify-center relative z-10 bg-transparent cursor-zoom-in select-none"
-                  title="Hacé clic para ampliar en alta resolución"
-                >
-                  <div className="relative w-full h-full flex items-center justify-center">
-                    <AnimatePresence mode="wait">
-                      <motion.img
-                        key={`${currentModel.id || currentModel._id}-${currentPhoto}`}
-                        src={currentPhoto}
-                        alt={`${currentModel.name} - ${activeImageObj.tag || 'Vista'}`}
-                        initial={{ opacity: 0, scale: 0.96 }}
-                        animate={{ opacity: 1, scale: 1 }}
-                        exit={{ opacity: 0, scale: 0.98 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                        className="w-full h-full object-contain p-2 mix-blend-multiply select-none transform transition-transform duration-500 ease-out group-hover:-translate-y-2 group-hover:scale-[1.03]"
-                        style={{ mixBlendMode: 'multiply' }}
-                        onError={(e) => {
-                          e.target.onerror = null;
-                          e.target.src = '/placeholder-glass.svg';
-                        }}
-                      />
-                    </AnimatePresence>
+                  {/* Visor Principal con Integración Flotante 3D Realista */}
+                  <div
+                    onClick={() => setIsZoomOpen(true)}
+                    className="w-full max-w-md h-48 sm:h-60 lg:h-64 flex flex-col items-center justify-center relative z-10 bg-transparent cursor-zoom-in select-none"
+                    title="Hacé clic para ampliar en alta resolución"
+                  >
+                    <div className="relative w-full h-full flex items-center justify-center">
+                      <AnimatePresence mode="wait">
+                        <motion.img
+                          key={`${currentModel.id || currentModel._id}-${currentPhoto}`}
+                          src={currentPhoto}
+                          alt={`${currentModel.name} - ${activeImageObj.tag || 'Vista'}`}
+                          initial={{ opacity: 0, scale: 0.96 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.98 }}
+                          transition={{ duration: 0.2, ease: 'easeOut' }}
+                          className="w-full h-full object-contain p-2 mix-blend-multiply select-none transform transition-transform duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-[1.03]"
+                          style={{ mixBlendMode: 'multiply' }}
+                          onError={(e) => {
+                            e.target.onerror = null;
+                            e.target.src = '/placeholder-glass.svg';
+                          }}
+                        />
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Sombra de contacto orgánica realista */}
+                    <div className="w-48 sm:w-60 h-3 bg-black/10 rounded-[100%] blur-sm pointer-events-none -mt-3 transition-all duration-500 group-hover:w-52 group-hover:bg-black/15 group-hover:blur-md" />
+                    <div className="w-24 sm:w-32 h-1.5 bg-black/18 rounded-[100%] blur-xs pointer-events-none -mt-1.5 transition-all duration-500 group-hover:w-28 group-hover:opacity-75" />
+
+                    {/* Indicador sutil de Zoom */}
+                    <div className="absolute bottom-2 right-2 bg-black/60 hover:bg-black/80 text-white text-[10px] px-2.5 py-1 rounded-full backdrop-blur-sm pointer-events-none flex items-center gap-1 font-mono shadow-xs transition-opacity">
+                      <ZoomIn className="w-3 h-3" />
+                      <span>Ampliar</span>
+                    </div>
                   </div>
 
-                  {/* Sombra de contacto orgánica realista para efecto de producto flotando en 3D */}
-                  <div className="w-52 sm:w-64 h-3.5 bg-black/10 rounded-[100%] blur-md pointer-events-none -mt-4 transition-all duration-500 group-hover:w-56 group-hover:bg-black/15 group-hover:blur-lg" />
-                  <div className="w-28 sm:w-36 h-1.5 bg-black/18 rounded-[100%] blur-xs pointer-events-none -mt-2 transition-all duration-500 group-hover:w-32 group-hover:opacity-75" />
+                  {/* Miniaturas Visuales de Galería: Fotos de la variante activa */}
+                  {currentVariantImages.length > 1 && (
+                    <div className="mt-3 flex items-center justify-center gap-2.5 z-10 flex-wrap max-w-full pb-0.5">
+                      {currentVariantImages.map((img, idx) => {
+                        const isSelected = activeImageIndex === idx;
+                        return (
+                          <button
+                            key={img._id || `variant-thumb-${idx}`}
+                            type="button"
+                            onClick={() => setActiveImageIndex(idx)}
+                            className={`w-12 h-12 sm:w-14 sm:h-14 rounded-xl sm:rounded-2xl p-1 transition-all cursor-pointer flex items-center justify-center relative overflow-hidden bg-white touch-manipulation flex-shrink-0 ${
+                              isSelected
+                                ? 'border-2 border-cirqa-negro shadow-sm scale-105 ring-2 ring-cirqa-negro/10'
+                                : 'border border-cirqa-negro/15 hover:border-cirqa-negro/40 opacity-80 hover:opacity-100'
+                            }`}
+                            title={getTagLabel(img.tag, idx)}
+                            aria-label={`Ver ángulo ${idx + 1}`}
+                          >
+                            <img
+                              src={formatMediaUrl(img.url)}
+                              alt={getTagLabel(img.tag, idx)}
+                              className="w-full h-full object-contain mix-blend-multiply"
+                            />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
 
-                  {/* Indicador sutil de Zoom en hover */}
-                  <div className="absolute bottom-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-black/60 text-white text-[10px] px-2.5 py-1 rounded-full backdrop-blur-sm pointer-events-none flex items-center gap-1 font-mono shadow-xs">
-                    <ZoomIn className="w-3 h-3" />
-                    <span>Ampliar</span>
+                  {/* Dimensiones Ópticas Limpias */}
+                  <div className="mt-3 py-2 px-3 bg-white/70 rounded-xl border border-cirqa-negro/10 w-full flex items-center justify-around text-[10px] sm:text-[11px] text-cirqa-negro/70 font-normal">
+                    <span>Lente: <strong className="text-cirqa-negro">{currentModel.lensWidth || 53}mm</strong></span>
+                    <span>Puente: <strong className="text-cirqa-negro">{currentModel.bridgeWidth || 19}mm</strong></span>
+                    <span>Patilla: <strong className="text-cirqa-negro">{currentModel.templeLength || 142}mm</strong></span>
                   </div>
                 </div>
 
-                {/* Miniaturas Visuales de Galería: Fotos de la variante activa */}
-                {currentVariantImages.length > 1 && (
-                  <div className="mt-4 flex items-center justify-center gap-3 z-10 flex-wrap max-w-full pb-1">
-                    {currentVariantImages.map((img, idx) => {
-                      const isSelected = activeImageIndex === idx;
-                      return (
-                        <button
-                          key={img._id || `variant-thumb-${idx}`}
-                          type="button"
-                          onClick={() => setActiveImageIndex(idx)}
-                          className={`w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl p-1.5 transition-all cursor-pointer flex items-center justify-center relative overflow-hidden ${
-                            isSelected
-                              ? 'border-2 border-cirqa-negro bg-white shadow-md scale-105 ring-2 ring-cirqa-negro/10'
-                              : 'border border-cirqa-negro/15 bg-white/70 hover:border-cirqa-negro/40 hover:bg-white'
-                          }`}
-                          title={getTagLabel(img.tag, idx)}
-                          aria-label={`Ver ángulo ${idx + 1}`}
-                        >
-                          <img
-                            src={formatMediaUrl(img.url)}
-                            alt={getTagLabel(img.tag, idx)}
-                            className="w-full h-full object-contain mix-blend-multiply"
-                          />
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Dimensiones Ópticas Limpias */}
-                <div className="mt-3.5 pt-3.5 pb-1 border-t border-cirqa-negro/10 w-full flex items-center justify-around text-[10px] sm:text-[11px] text-cirqa-negro/70 font-normal">
-                  <span>Lente: <strong className="text-cirqa-negro">{currentModel.lensWidth || 53}mm</strong></span>
-                  <span>Puente: <strong className="text-cirqa-negro">{currentModel.bridgeWidth || 19}mm</strong></span>
-                  <span>Patilla: <strong className="text-cirqa-negro">{currentModel.templeLength || 142}mm</strong></span>
-                </div>
               </div>
 
               {/* Columna Derecha: Controles de Configuración Limpios */}
-              <div className="lg:col-span-6 space-y-5">
+              <div className="lg:col-span-6 flex flex-col gap-4 w-full">
                 
                 {/* 2. Selector Dinámico de Cristales Circadianos / Variantes */}
-                <div className="relative z-30 pointer-events-auto">
+                <div>
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <label className="text-[11px] font-bold uppercase tracking-wider text-cirqa-negro/70 block">
                       {currentModel.variantAxisTitle || 'Personalizá el Cristal Circadiano'}
@@ -347,7 +351,7 @@ export default function ConfiguratorModal({
                   </div>
                   
                   {hasVariants && variantsList.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2.5 relative z-30 pointer-events-auto">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
                       {variantsList.map((variant) => {
                         const isSelected = matchVariantKey(selectedVariant?.key, variant.key);
                         const modifier = Number(variant.priceModifier) || 0;
@@ -359,9 +363,9 @@ export default function ConfiguratorModal({
                               e.preventDefault();
                               handleSelectVariant(variant);
                             }}
-                            className={`min-h-[44px] min-w-[36px] touch-manipulation relative z-30 pointer-events-auto p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer select-none ${
+                            className={`min-h-[50px] touch-manipulation p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border text-left transition-all flex items-start gap-2 cursor-pointer select-none ${
                               isSelected
-                                ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-sm ring-1 ring-cirqa-primario/20'
+                                ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-xs ring-1 ring-cirqa-primario/25'
                                 : 'border-cirqa-negro/15 bg-white hover:border-cirqa-negro/30 active:scale-[0.98]'
                             }`}
                           >
@@ -384,7 +388,7 @@ export default function ConfiguratorModal({
                                 )}
                               </div>
                               {variant.subtitle && (
-                                <span className="text-[10px] text-cirqa-negro/60 block mt-0.5 truncate uppercase">
+                                <span className="text-[10px] text-cirqa-negro/60 block mt-0.5 line-clamp-2 uppercase leading-tight font-medium">
                                   {variant.subtitle}
                                 </span>
                               )}
@@ -395,7 +399,7 @@ export default function ConfiguratorModal({
                     </div>
                   ) : (
                     /* Filtros Circadianos por defecto */
-                    <div className="grid grid-cols-2 gap-2.5 relative z-30 pointer-events-auto">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-2.5">
                       {FILTERS.map((filter) => {
                         const isSelected = selectedFilter?.id === filter.id;
                         return (
@@ -406,9 +410,9 @@ export default function ConfiguratorModal({
                               e.preventDefault();
                               handleSelectFilter(filter);
                             }}
-                            className={`min-h-[44px] min-w-[36px] touch-manipulation relative z-30 pointer-events-auto p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer select-none ${
+                            className={`min-h-[50px] touch-manipulation p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border text-left transition-all flex items-start gap-2 cursor-pointer select-none ${
                               isSelected
-                                ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-sm ring-1 ring-cirqa-primario/20'
+                                ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-xs ring-1 ring-cirqa-primario/25'
                                 : 'border-cirqa-negro/15 bg-white hover:border-cirqa-negro/30 active:scale-[0.98]'
                             }`}
                           >
@@ -426,7 +430,7 @@ export default function ConfiguratorModal({
                                 </span>
                               </div>
                               {filter.tag && (
-                                <span className="text-[10px] text-cirqa-negro/60 block mt-0.5 truncate uppercase">
+                                <span className="text-[10px] text-cirqa-negro/60 block mt-0.5 line-clamp-2 uppercase leading-tight font-medium">
                                   {filter.tag}
                                 </span>
                               )}
@@ -447,8 +451,8 @@ export default function ConfiguratorModal({
                     <strong className="text-cirqa-negro font-bold">PROTECCIÓN:</strong> 100% UV400 con tratamiento Antirréflex multicapa en todas las variantes.
                   </div>
                   {(selectedVariant?.key === 'noche' || selectedVariant?.name?.toLowerCase().includes('noche') || selectedFilter?.id === 'noche') && (
-                    <div className="mt-2 pt-2 border-t border-cirqa-negro/10 flex items-center gap-1.5 text-cirqa-carmin text-[11px] font-semibold">
-                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                    <div className="mt-2 p-2 bg-red-50/80 rounded-lg border border-red-200/60 flex items-start gap-2 text-cirqa-carmin text-[11px] font-semibold leading-snug">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
                       <span>No apto para conducir (Tv &lt; 15%) · Uso nocturno para descanso</span>
                     </div>
                   )}
@@ -477,7 +481,7 @@ export default function ConfiguratorModal({
                             window.open(pdfUrl, '_blank');
                           }
                         }}
-                        className="inline-flex items-center gap-1.5 text-cirqa-primario hover:underline font-semibold text-[11px] cursor-pointer"
+                        className="inline-flex items-center gap-1.5 text-cirqa-primario hover:underline font-semibold text-[11px] cursor-pointer touch-manipulation"
                         title="Ver estudio y certificado oficial en modal interactivo"
                       >
                         <FileText className="w-3.5 h-3.5" />
@@ -502,7 +506,7 @@ export default function ConfiguratorModal({
                               : '/certificates/CIRQA-Certificado-Filtro-Dia.pdf';
                           window.open(pdfUrl, '_blank');
                         }}
-                        className="p-1 text-cirqa-negro/40 hover:text-cirqa-negro transition-colors cursor-pointer"
+                        className="p-1 text-cirqa-negro/40 hover:text-cirqa-negro transition-colors cursor-pointer touch-manipulation"
                         title="Abrir PDF directamente en pestaña nueva"
                       >
                         <ExternalLink className="w-3.5 h-3.5" />
@@ -512,7 +516,7 @@ export default function ConfiguratorModal({
                 </div>
 
                 {/* 4. Formas de Pago Visibles en el Configurador */}
-                <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-[#FBFBFA] border border-cirqa-negro/10 space-y-1.5">
+                <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-[#FAF9F6] border border-cirqa-negro/10 space-y-1.5">
                   <div className="flex items-baseline justify-between">
                     <span className="text-2xl font-bold font-mono text-cirqa-negro">
                       {formattedPrice}
@@ -533,12 +537,12 @@ export default function ConfiguratorModal({
                 </div>
 
                 {/* Acción Principal de Compra Directa */}
-                <div className="pt-1">
+                <div className="pt-0.5">
                   <button
                     type="button"
                     disabled={isModelOutOfStock}
                     onClick={handleDirectBuy}
-                    className="w-full bg-cirqa-negro hover:bg-cirqa-primario text-white disabled:bg-gray-300 disabled:cursor-not-allowed font-bold text-xs sm:text-sm tracking-wider uppercase py-4 rounded-full transition-all text-center shadow-lg hover:shadow-xl cursor-pointer flex items-center justify-center gap-2"
+                    className="w-full bg-cirqa-negro hover:bg-cirqa-primario text-white disabled:bg-gray-300 disabled:cursor-not-allowed font-bold text-xs sm:text-sm tracking-wider uppercase py-4 rounded-full transition-all text-center shadow-lg hover:shadow-xl cursor-pointer flex items-center justify-center gap-2 active:scale-[0.98] touch-manipulation"
                   >
                     <Sparkles className="w-4 h-4" />
                     <span>{isModelOutOfStock ? 'Sin stock' : `Comprar · ${formattedPrice}`}</span>
