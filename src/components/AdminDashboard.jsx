@@ -56,13 +56,7 @@ export const CANONICAL_VARIANTS = [
   { key: 'noche', name: 'Noche', subtitle: 'NOCHE 20HS · MELATONINA', colorHex: '#F87171', badgeColor: '#F87171' },
 ];
 
-const MODEL_SORT_ORDER = {
-  q001: 1,
-  q002: 2,
-  q003: 3,
-  q004: 4,
-  q005: 5,
-};
+// Orden de modelos gestionado dinámicamente mediante el campo displayOrder en MongoDB
 
 // Etiquetas legibles para los roles o ubicaciones de fotos
 export const IMAGE_TAG_OPTIONS = [
@@ -176,6 +170,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
           shortName: item.name,
           title: item.description || 'Armazón Espectral CIRQA',
           description: item.description || '',
+          material: item.material || 'Acetato Premium',
+          displayOrder: Number(item.displayOrder ?? 0),
           price: Number(item.price ?? item.basePrice ?? 0),
           basePrice: Number(item.basePrice ?? item.price ?? 0),
           stock: Number(item.stock ?? 0),
@@ -189,13 +185,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         };
       });
 
-      const sorted = [...mapped].sort((a, b) => {
-        const slugA = (a.slug || a._id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const slugB = (b.slug || b._id || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-        const orderA = MODEL_SORT_ORDER[slugA] ?? 99;
-        const orderB = MODEL_SORT_ORDER[slugB] ?? 99;
-        return orderA - orderB;
-      });
+      // Ordenar por displayOrder ascendente (respetando orden configurado en backend)
+      const sorted = [...mapped].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
 
       setProducts(sorted);
     } catch (err) {
@@ -230,6 +221,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createName, setCreateName] = useState('');
   const [createModelCode, setCreateModelCode] = useState('');
+  const [createMaterial, setCreateMaterial] = useState('Acetato Premium');
+  const [createDisplayOrder, setCreateDisplayOrder] = useState('0');
   const [createPrice, setCreatePrice] = useState('');
   const [createStock, setCreateStock] = useState('10');
   const [createDescription, setCreateDescription] = useState('');
@@ -240,6 +233,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   const resetCreateForm = () => {
     setCreateName('');
     setCreateModelCode('');
+    setCreateMaterial('Acetato Premium');
+    setCreateDisplayOrder('0');
     setCreatePrice('');
     setCreateStock('10');
     setCreateDescription('');
@@ -280,6 +275,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
       const payload = {
         name: createName.trim(),
         modelCode: createModelCode.trim().toUpperCase() || undefined,
+        material: createMaterial.trim() || 'Acetato Premium',
+        displayOrder: Number(createDisplayOrder) || 0,
         price: priceNum,
         basePrice: priceNum,
         stock: stockNum,
@@ -310,11 +307,14 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
   // 3. MODAL DE EDICIÓN & GESTIÓN DE GALERÍA
   // =========================================================================
   const [selectedProduct, setSelectedProduct] = useState(null);
+  const [editName, setEditName] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editStock, setEditStock] = useState('');
   const [editIsActive, setEditIsActive] = useState(true);
   const [editDescription, setEditDescription] = useState('');
   const [editModelCode, setEditModelCode] = useState('');
+  const [editMaterial, setEditMaterial] = useState('Acetato Premium');
+  const [editDisplayOrder, setEditDisplayOrder] = useState('0');
   const [editHasVariants, setEditHasVariants] = useState(false);
   const [editVariantAxisTitle, setEditVariantAxisTitle] = useState('Seleccionar Variante');
   const [editVariants, setEditVariants] = useState([]);
@@ -428,6 +428,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     };
 
     setSelectedProduct(updatedProduct);
+    setEditName(product.name || product.shortName || '');
     setEditPrice(String(product.price));
     setEditStock(String(product.stock));
     setEditIsActive(product.isActive !== false);
@@ -435,8 +436,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setEditModelCode(product.modelCode || product.code || '');
     const extractedMaterial = product.material ||
       (product.description && product.description.match(/Material:\s*([^.\n]+)/i)?.[1]?.trim()) ||
-      'Acetato de celulosa';
+      'Acetato Premium';
     setEditMaterial(extractedMaterial);
+    setEditDisplayOrder(String(product.displayOrder ?? 0));
     setEditHasVariants(true);
     setEditVariantAxisTitle(product.variantAxisTitle || 'Seleccionar Cristal Circadiano');
     setEditVariants(initialVariants);
@@ -444,6 +446,40 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
     setModalError(null);
     setSaveSuccess(false);
     clearGalleryUploadSelection();
+  };
+
+  // Reordenar producto (Subir/Bajar) en el catálogo y persistir en la API
+  const handleMoveProductOrder = async (product, direction, e) => {
+    if (e) e.stopPropagation();
+    const currentIndex = products.findIndex((p) => p._id === product._id);
+    if (currentIndex === -1) return;
+    const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+    if (targetIndex < 0 || targetIndex >= products.length) return;
+
+    const reordered = [...products];
+    const temp = reordered[currentIndex];
+    reordered[currentIndex] = reordered[targetIndex];
+    reordered[targetIndex] = temp;
+
+    const updatedWithOrder = reordered.map((p, idx) => ({
+      ...p,
+      displayOrder: idx + 1,
+    }));
+
+    setProducts(updatedWithOrder);
+
+    try {
+      const payload = updatedWithOrder.map((p) => ({
+        id: p._id,
+        displayOrder: p.displayOrder,
+      }));
+      await productService.reorderProducts(payload);
+      showToast(`Orden actualizado: "${product.shortName}" movido ${direction === 'up' ? 'arriba' : 'abajo'}.`);
+    } catch (err) {
+      console.error('[AdminDashboard] Error al reordenar productos:', err);
+      showToast(err.message || 'Error al persistir el nuevo orden', 'error');
+      await fetchInventory();
+    }
   };
 
   // Handlers para edición rápida en grilla
@@ -1488,7 +1524,10 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
         : [];
 
       const payload = {
+        name: editName.trim() || undefined,
         modelCode: editModelCode.trim().toUpperCase() || undefined,
+        material: editMaterial.trim() || 'Acetato Premium',
+        displayOrder: Number(editDisplayOrder) || 0,
         price: numericPrice,
         basePrice: numericPrice,
         stock: numericStock,
@@ -1508,8 +1547,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
           if (p._id === selectedProduct._id) {
             return {
               ...p,
+              name: updatedData.name || editName.trim() || p.name,
+              shortName: updatedData.name || editName.trim() || p.shortName,
               modelCode: updatedData.modelCode || p.modelCode,
               code: updatedData.modelCode || p.code,
+              material: updatedData.material || editMaterial.trim() || p.material,
+              displayOrder: Number(updatedData.displayOrder ?? editDisplayOrder ?? p.displayOrder),
               price: Number(updatedData.price ?? numericPrice),
               basePrice: Number(updatedData.basePrice ?? numericPrice),
               stock: Number(updatedData.stock ?? numericStock),
@@ -1523,7 +1566,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
             };
           }
           return p;
-        })
+        }).sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0))
       );
 
       setSaveSuccess(true);
@@ -1950,8 +1993,9 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               {/* TABLA DE PRODUCTOS */}
               <div className="bg-white rounded-3xl border border-cirqa-negro/10 shadow-sm overflow-hidden">
                 <div className="grid grid-cols-12 px-6 py-4 bg-[#FBFBFA] border-b border-cirqa-negro/10 text-[11px] font-semibold uppercase tracking-wider text-cirqa-negro/60 select-none">
+                  <div className="col-span-1 text-center">Orden</div>
                   <div className="col-span-2">Código</div>
-                  <div className="col-span-4">Producto & Galería</div>
+                  <div className="col-span-3">Producto & Galería</div>
                   <div className="col-span-2">Precio</div>
                   <div className="col-span-2">Stock</div>
                   <div className="col-span-2 text-right">Estado / Acciones</div>
@@ -1984,6 +2028,31 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                           transition={{ duration: 0.15 }}
                           className="grid grid-cols-12 px-6 py-4 items-center cursor-pointer group transition-colors select-none"
                         >
+                          {/* Columna 0: Orden y Flechas Arriba/Abajo */}
+                          <div className="col-span-1 flex items-center justify-center gap-1" onClick={(e) => e.stopPropagation()}>
+                            <span className="w-4 text-center font-mono text-xs font-bold text-cirqa-negro/70">
+                              {product.displayOrder ?? 0}
+                            </span>
+                            <div className="flex flex-col">
+                              <button
+                                type="button"
+                                onClick={(e) => handleMoveProductOrder(product, 'up', e)}
+                                className="p-0.5 text-cirqa-negro/40 hover:text-cirqa-negro hover:bg-black/5 rounded transition-colors cursor-pointer"
+                                title="Subir posición en catálogo"
+                              >
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleMoveProductOrder(product, 'down', e)}
+                                className="p-0.5 text-cirqa-negro/40 hover:text-cirqa-negro hover:bg-black/5 rounded transition-colors cursor-pointer"
+                                title="Bajar posición en catálogo"
+                              >
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+
                           {/* Columna 1: Código */}
                           <div className="col-span-2 flex items-center gap-2">
                             <span className="font-mono text-xs font-semibold text-cirqa-negro group-hover:text-cirqa-primario transition-colors truncate">
@@ -1991,8 +2060,8 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                             </span>
                           </div>
 
-                          {/* Columna 2: Nombre, Miniatura & Conteo de Galería */}
-                          <div className="col-span-4 flex items-center gap-3 pr-2">
+                          {/* Columna 2: Nombre, Miniatura & Material */}
+                          <div className="col-span-3 flex items-center gap-3 pr-2">
                             <div className="relative w-12 h-12 rounded-xl bg-[#F4EFEA] overflow-hidden flex-shrink-0 flex items-center justify-center border border-cirqa-negro/5">
                               {displayImg ? (
                                 <img
@@ -2011,11 +2080,11 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                               </span>
                             </div>
                             <div className="truncate">
-                              <span className="text-xs font-medium text-cirqa-negro block truncate">
+                              <span className="text-xs font-semibold text-cirqa-negro block truncate">
                                 {product.shortName}
                               </span>
-                              <span className="text-[10px] text-cirqa-negro/45 font-light truncate block">
-                                {product.title}
+                              <span className="text-[10px] text-cirqa-negro/50 font-light truncate block">
+                                {product.material || 'Acetato Premium'}
                               </span>
                             </div>
                           </div>
@@ -2237,7 +2306,7 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                   />
                 </div>
 
-                {/* Código de Modelo */}
+                {/* Código de Modelo y Material */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
@@ -2252,7 +2321,22 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     />
                   </div>
 
-                  {/* Precio */}
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                      Material
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Acetato italiano, Metal, TR90..."
+                      value={createMaterial}
+                      onChange={(e) => setCreateMaterial(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-cirqa-negro/15 bg-white text-xs text-cirqa-negro focus:outline-none focus:border-cirqa-primario transition-all"
+                    />
+                  </div>
+                </div>
+
+                {/* Precio y Orden */}
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
                       Precio ($ ARS) *
@@ -2265,6 +2349,20 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                       placeholder="42000"
                       value={createPrice}
                       onChange={(e) => setCreatePrice(e.target.value)}
+                      className="w-full px-4 py-2.5 rounded-xl border border-cirqa-negro/15 bg-white text-xs font-mono text-cirqa-negro focus:outline-none focus:border-cirqa-primario transition-all"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                      Orden en Catálogo
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      placeholder="0"
+                      value={createDisplayOrder}
+                      onChange={(e) => setCreateDisplayOrder(e.target.value)}
                       className="w-full px-4 py-2.5 rounded-xl border border-cirqa-negro/15 bg-white text-xs font-mono text-cirqa-negro focus:outline-none focus:border-cirqa-primario transition-all"
                     />
                   </div>
@@ -2982,6 +3080,21 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
               {/* Formulario de Propiedades Generales */}
               <form onSubmit={handleSaveProductGeneral} className="mt-5 space-y-4">
                 
+                {/* Nombre del Producto */}
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                    Nombre del Producto *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="ej. CIRQA Q-001 · Espectro"
+                    className="w-full px-4 py-2 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-sm font-medium text-cirqa-negro transition-colors"
+                  />
+                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   {/* Código de Modelo */}
                   <div>
@@ -2998,6 +3111,22 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                     />
                   </div>
 
+                  {/* Material */}
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                      Material de Fabricación
+                    </label>
+                    <input
+                      type="text"
+                      value={editMaterial}
+                      onChange={(e) => setEditMaterial(e.target.value)}
+                      placeholder="Acetato italiano, Metal, TR90..."
+                      className="w-full px-4 py-2 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-sm text-cirqa-negro transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
                   {/* Precio */}
                   <div>
                     <div className="flex items-center justify-between mb-1">
@@ -3021,6 +3150,21 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                         className="w-full pl-5 pr-4 py-2 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-sm font-mono text-cirqa-negro transition-colors"
                       />
                     </div>
+                  </div>
+
+                  {/* Posición / Orden en Catálogo */}
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-cirqa-negro/70 block mb-1">
+                      Orden / Posición en Catálogo
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={editDisplayOrder}
+                      onChange={(e) => setEditDisplayOrder(e.target.value)}
+                      placeholder="0"
+                      className="w-full px-4 py-2 border-b border-cirqa-negro/20 bg-transparent focus:border-cirqa-primario focus:outline-none text-sm font-mono text-cirqa-negro transition-colors"
+                    />
                   </div>
                 </div>
 

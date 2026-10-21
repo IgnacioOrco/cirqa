@@ -5,6 +5,7 @@ import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
 import { calculateCouponDiscount } from './couponController.js';
 import zipnovaService, { createShipment } from '../services/zipnovaService.js';
+import { sendOrderNotificationToAdmin } from '../services/emailService.js';
 
 /**
  * Inicializar cliente de Mercado Pago con el Access Token
@@ -427,6 +428,15 @@ export const createPreference = async (req, res, next) => {
 
     await order.save();
 
+    // Notificación por email a info@cirqa.com.ar de nuevo pedido creado (no bloqueante)
+    try {
+      sendOrderNotificationToAdmin({ order, eventType: 'created' }).catch((emailErr) => {
+        console.error('[createPreference Email Notice]:', emailErr.message);
+      });
+    } catch (emailErr) {
+      console.error('[createPreference Email Notice]:', emailErr.message);
+    }
+
     // 7. Incrementar uso del cupón y registrar historial
     if (appliedCoupon) {
       appliedCoupon.usedCount = (appliedCoupon.usedCount || 0) + 1;
@@ -656,6 +666,50 @@ export const updateOrderStatus = async (req, res, next) => {
       if (!order.payment) order.payment = {};
       order.payment.status = 'paid';
       if (!order.payment.dateApproved) order.payment.dateApproved = new Date();
+
+      // Notificación por email a info@cirqa.com.ar de orden pagada
+      try {
+        sendOrderNotificationToAdmin({ order, eventType: 'paid' }).catch((err) => {
+          console.error('[updateOrderStatus Email Error]:', err.message);
+        });
+      } catch (err) {
+        console.error('[updateOrderStatus Email Error]:', err.message);
+      }
+
+      // Disparo automático a Zipnova si aún no posee shipmentId
+      if (!order.zipnovaShipmentId && !order.shipping?.zipnovaShipmentId) {
+        try {
+          const isMoto =
+            order.shipping?.carrier === 'Motomensajería' ||
+            (order.shipping?.service || '').includes('express_caba') ||
+            (order.shippingMethod || '').toLowerCase().includes('motomensajería');
+
+          if (!isMoto) {
+            console.log(`[Auto-Zipnova in updateOrderStatus] Disparando creación automática de envío para orden ${order.orderNumber}...`);
+            const shipRes = await createShipment(order);
+            if (shipRes.success) {
+              order.zipnovaShipmentId = shipRes.zipnovaShipmentId;
+              order.trackingNumber = shipRes.trackingNumber;
+              order.zipnovaStatus = 'created';
+              order.zipnovaError = '';
+              if (!order.shipping) order.shipping = {};
+              order.shipping.zipnovaShipmentId = shipRes.zipnovaShipmentId;
+              order.shipping.trackingNumber = shipRes.trackingNumber;
+              order.shipping.labelUrl = shipRes.labelUrl;
+              order.shipping.carrier = shipRes.carrier || 'Zipnova';
+              order.shipping.status = 'PREPARACION';
+            } else {
+              order.zipnovaStatus = 'failed';
+              order.zipnovaError = shipRes.error;
+              if (!order.shipping) order.shipping = {};
+              order.shipping.zipnovaStatus = 'failed';
+              order.shipping.zipnovaError = shipRes.error;
+            }
+          }
+        } catch (shipErr) {
+          console.error('[Auto-Shipment in updateOrderStatus Error]:', shipErr.message);
+        }
+      }
     }
 
     // Si pasa a preparación, gestionar despacho (Motomensajería local vs Zipnova nacional)
@@ -682,12 +736,29 @@ export const updateOrderStatus = async (req, res, next) => {
         } else {
           // Destino nacional: llamar a Zipnova
           const shipmentData = await createShipment(order);
-          if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
-          if (shipmentData.service) order.shipping.service = shipmentData.service;
-          if (shipmentData.trackingNumber) order.shipping.trackingNumber = shipmentData.trackingNumber;
-          if (shipmentData.zipnovaShipmentId) order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
-          if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
-          order.shipping.status = 'PREPARACION';
+          if (shipmentData.success) {
+            if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
+            if (shipmentData.service) order.shipping.service = shipmentData.service;
+            if (shipmentData.trackingNumber) {
+              order.trackingNumber = shipmentData.trackingNumber;
+              order.shipping.trackingNumber = shipmentData.trackingNumber;
+            }
+            if (shipmentData.zipnovaShipmentId) {
+              order.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+              order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+            }
+            if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
+            order.zipnovaStatus = 'created';
+            order.zipnovaError = '';
+            order.shipping.zipnovaStatus = 'created';
+            order.shipping.zipnovaError = '';
+            order.shipping.status = 'PREPARACION';
+          } else {
+            order.zipnovaStatus = 'failed';
+            order.zipnovaError = shipmentData.error;
+            order.shipping.zipnovaStatus = 'failed';
+            order.shipping.zipnovaError = shipmentData.error;
+          }
         }
       } catch (shipErr) {
         console.warn('[Auto-Shipment Notice in updateOrderStatus]:', shipErr.message);
@@ -928,4 +999,77 @@ export const generateShipment = async (req, res, next) => {
 };
 
 export const generateOrderShipping = generateShipment;
+
+/**
+ * @desc    Sincronización / Reintento manual de envío con Zipnova (Admin)
+ * @route   POST /api/orders/:id/sync-zipnova
+ * @access  Privado (Admin)
+ */
+export const syncOrderZipnova = async (req, res, next) => {
+  try {
+    const targetId = req.params.id || req.params.orderId;
+
+    const order = await Order.findById(targetId);
+    if (!order) {
+      return res.status(404).json({
+        success: false,
+        message: `No se encontró la orden con ID: ${targetId}`,
+      });
+    }
+
+    if (!order.shipping) {
+      order.shipping = {};
+    }
+
+    console.log(`[syncOrderZipnova] Ejecutando sincronización manual con Zipnova para orden ${order.orderNumber || order._id}...`);
+    const result = await createShipment(order);
+
+    if (result.success) {
+      order.zipnovaShipmentId = result.zipnovaShipmentId;
+      order.trackingNumber = result.trackingNumber;
+      order.zipnovaStatus = 'created';
+      order.zipnovaError = '';
+
+      order.shipping.zipnovaShipmentId = result.zipnovaShipmentId;
+      order.shipping.trackingNumber = result.trackingNumber;
+      order.shipping.labelUrl = result.labelUrl;
+      order.shipping.carrier = result.carrier || 'Zipnova';
+      order.shipping.service = result.service || 'standard';
+      order.shipping.status = 'PREPARACION';
+      if ((order.status || '').toLowerCase() !== 'paid') {
+        order.status = 'preparacion';
+      }
+
+      await order.save();
+
+      return res.status(200).json({
+        success: true,
+        message: `Envío creado con éxito en Zipnova. Guía: ${result.trackingNumber}`,
+        trackingNumber: result.trackingNumber,
+        zipnovaShipmentId: result.zipnovaShipmentId,
+        labelUrl: result.labelUrl,
+        data: order,
+        order,
+      });
+    } else {
+      order.zipnovaStatus = 'failed';
+      order.zipnovaError = result.error;
+      order.shipping.zipnovaStatus = 'failed';
+      order.shipping.zipnovaError = result.error;
+      await order.save();
+
+      return res.status(400).json({
+        success: false,
+        message: result.error || 'La API de Zipnova rechazó la creación del envío.',
+        error: result.error,
+        data: order,
+        order,
+      });
+    }
+  } catch (error) {
+    console.error('[syncOrderZipnova Error]:', error);
+    next(error);
+  }
+};
+
 

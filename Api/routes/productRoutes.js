@@ -4,6 +4,7 @@ import {
   getProductBySlug,
   createProduct,
   updateProduct,
+  reorderProducts,
   updateProductStock,
   deleteProduct,
   updateProductImage,
@@ -49,6 +50,13 @@ router.get('/:slug', getProductBySlug);
  * @access  Privado (Admin)
  */
 router.post('/', protectAdmin, createProduct);
+
+/**
+ * @route   PUT /api/products/reorder
+ * @desc    Actualizar orden de visualización de productos en lote
+ * @access  Privado (Admin)
+ */
+router.put('/reorder', protectAdmin, reorderProducts);
 
 /**
  * @route   PUT /api/products/:id

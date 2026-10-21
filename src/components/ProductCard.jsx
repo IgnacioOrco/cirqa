@@ -153,12 +153,12 @@ export default function ProductCard({
         </div>
 
         {/* Swatches de Cristales Circadianos / Variantes */}
-        <div className="pt-2 border-t border-cirqa-negro/5 flex items-center justify-between">
+        <div className="pt-2 border-t border-cirqa-negro/5 flex items-center justify-between relative z-30 pointer-events-auto">
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-cirqa-negro/40 uppercase tracking-wider font-medium">
               Cristal:
             </span>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1 relative z-30 pointer-events-auto">
               {variantOptions.map((variant) => {
                 const isSelected = matchVariantKey(activeVariantKey, variant.key);
                 return (
@@ -167,16 +167,20 @@ export default function ProductCard({
                     type="button"
                     onClick={(e) => handleSwatchClick(e, variant.key)}
                     title={`${variant.name} (${variant.tag || ''})`}
-                    className={`w-5 h-5 rounded-full border transition-all cursor-pointer relative flex items-center justify-center ${
-                      isSelected
-                        ? 'ring-2 ring-cirqa-negro scale-110 shadow-xs'
-                        : 'border-cirqa-negro/20 hover:scale-105 opacity-80 hover:opacity-100'
-                    }`}
-                    style={{
-                      backgroundColor: variant.color || '#FFFFFF',
-                      borderColor: `${variant.color || '#000000'}88`,
-                    }}
-                  />
+                    className="min-w-[36px] min-h-[36px] touch-manipulation relative z-30 pointer-events-auto flex items-center justify-center cursor-pointer p-1"
+                  >
+                    <span
+                      className={`w-5 h-5 rounded-full border transition-all pointer-events-none ${
+                        isSelected
+                          ? 'ring-2 ring-cirqa-negro scale-110 shadow-xs'
+                          : 'border-cirqa-negro/20 hover:scale-105 opacity-80 hover:opacity-100'
+                      }`}
+                      style={{
+                        backgroundColor: variant.color || '#FFFFFF',
+                        borderColor: `${variant.color || '#000000'}88`,
+                      }}
+                    />
+                  </button>
                 );
               })}
             </div>

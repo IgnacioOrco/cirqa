@@ -68,6 +68,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
   });
   const [savingShipping, setSavingShipping] = useState(false);
   const [generatingShippingId, setGeneratingShippingId] = useState(null);
+  const [syncingZipnovaId, setSyncingZipnovaId] = useState(null);
   const [confirmingPaymentId, setConfirmingPaymentId] = useState(null);
 
   // Carga de órdenes desde API
@@ -319,6 +320,105 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
       }
     } finally {
       setGeneratingShippingId(null);
+    }
+  };
+
+  // Acción directa: Sincronizar / Reintentar envío con Zipnova API
+  const handleSyncZipnova = async (order, e) => {
+    if (e) e.stopPropagation();
+    if (!order) return;
+    setSyncingZipnovaId(order._id);
+    try {
+      const res = await orderService.syncZipnova(order._id);
+      const updatedOrder = res.data || res.order || res;
+      const tracking = res.trackingNumber || updatedOrder.trackingNumber || updatedOrder.shipping?.trackingNumber;
+      const shipmentId = res.zipnovaShipmentId || updatedOrder.zipnovaShipmentId || updatedOrder.shipping?.zipnovaShipmentId;
+
+      if (showToast) {
+        showToast(res.message || `Envío creado con éxito en Zipnova. Guía: ${tracking || shipmentId}`, 'success');
+      }
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o._id === order._id
+            ? {
+                ...o,
+                ...updatedOrder,
+                zipnovaShipmentId: shipmentId,
+                trackingNumber: tracking,
+                zipnovaStatus: 'created',
+                zipnovaError: '',
+                shipping: {
+                  ...(o.shipping || {}),
+                  ...(updatedOrder.shipping || {}),
+                  zipnovaShipmentId: shipmentId,
+                  trackingNumber: tracking,
+                },
+              }
+            : o
+        )
+      );
+
+      if (selectedOrder && selectedOrder._id === order._id) {
+        setSelectedOrder((prev) => ({
+          ...prev,
+          ...updatedOrder,
+          zipnovaShipmentId: shipmentId,
+          trackingNumber: tracking,
+          zipnovaStatus: 'created',
+          zipnovaError: '',
+          shipping: {
+            ...(prev?.shipping || {}),
+            ...(updatedOrder.shipping || {}),
+            zipnovaShipmentId: shipmentId,
+            trackingNumber: tracking,
+          },
+        }));
+
+        setShippingForm((prev) => ({
+          ...prev,
+          trackingNumber: tracking || prev.trackingNumber,
+          carrier: updatedOrder.shipping?.carrier || prev.carrier || 'Zipnova',
+        }));
+      }
+    } catch (err) {
+      console.error('[OrdersTab] Error sincronizando con Zipnova:', err);
+      const errMsg = err.response?.data?.message || err.message || 'Error al conectar con la API de Zipnova';
+      if (showToast) {
+        showToast(`Zipnova: ${errMsg}`, 'error');
+      }
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o._id === order._id
+            ? {
+                ...o,
+                zipnovaStatus: 'failed',
+                zipnovaError: errMsg,
+                shipping: {
+                  ...(o.shipping || {}),
+                  zipnovaStatus: 'failed',
+                  zipnovaError: errMsg,
+                },
+              }
+            : o
+        )
+      );
+
+      if (selectedOrder && selectedOrder._id === order._id) {
+        setSelectedOrder((prev) => ({
+          ...prev,
+          zipnovaStatus: 'failed',
+          zipnovaError: errMsg,
+          shipping: {
+            ...(prev?.shipping || {}),
+            zipnovaStatus: 'failed',
+            zipnovaError: errMsg,
+          },
+        }));
+      }
+    } finally {
+      setSyncingZipnovaId(null);
     }
   };
 
@@ -733,7 +833,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                             </button>
                           )}
 
-                          {/* Botón de Etiqueta o Generar Envío en la Fila */}
+                          {/* Botón de Etiqueta o Enviar a Zipnova en la Fila */}
                           {order.shipping?.labelUrl ? (
                             <button
                               type="button"
@@ -749,19 +849,31 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                           ) : (
                             <button
                               type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleGenerateShipnovaShipping(order);
-                              }}
-                              disabled={generatingShippingId === order._id}
-                              className="px-2.5 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 text-cirqa-negro/80 border border-cirqa-negro/15 transition-all inline-flex items-center gap-1 text-[10px] font-medium shadow-xs cursor-pointer disabled:opacity-50"
-                              title="📦 Generar Envío Shipnova"
+                              onClick={(e) => handleSyncZipnova(order, e)}
+                              disabled={syncingZipnovaId === order._id}
+                              className={`px-2.5 py-1.5 rounded-xl transition-all inline-flex items-center gap-1 text-[10px] font-semibold shadow-xs cursor-pointer disabled:opacity-50 ${
+                                order.zipnovaStatus === 'failed' || order.zipnovaError || order.shipping?.zipnovaError
+                                  ? 'bg-red-50 hover:bg-red-100 text-red-700 border border-red-200'
+                                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200'
+                              }`}
+                              title={
+                                order.zipnovaStatus === 'failed' || order.zipnovaError
+                                  ? `Reintentar: ${order.zipnovaError || 'Error de envío'}`
+                                  : 'Enviar orden a Zipnova'
+                              }
                             >
-                              {generatingShippingId === order._id ? (
+                              {syncingZipnovaId === order._id ? (
                                 <RefreshCw className="w-3 h-3 animate-spin" />
                               ) : (
-                                <span>📦 Envío</span>
+                                <Send className="w-3 h-3" />
                               )}
+                              <span>
+                                {order.zipnovaStatus === 'failed' || order.zipnovaError || order.shipping?.zipnovaError
+                                  ? 'Reintentar Zipnova'
+                                  : order.zipnovaShipmentId || order.shipping?.zipnovaShipmentId
+                                  ? 'Reenviar Zipnova'
+                                  : 'Enviar a Zipnova'}
+                              </span>
                             </button>
                           )}
 
@@ -1053,26 +1165,39 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                             </span>
                           </div>
                         </div>
-                        {selectedOrder.shipping?.zipnovaShipmentId && (
+                        {(selectedOrder.zipnovaShipmentId || selectedOrder.shipping?.zipnovaShipmentId) && (
                           <span className="text-[10px] font-mono bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md font-bold">
-                            {selectedOrder.shipping.zipnovaShipmentId}
+                            ID: {selectedOrder.zipnovaShipmentId || selectedOrder.shipping?.zipnovaShipmentId}
                           </span>
                         )}
                       </div>
 
+                      {/* Mensaje de error de Zipnova si falló */}
+                      {(selectedOrder.zipnovaError || selectedOrder.shipping?.zipnovaError) && (
+                        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-xs text-red-700 flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold block">Error devuelto por Zipnova:</span>
+                            <span className="text-[11px] font-mono break-all leading-tight">
+                              {selectedOrder.zipnovaError || selectedOrder.shipping?.zipnovaError}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       {/* Información de envío emitido */}
-                      {selectedOrder.shipping?.trackingNumber ? (
+                      {(selectedOrder.trackingNumber || selectedOrder.shipping?.trackingNumber) ? (
                         <div className="space-y-2 pt-2 border-t border-cirqa-negro/10">
                           <div className="flex items-center justify-between text-xs">
-                            <span className="text-cirqa-negro/60">Número de Guía:</span>
+                            <span className="text-cirqa-negro/60">Número de Guía / Tracking:</span>
                             <strong className="font-mono text-cirqa-negro bg-gray-100 px-2 py-0.5 rounded font-bold">
-                              {selectedOrder.shipping.trackingNumber}
+                              {selectedOrder.trackingNumber || selectedOrder.shipping?.trackingNumber}
                             </strong>
                           </div>
                           <div className="flex items-center justify-between text-xs">
                             <span className="text-cirqa-negro/60">Operador / Carrier:</span>
                             <span className="font-medium text-cirqa-negro">
-                              {selectedOrder.shipping.carrier || 'Zipnova Logistics'}
+                              {selectedOrder.shipping?.carrier || 'Zipnova Logistics'}
                             </span>
                           </div>
 
@@ -1090,12 +1215,32 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                             </button>
                           )}
 
+                          {/* Botón Reintentar/Resincronizar con Zipnova */}
+                          <button
+                            type="button"
+                            onClick={() => handleSyncZipnova(selectedOrder)}
+                            disabled={syncingZipnovaId === selectedOrder._id}
+                            className="w-full mt-1 py-2 px-3 rounded-xl border border-cirqa-negro/20 hover:bg-black/5 text-cirqa-negro font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+                          >
+                            {syncingZipnovaId === selectedOrder._id ? (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                                <span>Reintentando con Zipnova...</span>
+                              </>
+                            ) : (
+                              <>
+                                <RefreshCw className="w-3.5 h-3.5" />
+                                <span>Reintentar / Sincronizar Zipnova</span>
+                              </>
+                            )}
+                          </button>
+
                           {/* Info específica de Motomensajería Express CABA */}
                           {selectedOrder.shipping?.carrier === 'Motomensajería' && (
                             <div className="mt-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800">
                               <span className="font-bold block">Envío CABA · Motomensajería Express</span>
                               <span className="text-[11px] text-emerald-700 font-light">
-                                Despacho local en 24 a 48 hs. Guía de control: <strong className="font-mono">{selectedOrder.shipping.trackingNumber}</strong>
+                                Despacho local en 24 a 48 hs. Guía de control: <strong className="font-mono">{selectedOrder.shipping?.trackingNumber || selectedOrder.trackingNumber}</strong>
                               </span>
                             </div>
                           )}
@@ -1103,22 +1248,29 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                       ) : (
                         <div className="pt-2 border-t border-cirqa-negro/10 space-y-2">
                           <p className="text-[11px] text-cirqa-negro/60 leading-relaxed font-light">
-                            No se ha emitido la guía de envío para esta orden. Podés generarla directamente mediante la API de Shipnova:
+                            {selectedOrder.zipnovaError || selectedOrder.shipping?.zipnovaError
+                              ? 'La creación del envío falló. Revisá los datos o reintentá enviar la orden a Zipnova:'
+                              : 'No se ha emitido la guía de envío para esta orden. Podés crearla directamente en Zipnova:'}
                           </p>
                           <button
                             type="button"
-                            onClick={() => handleGenerateShipnovaShipping(selectedOrder)}
-                            disabled={generatingShippingId === selectedOrder._id}
-                            className="w-full py-3 px-4 rounded-xl bg-cirqa-negro hover:bg-cirqa-negro/85 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50"
+                            onClick={() => handleSyncZipnova(selectedOrder)}
+                            disabled={syncingZipnovaId === selectedOrder._id}
+                            className="w-full py-3 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md hover:shadow-lg transition-all cursor-pointer disabled:opacity-50"
                           >
-                            {generatingShippingId === selectedOrder._id ? (
+                            {syncingZipnovaId === selectedOrder._id ? (
                               <>
                                 <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                                <span>Emitiendo Guía en Shipnova...</span>
+                                <span>Conectando con Zipnova...</span>
                               </>
                             ) : (
                               <>
-                                <span>📦 Generar Envío Shipnova</span>
+                                <Send className="w-3.5 h-3.5" />
+                                <span>
+                                  {selectedOrder.zipnovaStatus === 'failed' || selectedOrder.zipnovaError || selectedOrder.shipping?.zipnovaError
+                                    ? 'Reintentar Zipnova'
+                                    : 'Enviar a Zipnova'}
+                                </span>
                               </>
                             )}
                           </button>

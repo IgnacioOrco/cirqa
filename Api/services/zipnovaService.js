@@ -29,10 +29,10 @@ export const calculatePackageSpecs = (items = []) => {
     ? items.reduce((acc, it) => acc + (Number(it.quantity) || 1), 0)
     : 1;
 
-  const weight = Math.max(0.25, Number((count * 0.25).toFixed(2))); // en kg
+  const weight = Math.max(0.20, Number((count * 0.20).toFixed(2))); // 200g por lente en kg
   const length = 18; // cm
   const width = 8; // cm
-  const height = Math.min(40, Math.max(6, count * 5)); // cm apilados
+  const height = Math.min(40, Math.max(6, count * 6)); // 6 cm de espesor por estuche
 
   return {
     weight,
@@ -259,15 +259,15 @@ export const createShipment = async (order) => {
   ).trim().replace(/\D/g, '');
 
   const pkg = calculatePackageSpecs(order.items || []);
-
-  const originPostal = DEFAULT_ORIGIN_POSTAL_CODE;
   const orderRef = order.orderNumber || `CQ-${order._id?.toString().slice(-6).toUpperCase() || Date.now()}`;
 
   // Si es Motomensajería local CABA, no emitir en Zipnova
-  if (
+  const isCabaMoto =
     order.shipping?.carrier === 'Motomensajería' ||
-    (order.shipping?.service || '').includes('express_caba')
-  ) {
+    (order.shipping?.service || '').includes('express_caba') ||
+    (order.shippingMethod || '').toLowerCase().includes('motomensajería');
+
+  if (isCabaMoto) {
     const cleanRef = orderRef.replace(/^CQ-/, '');
     const trackingNumber = `MOTO-CQ-${cleanRef}`;
     return {
@@ -278,19 +278,21 @@ export const createShipment = async (order) => {
       labelUrl: '',
       carrier: 'Motomensajería',
       service: 'express_caba_24h',
+      status: 'PREPARACION',
       isSimulated: false,
     };
   }
 
   const payload = {
-    account_id: ZIPNOVA_ACCOUNT_ID,
+    account_id: process.env.ZIPNOVA_ACCOUNT_ID || ZIPNOVA_ACCOUNT_ID || '22018',
+    origin_id: process.env.ZIPNOVA_ORIGIN_ID || undefined,
     source: 'CIRQA_ECOMMERCE',
     order_reference: orderRef,
     origin: {
       name: 'CIRQA Óptica',
       phone: '01125073598',
       email: 'hola@cirqa.com.ar',
-      postal_code: originPostal,
+      postal_code: DEFAULT_ORIGIN_POSTAL_CODE,
       street: 'Palermo',
       number: '1234',
       city: 'CABA',
@@ -299,7 +301,7 @@ export const createShipment = async (order) => {
     },
     destination: {
       name: customer.name || 'Cliente CIRQA',
-      email: customer.email,
+      email: customer.email || 'info@cirqa.com.ar',
       phone: customer.phone || '01125073598',
       dni: customer.dni || '',
       postal_code: postalCode || '1425',
@@ -324,9 +326,11 @@ export const createShipment = async (order) => {
     ],
   };
 
+  console.log('[Zipnova createShipment Request Payload]:', JSON.stringify(payload, null, 2));
+
   try {
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 6000);
+    const timeoutId = setTimeout(() => controller.abort(), 10000);
 
     const response = await fetch(`${ZIPNOVA_API_URL}/v2/shipments`, {
       method: 'POST',
@@ -342,9 +346,19 @@ export const createShipment = async (order) => {
 
     clearTimeout(timeoutId);
 
+    const responseStatus = response.status;
+    const responseText = await response.text();
+    let responseData = null;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch {
+      responseData = { text: responseText };
+    }
+
+    console.log(`[Zipnova createShipment Response] status: ${responseStatus}`, responseData);
+
     if (response.ok) {
-      const data = await response.json();
-      const resObj = data?.data || data;
+      const resObj = responseData?.data || responseData;
       const trackingNumber =
         resObj.tracking_number ||
         resObj.tracking_code ||
@@ -367,37 +381,32 @@ export const createShipment = async (order) => {
         labelUrl,
         carrier,
         service: resObj.service_type || 'standard',
+        status: 'created',
         isSimulated: false,
       };
     } else {
-      const errText = await response.text();
-      console.warn(
-        `[Zipnova Create Shipment Warning] API status ${response.status}: ${errText}`
-      );
+      console.error(`[Zipnova createShipment API Rejection] Status ${responseStatus}:`, responseData);
+      const errMsg =
+        responseData?.message ||
+        responseData?.error ||
+        (Array.isArray(responseData?.errors) ? responseData.errors.join(', ') : null) ||
+        (typeof responseData === 'string' ? responseData : responseText) ||
+        `Error HTTP ${responseStatus} de la API de Zipnova`;
+
+      return {
+        success: false,
+        error: errMsg,
+        statusCode: responseStatus,
+        data: responseData,
+      };
     }
   } catch (err) {
-    console.warn(
-      `[Zipnova Create Shipment Error] No fue posible conectar con Zipnova API: ${err.message}`
-    );
+    console.error('[Zipnova createShipment Network Error]:', err);
+    return {
+      success: false,
+      error: `Error de conexión con la API de Zipnova: ${err.message}`,
+    };
   }
-
-  // Fallback garantizado: Generar tracking oficial ZN-AR y URL de etiqueta imprimible
-  const numericPart = orderRef.replace(/\D/g, '') || Date.now().toString().slice(-6);
-  const fallbackTracking = `ZN-AR-${numericPart}`;
-  const fallbackShipmentId = `zn_${order._id || Date.now()}`;
-  const apiUrl = process.env.API_URL || 'https://api.cirqa.com.ar';
-  const labelUrl = `${apiUrl}/api/shipping/label/${order._id || fallbackShipmentId}`;
-
-  return {
-    success: true,
-    shipmentId: fallbackShipmentId,
-    zipnovaShipmentId: fallbackShipmentId,
-    trackingNumber: fallbackTracking,
-    labelUrl,
-    carrier: order.shipping?.carrier || 'Zipnova',
-    service: 'standard',
-    isSimulated: true,
-  };
 };
 
 export default {

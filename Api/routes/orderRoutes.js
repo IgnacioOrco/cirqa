@@ -9,6 +9,7 @@ import {
   updateOrderStatus,
   generateShipment,
   generateOrderShipping,
+  syncOrderZipnova,
 } from '../controllers/orderController.js';
 import * as orderController from '../controllers/orderController.js';
 import { protectAdmin } from '../middlewares/authMiddleware.js';
@@ -45,6 +46,14 @@ router.get('/:orderId', getOrderById);
 router.post('/:id/generate-shipment', orderController.generateShipment);
 router.post('/:orderId/generate-shipment', orderController.generateShipment);
 router.post('/:orderId/generate-shipping', orderController.generateShipment);
+
+/**
+ * @route   POST /api/orders/:id/sync-zipnova
+ * @desc    Sincronización manual / reintento de envío con Zipnova
+ * @access  Privado (Admin)
+ */
+router.post('/:id/sync-zipnova', protectAdmin, syncOrderZipnova);
+router.post('/:orderId/sync-zipnova', protectAdmin, syncOrderZipnova);
 
 /**
  * @route   PATCH /api/orders/:orderId/shipping

@@ -289,15 +289,18 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-4 gap-1.5">
+                    <div className="grid grid-cols-4 gap-1.5 relative z-30 pointer-events-auto">
                       {variantOptions.map((opt) => {
                         const isSelected = matchVariantKey(currentSelectedKey, opt.key);
                         return (
                           <button
                             key={opt.key}
                             type="button"
-                            onClick={() => setCardFilter(product.id, opt.key)}
-                            className={`py-1.5 px-1 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setCardFilter(product.id, opt.key);
+                            }}
+                            className={`min-h-[38px] touch-manipulation relative z-30 pointer-events-auto py-1.5 px-1 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 cursor-pointer select-none ${
                               isSelected
                                 ? 'border-cirqa-negro bg-cirqa-negro/5 shadow-xs font-semibold ring-1 ring-cirqa-negro/20'
                                 : 'border-cirqa-negro/10 hover:border-cirqa-negro/30 bg-white'
@@ -305,10 +308,10 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                             title={`Ver ${product.name} con ${opt.name}`}
                           >
                             <span
-                              className="w-3 h-3 rounded-full border border-black/15 shadow-2xs flex-shrink-0"
+                              className="w-3.5 h-3.5 rounded-full border border-black/15 shadow-2xs flex-shrink-0 pointer-events-none"
                               style={{ backgroundColor: opt.color, borderColor: isSelected ? '#111111' : `${opt.color}cc` }}
                             />
-                            <span className="text-[9px] tracking-tight text-cirqa-negro/80 truncate w-full block">
+                            <span className="text-[9px] tracking-tight text-cirqa-negro/80 truncate w-full block pointer-events-none">
                               {opt.name}
                             </span>
                           </button>

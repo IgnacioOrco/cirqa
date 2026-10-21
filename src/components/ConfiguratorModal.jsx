@@ -144,7 +144,8 @@ export default function ConfiguratorModal({
   const calculatedPrice = basePrice + variantPriceModifier;
   const formattedPrice = `$ ${calculatedPrice.toLocaleString('es-AR')}`;
 
-  const isModelOutOfStock = currentModel.stock === 0;
+  const availableStock = selectedVariant?.stock !== undefined ? Number(selectedVariant.stock) : Number(currentModel.stock ?? 0);
+  const isModelOutOfStock = availableStock <= 0;
 
   // Color de resplandor ambiental
   const glowColor =
@@ -328,13 +329,25 @@ export default function ConfiguratorModal({
               <div className="lg:col-span-6 space-y-5">
                 
                 {/* 2. Selector Dinámico de Cristales Circadianos / Variantes */}
-                <div>
-                  <label className="text-[11px] font-bold uppercase tracking-wider text-cirqa-negro/70 block mb-2">
-                    {currentModel.variantAxisTitle || 'Personalizá el Cristal Circadiano'}
-                  </label>
+                <div className="relative z-30 pointer-events-auto">
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <label className="text-[11px] font-bold uppercase tracking-wider text-cirqa-negro/70 block">
+                      {currentModel.variantAxisTitle || 'Personalizá el Cristal Circadiano'}
+                    </label>
+                    {availableStock > 0 && availableStock <= 5 && (
+                      <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                        Últimas {availableStock} uds.
+                      </span>
+                    )}
+                    {availableStock === 0 && (
+                      <span className="text-[10px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded-full border border-red-200">
+                        Sin stock
+                      </span>
+                    )}
+                  </div>
                   
                   {hasVariants && variantsList.length > 0 ? (
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-2 gap-2.5 relative z-30 pointer-events-auto">
                       {variantsList.map((variant) => {
                         const isSelected = matchVariantKey(selectedVariant?.key, variant.key);
                         const modifier = Number(variant.priceModifier) || 0;
@@ -342,21 +355,24 @@ export default function ConfiguratorModal({
                           <button
                             key={variant.key}
                             type="button"
-                            onClick={() => handleSelectVariant(variant)}
-                            className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleSelectVariant(variant);
+                            }}
+                            className={`min-h-[44px] min-w-[36px] touch-manipulation relative z-30 pointer-events-auto p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer select-none ${
                               isSelected
                                 ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-sm ring-1 ring-cirqa-primario/20'
-                                : 'border-cirqa-negro/15 bg-white hover:border-cirqa-negro/30'
+                                : 'border-cirqa-negro/15 bg-white hover:border-cirqa-negro/30 active:scale-[0.98]'
                             }`}
                           >
                             <div
-                              className="w-3.5 h-3.5 rounded-full mt-0.5 flex-shrink-0 border border-black/15 shadow-2xs"
+                              className="w-4 h-4 min-w-[16px] min-h-[16px] rounded-full mt-0.5 flex-shrink-0 border border-black/15 shadow-2xs pointer-events-none"
                               style={{
                                 backgroundColor: getVariantColor(variant),
                                 borderColor: `${getVariantColor(variant)}cc`,
                               }}
                             />
-                            <div className="flex-grow min-w-0">
+                            <div className="flex-grow min-w-0 pointer-events-none">
                               <div className="flex items-center justify-between gap-1">
                                 <span className="text-xs font-semibold text-cirqa-negro truncate">
                                   {variant.name}
@@ -379,28 +395,31 @@ export default function ConfiguratorModal({
                     </div>
                   ) : (
                     /* Filtros Circadianos por defecto */
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-2 gap-2.5 relative z-30 pointer-events-auto">
                       {FILTERS.map((filter) => {
                         const isSelected = selectedFilter?.id === filter.id;
                         return (
                           <button
                             key={filter.id}
                             type="button"
-                            onClick={() => handleSelectFilter(filter)}
-                            className={`p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer ${
+                            onClick={(e) => {
+                              e.preventDefault();
+                              handleSelectFilter(filter);
+                            }}
+                            className={`min-h-[44px] min-w-[36px] touch-manipulation relative z-30 pointer-events-auto p-3 sm:p-3.5 rounded-xl sm:rounded-2xl border text-left transition-all flex items-start gap-2.5 cursor-pointer select-none ${
                               isSelected
                                 ? 'border-cirqa-primario bg-cirqa-primario/5 shadow-sm ring-1 ring-cirqa-primario/20'
-                                : 'border-cirqa-negro/15 bg-white hover:border-cirqa-negro/30'
+                                : 'border-cirqa-negro/15 bg-white hover:border-cirqa-negro/30 active:scale-[0.98]'
                             }`}
                           >
                             <div
-                              className="w-3.5 h-3.5 rounded-full mt-0.5 flex-shrink-0 border border-black/15 shadow-2xs"
+                              className="w-4 h-4 min-w-[16px] min-h-[16px] rounded-full mt-0.5 flex-shrink-0 border border-black/15 shadow-2xs pointer-events-none"
                               style={{
                                 backgroundColor: getVariantColor(filter),
                                 borderColor: `${getVariantColor(filter)}cc`,
                               }}
                             />
-                            <div className="flex-grow min-w-0">
+                            <div className="flex-grow min-w-0 pointer-events-none">
                               <div className="flex items-center justify-between gap-1">
                                 <span className="text-xs font-semibold text-cirqa-negro truncate">
                                   {filter.name}
@@ -422,7 +441,7 @@ export default function ConfiguratorModal({
                 {/* 2. Corrección Oficial de Materiales y Protección */}
                 <div className="p-3.5 sm:p-4 bg-cirqa-surface rounded-xl sm:rounded-2xl border border-cirqa-negro/10 text-xs space-y-2">
                   <div className="text-cirqa-negro/85 leading-snug">
-                    <strong className="text-cirqa-negro font-bold">MATERIAL:</strong> Acetato de celulosa de alta densidad · TR-90 Ultraliviano · Aleación metálica flexible.
+                    <strong className="text-cirqa-negro font-bold">MATERIAL:</strong> {currentModel.material || 'Acetato Premium'}
                   </div>
                   <div className="pt-2 border-t border-cirqa-negro/10 text-cirqa-negro/85 leading-snug">
                     <strong className="text-cirqa-negro font-bold">PROTECCIÓN:</strong> 100% UV400 con tratamiento Antirréflex multicapa en todas las variantes.
@@ -557,7 +576,7 @@ export default function ConfiguratorModal({
                       <div className="md:col-span-4 bg-white/90 p-4 rounded-2xl border border-cirqa-negro/10 space-y-2.5 text-xs text-cirqa-negro/80 shadow-2xs">
                         <div className="flex items-center justify-between">
                           <span className="text-cirqa-negro/60 text-[11px]">Material</span>
-                          <span className="font-semibold text-cirqa-negro text-right">Acetato de celulosa</span>
+                          <span className="font-semibold text-cirqa-negro text-right">{currentModel.material || 'Acetato Premium'}</span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-cirqa-negro/60 text-[11px]">Ancho del ojo</span>

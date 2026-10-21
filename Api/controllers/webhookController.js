@@ -1,5 +1,9 @@
 import crypto from 'node:crypto';
+import mongoose from 'mongoose';
 import Order from '../models/Order.js';
+import Product from '../models/Product.js';
+import { sendOrderNotificationToAdmin } from '../services/emailService.js';
+import { createShipment } from '../services/zipnovaService.js';
 
 /**
  * Valida la firma HMAC-SHA256 enviada por Mercado Pago en el header 'x-signature'
@@ -109,7 +113,71 @@ const processPaymentUpdate = async (paymentId) => {
 
     if (updatedOrder) {
       console.log(`[Webhook MP] ✅ Orden ${orderId} actualizada a PAID exitosamente.`);
-      // Aquí se pueden disparar acciones secundarias: enviar email de confirmación, descontar stock, etc.
+
+      // 1. Descontar stock de productos
+      try {
+        for (const item of updatedOrder.items || []) {
+          if (item.product && mongoose.Types.ObjectId.isValid(item.product)) {
+            await Product.findByIdAndUpdate(item.product, {
+              $inc: { stock: -(Number(item.quantity) || 1) },
+            });
+          }
+        }
+      } catch (stockErr) {
+        console.error('[Webhook MP Stock Error]:', stockErr.message);
+      }
+
+      // 2. Notificación por email a info@cirqa.com.ar de orden aprobada
+      try {
+        sendOrderNotificationToAdmin({ order: updatedOrder, eventType: 'paid' }).catch((emailErr) => {
+          console.error('[Webhook MP Email Error]:', emailErr.message);
+        });
+      } catch (emailErr) {
+        console.error('[Webhook MP Email Error]:', emailErr.message);
+      }
+
+      // 3. Disparo automático de envío con Zipnova si es correo nacional y aún no posee guía
+      if (!updatedOrder.zipnovaShipmentId && !updatedOrder.shipping?.zipnovaShipmentId) {
+        try {
+          const isMoto =
+            updatedOrder.shipping?.carrier === 'Motomensajería' ||
+            (updatedOrder.shipping?.service || '').includes('express_caba') ||
+            (updatedOrder.shippingMethod || '').toLowerCase().includes('motomensajería');
+
+          if (!isMoto) {
+            console.log(`[Webhook MP Auto-Zipnova] Generando envío automático en Zipnova para orden ${updatedOrder.orderNumber || updatedOrder._id}...`);
+            const shipRes = await createShipment(updatedOrder);
+            if (shipRes.success) {
+              updatedOrder.zipnovaShipmentId = shipRes.zipnovaShipmentId;
+              updatedOrder.trackingNumber = shipRes.trackingNumber;
+              updatedOrder.zipnovaStatus = 'created';
+              updatedOrder.zipnovaError = '';
+
+              if (!updatedOrder.shipping) updatedOrder.shipping = {};
+              updatedOrder.shipping.zipnovaShipmentId = shipRes.zipnovaShipmentId;
+              updatedOrder.shipping.trackingNumber = shipRes.trackingNumber;
+              updatedOrder.shipping.labelUrl = shipRes.labelUrl;
+              updatedOrder.shipping.carrier = shipRes.carrier || 'Zipnova';
+              updatedOrder.shipping.status = 'PREPARACION';
+
+              await updatedOrder.save();
+              console.log(`[Webhook MP Auto-Zipnova] ✅ Envío creado con éxito: Guía ${shipRes.trackingNumber}`);
+            } else {
+              updatedOrder.zipnovaStatus = 'failed';
+              updatedOrder.zipnovaError = shipRes.error;
+
+              if (!updatedOrder.shipping) updatedOrder.shipping = {};
+              updatedOrder.shipping.zipnovaStatus = 'failed';
+              updatedOrder.shipping.zipnovaError = shipRes.error;
+
+              await updatedOrder.save();
+              console.warn(`[Webhook MP Auto-Zipnova] ⚠️ Zipnova no generó el envío: ${shipRes.error}`);
+            }
+          }
+        } catch (shipErr) {
+          console.error('[Webhook MP Auto-Zipnova Error]:', shipErr.message);
+        }
+      }
     } else {
       // Si no se actualizó, verificamos si ya estaba paga o si la orden no existe
       const existingOrder = await Order.findById(orderId);

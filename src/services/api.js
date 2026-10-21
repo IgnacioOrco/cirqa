@@ -358,6 +358,14 @@ export const productService = {
   async updateProductImageMetadata(id, imageId, metadata) {
     return this.updateImageMetadata(id, imageId, metadata);
   },
+
+  /**
+   * Actualizar orden de visualización de productos en lote: PUT /api/products/reorder
+   * @param {Array<{ id: string, displayOrder: number }>} items
+   */
+  async reorderProducts(items) {
+    return api.put('/api/products/reorder', items);
+  },
 };
 
 /**
@@ -459,6 +467,15 @@ export const orderService = {
 
   async generateOrderShipping(orderId) {
     const res = await api.post(`/api/orders/${orderId}/generate-shipment`);
+    return res.data || res;
+  },
+
+  /**
+   * Sincronizar / reintentar creación de envío con Zipnova: POST /api/orders/:orderId/sync-zipnova
+   * @param {string} orderId
+   */
+  async syncZipnova(orderId) {
+    const res = await api.post(`/api/orders/${orderId}/sync-zipnova`);
     return res.data || res;
   },
 };

@@ -69,12 +69,14 @@ export const syncVariantsFromImages = (product) => {
  */
 export const getProducts = async (req, res, next) => {
   try {
-    const { all, sort = '-createdAt' } = req.query;
+    const { all, sort } = req.query;
 
     // Si all=true se listan todos (para admin), sino solo los activos para clientes
     const filter = all === 'true' ? {} : { isActive: true };
 
-    const products = await Product.find(filter).sort(sort);
+    const sortOption = sort || { displayOrder: 1, createdAt: -1 };
+
+    const products = await Product.find(filter).sort(sortOption);
 
     return res.status(200).json({
       success: true,
@@ -268,7 +270,10 @@ export const createProduct = async (req, res, next) => {
       modelCode: finalModelCode,
       slug: computedSlug,
       description: description ? description.trim() : '',
-      material: req.body.material !== undefined ? String(req.body.material).trim() : 'Acetato de celulosa',
+      material: req.body.material !== undefined && String(req.body.material).trim() !== ''
+        ? String(req.body.material).trim()
+        : 'Acetato Premium',
+      displayOrder: req.body.displayOrder !== undefined ? Number(req.body.displayOrder) || 0 : 0,
       price: finalPrice,
       basePrice: finalPrice,
       stock: finalStock,
@@ -429,6 +434,7 @@ export const updateProduct = async (req, res, next) => {
 
     if (req.body.name !== undefined) product.name = req.body.name.trim();
     if (req.body.material !== undefined) product.material = String(req.body.material).trim();
+    if (req.body.displayOrder !== undefined) product.displayOrder = Number(req.body.displayOrder) || 0;
     if (req.body.description !== undefined) product.description = req.body.description;
     if (req.body.category !== undefined) product.category = req.body.category;
     if (req.body.stock !== undefined) product.stock = Number(req.body.stock);
@@ -510,6 +516,47 @@ export const updateProduct = async (req, res, next) => {
       message: 'Producto actualizado exitosamente.',
       data: product,
       product,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc    Actualizar orden de visualización de productos en lote
+ * @route   PUT /api/products/reorder
+ * @access  Privado (Admin)
+ */
+export const reorderProducts = async (req, res, next) => {
+  try {
+    const items = Array.isArray(req.body) ? req.body : req.body.items;
+
+    if (!Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Se requiere un array de productos con [{ id, displayOrder }].',
+      });
+    }
+
+    const bulkOps = items
+      .filter((item) => item && (item.id || item._id))
+      .map((item) => ({
+        updateOne: {
+          filter: { _id: item.id || item._id },
+          update: { $set: { displayOrder: Number(item.displayOrder) || 0 } },
+        },
+      }));
+
+    if (bulkOps.length > 0) {
+      await Product.bulkWrite(bulkOps);
+    }
+
+    const updatedProducts = await Product.find({}).sort({ displayOrder: 1, createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      message: 'Orden de productos actualizado exitosamente.',
+      data: updatedProducts,
     });
   } catch (error) {
     next(error);

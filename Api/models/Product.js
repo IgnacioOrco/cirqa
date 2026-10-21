@@ -81,8 +81,13 @@ const productSchema = new mongoose.Schema(
     },
     material: {
       type: String,
-      default: 'Acetato de celulosa',
+      default: 'Acetato Premium',
       trim: true,
+    },
+    displayOrder: {
+      type: Number,
+      default: 0,
+      index: true,
     },
     isActive: {
       type: Boolean,

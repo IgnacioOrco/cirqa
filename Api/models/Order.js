@@ -175,6 +175,8 @@ const orderSchema = new mongoose.Schema(
       service: { type: String, trim: true, default: 'standard' },
       trackingNumber: { type: String, trim: true, default: '' },
       zipnovaShipmentId: { type: String, trim: true, default: '' },
+      zipnovaStatus: { type: String, trim: true, default: '' },
+      zipnovaError: { type: String, trim: true, default: '' },
       labelUrl: { type: String, trim: true, default: '' }, // URL del PDF para imprimir etiqueta
       shippedAt: { type: Date, default: null },
       deliveryStatus: {
@@ -268,6 +270,12 @@ const orderSchema = new mongoose.Schema(
       default: null,
     },
 
+    // Identificadores y seguimiento directo de Zipnova
+    zipnovaShipmentId: { type: String, trim: true, default: '' },
+    trackingNumber: { type: String, trim: true, default: '' },
+    zipnovaStatus: { type: String, trim: true, default: '' },
+    zipnovaError: { type: String, trim: true, default: '' },
+
     // Notas adicionales o de seguimiento
     notes: {
       type: String,
@@ -315,12 +323,36 @@ orderSchema.pre('validate', function (next) {
     );
   }
 
-  // 3. Sincronizar shippingCost y shipping.cost
+  // 3. Sincronizar shippingCost y shipping.cost, y campos de Zipnova
   if (this.shippingCost === undefined) {
     this.shippingCost = Number(this.shipping?.cost) || 0;
   }
   if (this.shipping) {
     this.shipping.cost = this.shippingCost;
+
+    if (this.shipping.zipnovaShipmentId && !this.zipnovaShipmentId) {
+      this.zipnovaShipmentId = this.shipping.zipnovaShipmentId;
+    } else if (this.zipnovaShipmentId && !this.shipping.zipnovaShipmentId) {
+      this.shipping.zipnovaShipmentId = this.zipnovaShipmentId;
+    }
+
+    if (this.shipping.trackingNumber && !this.trackingNumber) {
+      this.trackingNumber = this.shipping.trackingNumber;
+    } else if (this.trackingNumber && !this.shipping.trackingNumber) {
+      this.shipping.trackingNumber = this.trackingNumber;
+    }
+
+    if (this.shipping.zipnovaStatus && !this.zipnovaStatus) {
+      this.zipnovaStatus = this.shipping.zipnovaStatus;
+    } else if (this.zipnovaStatus && !this.shipping.zipnovaStatus) {
+      this.shipping.zipnovaStatus = this.zipnovaStatus;
+    }
+
+    if (this.shipping.zipnovaError && !this.zipnovaError) {
+      this.zipnovaError = this.shipping.zipnovaError;
+    } else if (this.zipnovaError && !this.shipping.zipnovaError) {
+      this.shipping.zipnovaError = this.zipnovaError;
+    }
   }
 
   // 4. Lógica de Descuento y Total
