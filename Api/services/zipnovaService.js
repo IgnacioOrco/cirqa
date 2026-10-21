@@ -165,28 +165,33 @@ export const quoteShipping = async ({ postalCode, items = [], dimensions, weight
   const pkg = calculatePackageSpecs(items);
   const finalDimensions = dimensions || pkg.dimensions;
   const finalWeight = weight || pkg.weight;
+  const weightInGrams = Math.max(10, Math.round(finalWeight > 10 ? finalWeight : finalWeight * 1000));
 
   // Intentar consultar API de Zipnova
   try {
     const payload = {
       account_id: ZIPNOVA_ACCOUNT_ID,
       source: 'CIRQA_ECOMMERCE',
+      declared_value: 229000,
       origin: {
-        postal_code: DEFAULT_ORIGIN_POSTAL_CODE,
+        zipcode: DEFAULT_ORIGIN_POSTAL_CODE,
+        city: 'Palermo',
+        state: 'CABA',
         country: 'AR',
       },
       destination: {
-        postal_code: cleanZip,
+        zipcode: cleanZip,
+        city: cleanZip.startsWith('1') ? 'Palermo' : 'Buenos Aires',
+        state: cleanZip.startsWith('1') ? 'CABA' : 'Buenos Aires',
         country: 'AR',
       },
       packages: [
         {
-          weight: finalWeight,
-          dimensions: {
-            length: finalDimensions.length,
-            width: finalDimensions.width,
-            height: finalDimensions.height,
-          },
+          weight: weightInGrams,
+          height: Math.round(finalDimensions.height) || 6,
+          width: Math.round(finalDimensions.width) || 8,
+          length: Math.round(finalDimensions.length) || 18,
+          classification_id: 1,
         },
       ],
     };
@@ -211,25 +216,59 @@ export const quoteShipping = async ({ postalCode, items = [], dimensions, weight
 
     if (response.ok) {
       const data = await response.json();
-      const rawOptions = Array.isArray(data) ? data : (data?.data || data?.quotes || data?.results || []);
+      const rawOptions = Array.isArray(data)
+        ? data
+        : Array.isArray(data?.all_results)
+        ? data.all_results
+        : Array.isArray(data?.results)
+        ? data.results
+        : (typeof data?.results === 'object' && data?.results !== null)
+        ? Object.values(data.results)
+        : (data?.data || data?.quotes || []);
 
       if (rawOptions.length > 0) {
         return rawOptions.map((opt, idx) => {
-          const cost = Number(opt.cost ?? opt.price ?? opt.total ?? 0);
-          const carrier = opt.carrier_name || opt.carrier || 'Zipnova';
-          const isHome = (opt.service_type || opt.type || '').toLowerCase().includes('home') ||
-                         (opt.name || '').toLowerCase().includes('domicilio');
+          const cost = Number(
+            opt.amounts?.seller_price_incl_tax ??
+            opt.amounts?.price_incl_tax ??
+            opt.amounts?.price ??
+            opt.cost ??
+            opt.price ??
+            opt.total ??
+            0
+          );
+          const carrier = opt.carrier?.name || opt.carrier_name || opt.carrier || 'Correo Andreani / OCA';
+          const serviceTypeCode = typeof opt.service_type === 'string'
+            ? opt.service_type
+            : opt.service_type?.code || opt.service_type?.name || '';
+          const isHome =
+            serviceTypeCode.toLowerCase().includes('delivery') ||
+            serviceTypeCode.toLowerCase().includes('domicilio') ||
+            serviceTypeCode.toLowerCase().includes('home') ||
+            (opt.name || '').toLowerCase().includes('domicilio');
+
+          const minDays = opt.delivery_time?.min;
+          const maxDays = opt.delivery_time?.max;
+          const estimatedDays = minDays && maxDays
+            ? `${minDays} a ${maxDays} días hábiles`
+            : opt.delivery_time?.estimated_delivery
+            ? '3 a 5 días hábiles'
+            : (opt.delivery_time || opt.estimated_days || (isHome ? '2 a 4 días hábiles' : '1 a 3 días hábiles'));
 
           return {
-            id: opt.id || `zipnova_${opt.carrier_id || idx}`,
-            carrierId: opt.carrier_id || null,
-            serviceType: opt.service_type || (isHome ? 'home' : 'pickup'),
-            name: opt.name || (isHome ? `Envío a Domicilio (${carrier})` : `Retiro en Punto (${carrier})`),
-            description: opt.description || `Logística ${carrier}`,
+            id: opt.rate?.id ? `zipnova_${opt.rate.id}` : opt.id || `zipnova_${opt.carrier?.id || idx}`,
+            rateId: opt.rate?.id || null,
+            carrierId: opt.carrier?.id || opt.carrier_id || null,
+            serviceType: opt.service_type?.code || opt.service_type || (isHome ? 'standard_delivery' : 'pickup_point'),
+            name: opt.service_type?.name
+              ? `${opt.service_type.name} (${carrier})`
+              : (isHome ? `Envío a Domicilio (${carrier})` : `Retiro en Punto (${carrier})`),
+            description: opt.description || `Logística oficial ${carrier}`,
             carrier,
             cost: Math.round(cost),
-            estimatedDays: opt.delivery_time || opt.estimated_days || (isHome ? '2 a 4 días hábiles' : '1 a 3 días hábiles'),
+            estimatedDays,
             type: isHome ? 'home' : 'pickup',
+            pickupPoints: opt.pickup_points || [],
             isFallback: false,
           };
         });
