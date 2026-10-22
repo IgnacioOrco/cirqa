@@ -10,6 +10,17 @@ import { sendOrderNotificationToAdmin } from '../services/emailService.js';
 /**
  * Inicializar cliente de Mercado Pago con el Access Token
  */
+
+const normalizeZipnovaError = (error) => {
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object') {
+    if (typeof error.message === 'string') return error.message;
+    if (typeof error.error === 'string') return error.error;
+    try { return JSON.stringify(error); } catch { /* use string conversion */ }
+  }
+  return error == null ? 'Error desconocido de Zipnova.' : String(error);
+};
+
 const getMercadoPagoClient = () => {
   const accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
   if (!accessToken) {
@@ -1053,15 +1064,16 @@ export const syncOrderZipnova = async (req, res, next) => {
       });
     } else {
       order.zipnovaStatus = 'failed';
-      order.zipnovaError = result.error;
+      const zipnovaErrorMessage = normalizeZipnovaError(result.error);
+      order.zipnovaError = zipnovaErrorMessage;
       order.shipping.zipnovaStatus = 'failed';
-      order.shipping.zipnovaError = result.error;
+      order.shipping.zipnovaError = zipnovaErrorMessage;
       await order.save();
 
       return res.status(400).json({
         success: false,
-        message: result.error || 'La API de Zipnova rechazó la creación del envío.',
-        error: result.error,
+        message: zipnovaErrorMessage || 'La API de Zipnova rechazó la creación del envío.',
+        error: zipnovaErrorMessage,
         data: order,
         order,
       });
