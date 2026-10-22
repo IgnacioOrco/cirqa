@@ -6,8 +6,8 @@
 
 const ZIPNOVA_API_URL = process.env.ZIPNOVA_API_URL || 'https://api.zipnova.com.ar';
 const ZIPNOVA_ACCOUNT_ID = process.env.ZIPNOVA_ACCOUNT_ID || '22018';
-const ZIPNOVA_KEY = process.env.ZIPNOVA_KEY || '51928c80-c2b9-4294-82ad-6af0203f5a28';
-const ZIPNOVA_SECRET = process.env.ZIPNOVA_SECRET || '6d627a5e-2274-4c6f-a01a-185f1493f192';
+const ZIPNOVA_KEY = process.env.ZIPNOVA_KEY || '';
+const ZIPNOVA_SECRET = process.env.ZIPNOVA_SECRET || '';
 
 // Origen de despacho oficial CIRQA (Palermo / CABA)
 const DEFAULT_ORIGIN_POSTAL_CODE = '1425';
@@ -167,6 +167,12 @@ export const quoteShipping = async ({ postalCode, items = [], dimensions, weight
   const finalWeight = weight || pkg.weight;
   const weightInGrams = Math.max(10, Math.round(finalWeight > 10 ? finalWeight : finalWeight * 1000));
 
+  // No llamar a Zipnova con credenciales ausentes; mantener el motor alternativo.
+  if (!ZIPNOVA_KEY || !ZIPNOVA_SECRET) {
+    console.warn('[Zipnova] Faltan ZIPNOVA_KEY o ZIPNOVA_SECRET; se aplican tarifas de contingencia.');
+    return getFallbackQuotesByZone(cleanZip);
+  }
+
   // Intentar consultar API de Zipnova
   try {
     const payload = {
@@ -322,6 +328,14 @@ export const createShipment = async (order) => {
     };
   }
 
+  if (!ZIPNOVA_KEY || !ZIPNOVA_SECRET) {
+    return {
+      success: false,
+      error: 'Faltan las credenciales ZIPNOVA_KEY y ZIPNOVA_SECRET en el entorno del backend.',
+      statusCode: 503,
+    };
+  }
+
   const payload = {
     account_id: process.env.ZIPNOVA_ACCOUNT_ID || ZIPNOVA_ACCOUNT_ID || '22018',
     origin_id: process.env.ZIPNOVA_ORIGIN_ID || undefined,
@@ -425,12 +439,21 @@ export const createShipment = async (order) => {
       };
     } else {
       console.error(`[Zipnova createShipment API Rejection] Status ${responseStatus}:`, responseData);
-      const errMsg =
-        responseData?.message ||
-        responseData?.error ||
-        (Array.isArray(responseData?.errors) ? responseData.errors.join(', ') : null) ||
-        (typeof responseData === 'string' ? responseData : responseText) ||
+      const rawError =
+        responseData?.message ??
+        responseData?.error ??
+        (Array.isArray(responseData?.errors) ? responseData.errors.join(', ') : null) ??
+        (typeof responseData === 'string' ? responseData : responseText) ??
         `Error HTTP ${responseStatus} de la API de Zipnova`;
+      // Zipnova puede devolver message como objeto; el resto del backend espera texto.
+      const errMsg = typeof rawError === 'string'
+        ? rawError
+        : (rawError && typeof rawError.message === 'string')
+        ? rawError.message
+        : (() => {
+            try { return JSON.stringify(rawError); }
+            catch { return String(rawError); }
+          })();
 
       return {
         success: false,
