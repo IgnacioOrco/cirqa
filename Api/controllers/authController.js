@@ -101,3 +101,21 @@ export const register = async (req, res, next) => {
     next(error);
   }
 };
+
+
+/**
+ * @desc    Verificar un token JWT de administrador
+ * @route   GET /api/auth/verify
+ * @access  Privado (Admin)
+ */
+export const verifyToken = async (req, res) => {
+  // protectAdmin valida el JWT y carga el administrador en req.admin.
+  return res.status(200).json({
+    success: true,
+    message: 'Token válido.',
+    admin: {
+      id: req.admin._id,
+      email: req.admin.email,
+    },
+  });
+};
