@@ -332,11 +332,11 @@ export const createPreference = async (req, res, next) => {
     const isDestCABA = checkIsCABA(zip, prov);
     // Envío 100% bonificado para clientes a todo el país ($0 costo final al comprador)
     const numericShippingCost = 0;
-    let shippingCarrier = isDestCABA ? 'Motomensajería' : (req.body.shipping?.carrier || 'Correo Andreani / OCA');
+    let shippingCarrier = isDestCABA ? 'Motomensajería' : (req.body.shipping?.carrier || 'Correo Certificado');
     let shippingServiceType = isDestCABA ? 'express_caba_24h' : (req.body.shipping?.service || req.body.shipping?.serviceType || 'standard');
     let shippingMethodTitle = isDestCABA
       ? 'Envío Gratis CABA · Motomensajería Express'
-      : (String(req.body.shippingMethod || req.body.shipping?.name || 'Envío Bonificado a todo el país · Correo Andreani / OCA').trim());
+      : (String(req.body.shippingMethod || req.body.shipping?.name || 'Envío Bonificado a todo el país · Correo Certificado').trim());
 
     const normalizedCustomer = {
       name: String(customer.name || '').trim(),

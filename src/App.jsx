@@ -21,7 +21,9 @@ import { CartProvider } from './context/CartContext';
  * - Cambiar a `false` cuando la tienda esté lista para publicarse oficialmente.
  * - Para previsualizar la tienda completa sin desactivar este modo, visita cualquier URL con: `?preview=cirqa`
  */
-const COMING_SOON_MODE = import.meta.env.VITE_COMING_SOON === 'true';
+const COMING_SOON_MODE = import.meta.env.VITE_COMING_SOON !== undefined
+  ? import.meta.env.VITE_COMING_SOON === 'true'
+  : true;
 
 export default function App() {
   const [isPreview, setIsPreview] = useState(() => {

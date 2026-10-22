@@ -51,7 +51,7 @@ export const quoteShippingController = async (req, res, next) => {
       : [
           {
             id: 'cirqa_free_national',
-            carrier: 'Correo Andreani / OCA',
+            carrier: 'Correo Certificado',
             serviceType: 'standard_home',
             name: 'Envío Gratis a Domicilio · Todo el País',
             method: 'Envío Gratis a Domicilio · Todo el País',
@@ -83,7 +83,7 @@ export const quoteShippingController = async (req, res, next) => {
       options: [
         {
           id: 'cirqa_free_contingency',
-          carrier: 'Correo Andreani / OCA',
+          carrier: 'Correo Certificado',
           serviceType: 'standard_home',
           name: 'Envío Gratis a Domicilio · Todo el País',
           method: 'Envío Gratis a Domicilio · Todo el País',

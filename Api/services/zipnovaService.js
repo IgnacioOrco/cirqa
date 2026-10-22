@@ -75,10 +75,10 @@ export const getFallbackQuotesByZone = (postalCode) => {
         isFree: true,
       },
       {
-        id: 'caba_andreani_pickup',
-        name: 'Retiro en Sucursal · Correo Andreani / OCA',
+        id: 'caba_pickup',
+        name: 'Retiro en Sucursal · Envío Gratis',
         description: `Sucursal cercana a CP ${cleanZip || postalCode}`,
-        carrier: 'Correo Andreani / OCA',
+        carrier: 'Correo Certificado',
         serviceType: 'pickup_point',
         cost: 0,
         estimatedDays: '24 a 48 hs hábiles',
@@ -123,10 +123,10 @@ export const getFallbackQuotesByZone = (postalCode) => {
 
   return [
     {
-      id: 'andreani_home',
-      name: 'Envío a Domicilio · Correo Andreani / OCA',
+      id: 'standard_home',
+      name: 'Envío a Domicilio · Correo Certificado',
       description: `Entrega puerta a puerta en ${zoneName}`,
-      carrier: 'Correo Andreani / OCA',
+      carrier: 'Correo Certificado',
       serviceType: 'standard_home',
       cost: homeCost,
       estimatedDays: homeDays,
@@ -134,10 +134,10 @@ export const getFallbackQuotesByZone = (postalCode) => {
       isFallback: true,
     },
     {
-      id: 'andreani_pickup',
-      name: 'Retiro en Punto / Sucursal Andreani / OCA',
+      id: 'standard_pickup',
+      name: 'Retiro en Punto / Sucursal · Correo Certificado',
       description: `Punto cercano a CP ${cleanZip || postalCode}`,
-      carrier: 'Correo Andreani / OCA',
+      carrier: 'Correo Certificado',
       serviceType: 'pickup_point',
       cost: pickupCost,
       estimatedDays: pickupDays,
@@ -237,7 +237,7 @@ export const quoteShipping = async ({ postalCode, items = [], dimensions, weight
             opt.total ??
             0
           );
-          const carrier = opt.carrier?.name || opt.carrier_name || opt.carrier || 'Correo Andreani / OCA';
+          const carrier = opt.carrier?.name || opt.carrier_name || opt.carrier || 'Correo Certificado';
           const serviceTypeCode = typeof opt.service_type === 'string'
             ? opt.service_type
             : opt.service_type?.code || opt.service_type?.name || '';

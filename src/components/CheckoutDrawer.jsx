@@ -285,7 +285,7 @@ export default function CheckoutDrawer() {
     }
   }, [subtotal, activeItems.length]);
 
-  // Cotización automática y reactiva con detección inmediata de CABA y Andreani / OCA
+  // Cotización automática y reactiva con detección inmediata de CABA y Envíos Nacionales
   useEffect(() => {
     const cleanZip = String(formData.zipCode || '').trim().replace(/\D/g, '');
     const postalCode = parseInt(cleanZip, 10);
@@ -319,7 +319,7 @@ export default function CheckoutDrawer() {
       return;
     }
 
-    // 2. Resto de Buenos Aires y el Interior del País: Andreani / OCA
+    // 2. Resto de Buenos Aires y el Interior del País: Envíos Nacionales
     if (cleanZip.length >= 4) {
       let isCancelled = false;
       const timer = setTimeout(async () => {
@@ -341,7 +341,7 @@ export default function CheckoutDrawer() {
               id: 'free_home_standard',
               name: 'Envío Gratis a Domicilio (Todo el País)',
               description: 'Entrega puerta a puerta certificada en tu domicilio · Sin cargo',
-              carrier: 'Correo Andreani / OCA',
+              carrier: 'Correo Certificado',
               cost: 0,
               price: 0,
               isFree: true,
@@ -360,9 +360,9 @@ export default function CheckoutDrawer() {
               name: isPickup
                 ? 'Retiro en Sucursal · Envío Gratis (Todo el País)'
                 : 'Envío Gratis a Domicilio (Todo el País)',
-              carrier: 'Correo Andreani / OCA',
+              carrier: opt.carrier || 'Correo Certificado',
               description: opt.description
-                ? opt.description.replace(/Zipnova/gi, 'Andreani / OCA')
+                ? opt.description
                 : (isPickup ? `Sucursal cercana a CP ${cleanZip} · Sin cargo` : 'Entrega puerta a puerta certificada bonificada'),
             };
           });
@@ -380,13 +380,13 @@ export default function CheckoutDrawer() {
         } catch (err) {
           if (isCancelled) return;
           console.warn('[Shipping Quote Error]:', err);
-          // Fallback seguro con Andreani / OCA - Envío Gratis a Todo el País
+          // Fallback seguro de Envío Gratis a Todo el País
           const fallbackOptions = [
             {
               id: 'free_home_fb',
               name: 'Envío Gratis a Domicilio (Todo el País)',
               description: 'Entrega puerta a puerta certificada en tu domicilio · Sin cargo',
-              carrier: 'Correo Andreani / OCA',
+              carrier: 'Correo Certificado',
               cost: 0,
               price: 0,
               isFree: true,
@@ -398,7 +398,7 @@ export default function CheckoutDrawer() {
               id: 'free_pickup_fb',
               name: 'Retiro en Sucursal · Envío Gratis (Todo el País)',
               description: `Sucursal cercana a CP ${cleanZip} · Sin cargo`,
-              carrier: 'Correo Andreani / OCA',
+              carrier: 'Correo Certificado',
               cost: 0,
               price: 0,
               isFree: true,
@@ -497,11 +497,11 @@ export default function CheckoutDrawer() {
     const shippingPrice = 0;
     const shippingMethodTitle = selectedShippingOption?.name || (isDestCABA
       ? 'Envío Gratis CABA · Motomensajería Express (24 hs)'
-      : 'Envío Bonificado a todo el país · Correo Andreani / OCA');
+      : 'Envío Bonificado a todo el país · Correo Certificado');
     const subtotalAmount = subtotal;
 
     const shippingPayload = {
-      carrier: selectedShippingOption?.carrier || (isDestCABA ? 'Motomensajería' : 'Correo Andreani / OCA'),
+      carrier: selectedShippingOption?.carrier || (isDestCABA ? 'Motomensajería' : 'Correo Certificado'),
       service: selectedShippingOption?.service || selectedShippingOption?.serviceType || (isDestCABA ? 'express_caba_24h' : 'standard'),
       price: 0,
       cost: 0,
@@ -736,7 +736,7 @@ export default function CheckoutDrawer() {
                 </span>
                 <span className="text-[10px] text-cirqa-primario bg-cirqa-primario/10 px-2.5 py-0.5 rounded-full font-medium flex items-center gap-1 font-mono">
                   <Truck className="w-3 h-3" />
-                  Andreani / OCA · Envíos a todo el país
+                  Envíos a todo el país con seguimiento
                 </span>
               </div>
 
@@ -1053,7 +1053,7 @@ export default function CheckoutDrawer() {
               </div>
 
               {/* ========================================================= */}
-              {/* SELECTOR DINÁMICO DE ENVÍO ANDREANI / OCA / CABA          */}
+              {/* SELECTOR DINÁMICO DE ENVÍO CABA / NACIONAL               */}
               {/* ========================================================= */}
               <div className="space-y-2.5 pt-3 border-t border-cirqa-negro/10">
                 <div className="flex items-center justify-between">
@@ -1148,7 +1148,7 @@ export default function CheckoutDrawer() {
                                   $ {Number(opt.cost || 0).toLocaleString('es-AR')}
                                 </span>
                                 <span className="text-[9px] text-cirqa-negro/50 font-mono">
-                                  Andreani / OCA
+                                  {opt.carrier || 'Correo Certificado'}
                                 </span>
                               </>
                             )}

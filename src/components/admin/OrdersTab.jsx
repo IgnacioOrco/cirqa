@@ -1317,7 +1317,7 @@ export default function OrdersTab({ showToast, onOrdersCountChange }) {
                           onChange={(e) =>
                             setShippingForm((prev) => ({ ...prev, carrier: e.target.value }))
                           }
-                          placeholder="Ej: Correo Argentino, Andreani, OCA, Zipnova"
+                          placeholder="Ej: Correo Argentino, Zipnova, Mensajería"
                           className="w-full px-3.5 py-2.5 rounded-xl border border-cirqa-negro/20 text-xs bg-white text-cirqa-negro focus:outline-none focus:border-cirqa-negro"
                         />
                       </div>

@@ -6,7 +6,7 @@ export default function AnnouncementBar() {
     '6 CUOTAS SIN INTERÉS',
     '15% OFF CON TRANSFERENCIA',
     'ENVÍO GRATIS A TODO EL PAÍS',
-    'ENTREGAS CERTIFICADAS POR ANDREANI / OCA',
+    'ENTREGAS CERTIFICADAS CON SEGUIMIENTO',
   ];
 
   const marqueeText = announcements.join('   ·   ');
@@ -43,7 +43,7 @@ export default function AnnouncementBar() {
                 </span>
                 <span className="text-white/40">·</span>
                 <span className="text-white/80">
-                  ENTREGAS CERTIFICADAS POR <strong className="text-white font-semibold">ANDREANI / OCA</strong>
+                  ENTREGAS CERTIFICADAS <strong className="text-white font-semibold">CON SEGUIMIENTO</strong>
                 </span>
                 <span className="text-white/40">·</span>
               </span>
