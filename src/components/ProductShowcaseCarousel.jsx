@@ -319,12 +319,7 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                       })}
                     </div>
 
-                    {/* Especificaciones Ópticas y Físicas */}
-                    <div className="pt-3 border-t border-cirqa-negro/5 text-[10px] text-cirqa-negro/60 font-light flex items-center justify-between">
-                      <span>Lente: {product.lensWidth}mm</span>
-                      <span>Puente: {product.bridgeWidth}mm</span>
-                      <span>Patilla: {product.templeLength}mm</span>
-                    </div>
+
 
                     {/* Pie de Tarjeta: Precio y CTA de Personalización */}
                     <div className="flex items-center justify-between pt-2.5 border-t border-cirqa-negro/5">

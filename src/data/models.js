@@ -11,7 +11,7 @@ export const MODELS = [
     code: 'Q-003',
     price: 229000,
     formattedPrice: '$ 229.000',
-    description: 'Un diseño que combina la esencia retro con una actitud moderna. Su silueta aviador de líneas geométricas, con marco de gran tamaño y doble puente de diseño distintivo, aporta personalidad y carácter a cualquier look.\nUn modelo unisex, versátil y con mucha identidad, ideal para quienes buscan destacarse con un accesorio que marca tendencia sin perder elegancia.\n\nCaracterísticas:\n\nMaterial: Acetato de celulosa.\n\nAncho del ojo: 53 mm.\n\nPuente: 19 mm.\n\nAncho total: 125 mm.',
+    description: 'Un diseño que combina la esencia retro con una actitud moderna. Su silueta aviador de líneas geométricas, con marco de gran tamaño y doble puente de diseño distintivo, aporta personalidad y carácter a cualquier look.\nUn modelo unisex, versátil y con mucha identidad, ideal para quienes buscan destacarse con un accesorio que marca tendencia sin perder elegancia.\n\nMaterial: Acetato de celulosa.',
     material: 'Acetato de celulosa',
     lensDefault: 'clear',
     frameShape: 'Aviador Geométrico con Doble Puente',

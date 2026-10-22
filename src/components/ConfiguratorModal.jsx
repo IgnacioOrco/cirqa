@@ -319,12 +319,7 @@ export default function ConfiguratorModal({
                     </div>
                   )}
 
-                  {/* Dimensiones Ópticas Limpias */}
-                  <div className="mt-3 py-2 px-3 bg-white/70 rounded-xl border border-cirqa-negro/10 w-full flex items-center justify-around text-[10px] sm:text-[11px] text-cirqa-negro/70 font-normal">
-                    <span>Lente: <strong className="text-cirqa-negro">{currentModel.lensWidth || 53}mm</strong></span>
-                    <span>Puente: <strong className="text-cirqa-negro">{currentModel.bridgeWidth || 19}mm</strong></span>
-                    <span>Patilla: <strong className="text-cirqa-negro">{currentModel.templeLength || 142}mm</strong></span>
-                  </div>
+
                 </div>
 
               </div>
@@ -581,18 +576,6 @@ export default function ConfiguratorModal({
                         <div className="flex items-center justify-between">
                           <span className="text-cirqa-negro/60 text-[11px]">Material</span>
                           <span className="font-semibold text-cirqa-negro text-right">{currentModel.material || 'Acetato Premium'}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-cirqa-negro/60 text-[11px]">Ancho del ojo</span>
-                          <span className="font-semibold text-cirqa-negro">{currentModel.lensWidth || 53} mm</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-cirqa-negro/60 text-[11px]">Puente</span>
-                          <span className="font-semibold text-cirqa-negro">{currentModel.bridgeWidth || 19} mm</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-cirqa-negro/60 text-[11px]">Ancho total</span>
-                          <span className="font-semibold text-cirqa-negro">125 mm</span>
                         </div>
                       </div>
                     </div>
