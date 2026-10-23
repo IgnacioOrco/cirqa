@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { orderService, shippingService, couponService, formatMediaUrl } from '../services/api';
+import { BANK_DETAILS } from '../data/bankDetails';
 
 const PROVINCIAS_ARG = [
   'Ciudad Autónoma de Buenos Aires',
@@ -52,14 +53,6 @@ const PROVINCIAS_ARG = [
   'Tierra del Fuego',
   'Tucumán',
 ];
-
-const BANK_DETAILS = {
-  bank: 'Banco Santander',
-  holder: 'CIRQA S.A.S.',
-  cuit: '30-71829482-4',
-  cbu: '0720194820000003928174',
-  alias: 'CIRQA.OPTICA.ARS',
-};
 
 const OFFICIAL_WHATSAPP = '5491125073598';
 
@@ -1290,11 +1283,19 @@ export default function CheckoutDrawer() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                         <div>
                           <span className="text-[10px] text-white/50 block font-light">Titular de Cuenta:</span>
-                          <span className="font-semibold text-white/95">{BANK_DETAILS.holder}</span>
+                          <span className="font-semibold text-white/95">{BANK_DETAILS.companyName || BANK_DETAILS.holder}</span>
                         </div>
                         <div>
                           <span className="text-[10px] text-white/50 block font-light">CUIT:</span>
                           <span className="font-mono text-white/95">{BANK_DETAILS.cuit}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-white/50 block font-light">Banco:</span>
+                          <span className="font-semibold text-white/95">{BANK_DETAILS.bank}</span>
+                        </div>
+                        <div>
+                          <span className="text-[10px] text-white/50 block font-light">Cuenta:</span>
+                          <span className="font-mono text-white/95">{BANK_DETAILS.accountType.includes('cc$') ? 'cc$ ' : ''}{BANK_DETAILS.accountNumber}</span>
                         </div>
                       </div>
 

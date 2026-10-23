@@ -37,11 +37,13 @@ export default function OrderReceiptModal({ isOpen, onClose, order }) {
   };
 
   const bankInfo = {
-    holder: BANK_DETAILS.companyName || '4 GRADOS SRL',
+    holder: BANK_DETAILS.companyName || BANK_DETAILS.holder || '4 GRADOS SRL',
     cuit: BANK_DETAILS.cuit || '30-71828820-3',
     cbu: BANK_DETAILS.cbu || '0720167320000005551804',
     alias: BANK_DETAILS.alias || '4GRADOS.FABRICA',
     bank: BANK_DETAILS.bank || 'Santander',
+    accountNumber: BANK_DETAILS.accountNumber || '167-055518/0',
+    accountType: BANK_DETAILS.accountType || 'Cuenta Corriente en Pesos (cc$)',
   };
 
   const orderNumber = order.orderNumber || order._id?.slice(-6)?.toUpperCase() || 'CQ-0001';
@@ -193,6 +195,14 @@ export default function OrderReceiptModal({ isOpen, onClose, order }) {
                     {copiedKey === 'cuit' ? '✓' : 'Copiar'}
                   </button>
                 </div>
+              </div>
+              <div>
+                <span className="text-[9px] text-white/50 block font-light">Banco:</span>
+                <span className="font-semibold text-white/95 block">{bankInfo.bank}</span>
+              </div>
+              <div>
+                <span className="text-[9px] text-white/50 block font-light">Cuenta:</span>
+                <span className="font-mono text-white/95 text-[11px] block">cc$ {bankInfo.accountNumber}</span>
               </div>
             </div>
 

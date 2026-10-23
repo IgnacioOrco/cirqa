@@ -182,7 +182,7 @@ export default function BankTransferInstructions({
             <div>
               <span className="text-[11px] text-neutral-500 block uppercase font-mono">Tipo y N° de Cuenta</span>
               <span className="font-mono text-neutral-300">
-                {BANK_DETAILS.bank} • {BANK_DETAILS.accountNumber}
+                {BANK_DETAILS.bank} • {BANK_DETAILS.accountType} {BANK_DETAILS.accountNumber}
               </span>
             </div>
             <span className="text-neutral-500 text-[11px] font-mono">Pesos Arg ($)</span>

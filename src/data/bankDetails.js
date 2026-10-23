@@ -3,10 +3,11 @@
  */
 export const BANK_DETAILS = {
   companyName: '4 GRADOS SRL',
+  holder: '4 GRADOS SRL',
   cuit: '30-71828820-3',
   cuitRaw: '30718288203',
   bank: 'Santander',
-  accountType: 'Cuenta Corriente en Pesos (CC$)',
+  accountType: 'Cuenta Corriente en Pesos (cc$)',
   accountNumber: '167-055518/0',
   cbu: '0720167320000005551804',
   alias: '4GRADOS.FABRICA',
