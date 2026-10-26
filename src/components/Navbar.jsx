@@ -143,20 +143,15 @@ export default function Navbar({ isDark = false, onOpenQuiz }) {
           </div>
         </div>
 
-        {/* 3. Menú Desplegable Móvil (Hamburguesa) */}
-        <AnimatePresence>
-          {mobileMenuOpen && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.25, ease: 'easeInOut' }}
-              className={`sm:hidden border-t overflow-hidden shadow-2xl backdrop-blur-xl ${
-                isDark
-                  ? 'bg-[#18110B]/98 border-white/10 text-white'
-                  : 'bg-white/98 border-cirqa-negro/10 text-cirqa-negro'
-              }`}
-            >
+        {/* 3. Menú Desplegable Móvil (Hamburguesa) - Renderizado nativo ligero */}
+        {mobileMenuOpen && (
+          <div
+            className={`sm:hidden border-t overflow-hidden shadow-2xl backdrop-blur-xl transition-all duration-300 ${
+              isDark
+                ? 'bg-[#18110B]/98 border-white/10 text-white'
+                : 'bg-white/98 border-cirqa-negro/10 text-cirqa-negro'
+            }`}
+          >
               <div className="px-6 py-5 space-y-4">
                 <nav className="flex flex-col space-y-1">
                   {/* Catálogo */}
@@ -224,9 +219,8 @@ export default function Navbar({ isDark = false, onOpenQuiz }) {
                   </div>
                 </div>
               </div>
-            </motion.div>
+            </div>
           )}
-        </AnimatePresence>
       </div>
     </header>
   );
