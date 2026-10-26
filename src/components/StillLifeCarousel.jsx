@@ -48,12 +48,20 @@ export default function StillLifeCarousel() {
   const containerRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   const checkScroll = () => {
     if (containerRef.current) {
       const { scrollLeft, scrollWidth, clientWidth } = containerRef.current;
       setCanScrollLeft(scrollLeft > 10);
       setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 10);
+
+      // Calcular el slide activo en versión móvil
+      const cardWidth = clientWidth * 0.88;
+      if (cardWidth > 0) {
+        const index = Math.round(scrollLeft / cardWidth);
+        setActiveSlide(Math.min(SITUACIONES.length - 1, Math.max(0, index)));
+      }
     }
   };
 
@@ -65,7 +73,7 @@ export default function StillLifeCarousel() {
 
   const scroll = (direction) => {
     if (containerRef.current) {
-      const scrollAmount = containerRef.current.clientWidth * 0.85;
+      const scrollAmount = containerRef.current.clientWidth * 0.88;
       containerRef.current.scrollBy({
         left: direction === 'left' ? -scrollAmount : scrollAmount,
         behavior: 'smooth',
@@ -73,10 +81,21 @@ export default function StillLifeCarousel() {
     }
   };
 
+  const scrollToSlide = (index) => {
+    if (containerRef.current) {
+      const cardWidth = containerRef.current.clientWidth * 0.88;
+      containerRef.current.scrollTo({
+        left: index * cardWidth,
+        behavior: 'smooth',
+      });
+      setActiveSlide(index);
+    }
+  };
+
   return (
     <section
       id="situaciones"
-      className="py-24 bg-cirqa-negro text-white relative overflow-hidden border-t border-white/10"
+      className="py-20 sm:py-24 bg-cirqa-negro text-white relative overflow-hidden border-t border-white/10"
     >
       {/* Fallback anchor for existing links */}
       <div id="still-life" className="absolute -top-20" aria-hidden="true" />
@@ -84,18 +103,18 @@ export default function StillLifeCarousel() {
       {/* Background ambient glow */}
       <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-cirqa-ocaso/25 rounded-full blur-3xl pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-6 relative z-10">
+      <div className="max-w-7xl mx-auto px-5 sm:px-6 relative z-10">
         
         {/* 1. Títulos y Encabezado de la Sección Oficial */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-12">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-10 sm:mb-12">
           <div>
             <span className="text-[11px] font-mono tracking-[0.25em] text-cirqa-arena uppercase font-semibold block mb-2">
               OPTIMIZÁ TU CICLO
             </span>
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-light text-white tracking-tight leading-tight">
+            <h2 className="text-2xl sm:text-4xl md:text-5xl font-light text-white tracking-tight leading-tight">
               UNO PARA CADA MOMENTO DEL DÍA.
             </h2>
-            <p className="text-sm sm:text-base text-white/70 font-light mt-3 tracking-wide">
+            <p className="text-xs sm:text-base text-white/70 font-light mt-2 sm:mt-3 tracking-wide">
               Mientras trabajás. Cuando cae el sol. Antes de irte a dormir.
             </p>
           </div>
@@ -105,7 +124,7 @@ export default function StillLifeCarousel() {
             <button
               onClick={() => scroll('left')}
               disabled={!canScrollLeft}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-white hover:bg-white hover:text-cirqa-negro disabled:opacity-30 transition-all shadow-sm cursor-pointer"
+              className="w-10 h-10 min-w-[40px] min-h-[40px] rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-white hover:bg-white hover:text-cirqa-negro disabled:opacity-30 transition-all shadow-sm cursor-pointer"
               aria-label="Anterior momento del día"
             >
               <ChevronLeft className="w-5 h-5" />
@@ -113,7 +132,7 @@ export default function StillLifeCarousel() {
             <button
               onClick={() => scroll('right')}
               disabled={!canScrollRight}
-              className="w-11 h-11 min-w-[44px] min-h-[44px] rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-white hover:bg-white hover:text-cirqa-negro disabled:opacity-30 transition-all shadow-sm cursor-pointer"
+              className="w-10 h-10 min-w-[40px] min-h-[40px] rounded-full border border-white/20 bg-white/5 flex items-center justify-center text-white hover:bg-white hover:text-cirqa-negro disabled:opacity-30 transition-all shadow-sm cursor-pointer"
               aria-label="Siguiente momento del día"
             >
               <ChevronRight className="w-5 h-5" />
@@ -122,11 +141,11 @@ export default function StillLifeCarousel() {
         </div>
 
         {/* 2 & 4. Grilla Desktop (3 Columnas) / Carrusel Horizontal Mobile (Snap-x) */}
-        <div className="relative -mx-6 px-6 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0 mb-16">
+        <div className="relative -mx-5 px-5 sm:-mx-8 sm:px-8 lg:mx-0 lg:px-0 mb-8 sm:mb-16">
           <div
             ref={containerRef}
             onScroll={checkScroll}
-            className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-6 lg:gap-8 overflow-x-auto md:overflow-visible pt-2 pb-6 md:pb-0 scroll-px-6 snap-x snap-mandatory select-none"
+            className="flex md:grid md:grid-cols-2 lg:grid-cols-3 gap-5 lg:gap-8 overflow-x-auto md:overflow-visible pt-2 pb-6 md:pb-0 scroll-px-5 snap-x snap-mandatory select-none"
             style={{
               scrollbarWidth: 'none',
               msOverflowStyle: 'none',
@@ -138,7 +157,7 @@ export default function StillLifeCarousel() {
                 key={situation.id}
                 whileHover={{ y: -6 }}
                 transition={{ type: 'spring', stiffness: 350, damping: 25 }}
-                className="w-[85vw] sm:w-[380px] md:w-full flex-shrink-0 snap-center md:flex-shrink relative h-[500px] md:h-[580px] lg:h-[620px] rounded-3xl overflow-hidden group shadow-2xl bg-[#111111] flex flex-col justify-between p-6 sm:p-7 border border-white/10 hover:border-white/25 transition-colors duration-500"
+                className="w-[88vw] sm:w-[380px] md:w-full flex-shrink-0 snap-center md:flex-shrink relative min-h-[530px] sm:min-h-[570px] md:h-[580px] lg:h-[620px] rounded-3xl overflow-hidden group shadow-2xl bg-[#111111] flex flex-col justify-between p-5 sm:p-7 border border-white/10 hover:border-white/25 transition-colors duration-500"
               >
                 {/* 1. Fotografía Vertical de Campaña en Fondo Completo */}
                 <picture className="absolute inset-0 w-full h-full block">
@@ -160,47 +179,47 @@ export default function StillLifeCarousel() {
                   />
                 </picture>
 
-                {/* 2. Capa de Gradiente Inmersiva para Legibilidad Óptima */}
-                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 via-55% to-black/20 pointer-events-none" />
+                {/* 2. Capa de Gradiente Inmersiva para Legibilidad Óptima del Texto */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/75 via-48% to-black/25 pointer-events-none" />
 
                 {/* 3. Cabecera Superior Flotante (Glassmorphism) */}
-                <div className="relative z-10 flex items-center justify-between gap-2 w-full">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-md bg-black/40 border border-white/15 text-white/90 text-xs font-mono">
+                <div className="relative z-10 flex flex-wrap sm:flex-nowrap items-center justify-between gap-2 w-full mb-4">
+                  <div className="flex items-center gap-1.5 px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full backdrop-blur-md bg-black/50 border border-white/15 text-white/90 text-[11px] sm:text-xs font-mono">
                     <Clock className="w-3.5 h-3.5 text-amber-400" />
                     <span>{situation.time}</span>
                   </div>
 
                   <div
-                    className="px-3 py-1.5 rounded-full backdrop-blur-md bg-black/40 border border-white/15 text-xs font-medium tracking-wide uppercase"
+                    className="px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full backdrop-blur-md bg-black/50 border border-white/15 text-[10px] sm:text-xs font-semibold tracking-wide uppercase"
                     style={{ color: situation.accentColor || '#F59E0B' }}
                   >
                     {situation.badgeFilter}
                   </div>
                 </div>
 
-                {/* 4. Pie de Tarjeta: Contenido Editorial y Especificaciones */}
-                <div className="relative z-10 flex flex-col gap-3">
+                {/* 4. Pie de Tarjeta: Contenido Editorial y Especificaciones (Texto Completo) */}
+                <div className="relative z-10 flex flex-col gap-2.5 sm:gap-3 mt-auto pt-4">
                   {/* Momento de Uso */}
-                  <span className="text-[11px] font-mono tracking-widest uppercase text-white/60 font-medium">
+                  <span className="text-[10px] sm:text-[11px] font-mono tracking-widest uppercase text-cirqa-arena/90 font-semibold">
                     {situation.momentLabel}
                   </span>
 
                   {/* Título Principal de la Situación */}
-                  <h3 className="text-2xl md:text-3xl font-light text-white tracking-tight leading-tight">
+                  <h3 className="text-xl sm:text-2xl md:text-3xl font-light text-white tracking-tight leading-snug">
                     {situation.title}
                   </h3>
 
-                  {/* Descripción del Beneficio Biológico */}
-                  <p className="text-sm text-white/80 font-light leading-relaxed line-clamp-3">
+                  {/* Descripción del Beneficio Biológico - Texto COMPLETO sin cortes ni truncado */}
+                  <p className="text-xs sm:text-sm text-white/90 font-light leading-relaxed">
                     {situation.description}
                   </p>
 
                   {/* Chips Técnicos de Laboratorio / Homologación */}
-                  <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/10">
+                  <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 pt-2 border-t border-white/10">
                     {situation.specs?.map((spec, i) => (
                       <span 
                         key={i} 
-                        className="px-2.5 py-1 rounded-lg backdrop-blur-sm bg-white/10 border border-white/10 text-[11px] font-mono text-white/90"
+                        className="px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg backdrop-blur-md bg-white/10 border border-white/15 text-[10px] sm:text-[11px] font-mono text-white/90"
                       >
                         {spec}
                       </span>
@@ -210,6 +229,23 @@ export default function StillLifeCarousel() {
               </motion.div>
             ))}
             <div className="w-2 md:hidden flex-shrink-0 pointer-events-none" aria-hidden="true" />
+          </div>
+
+          {/* Indicadores de paginación por puntos en Celular */}
+          <div className="flex md:hidden justify-center items-center gap-2 mt-4">
+            {SITUACIONES.map((sit, idx) => (
+              <button
+                key={sit.id}
+                type="button"
+                onClick={() => scrollToSlide(idx)}
+                className={`h-1.5 rounded-full transition-all duration-300 ${
+                  activeSlide === idx
+                    ? 'w-6 bg-cirqa-arena'
+                    : 'w-1.5 bg-white/30 hover:bg-white/50'
+                }`}
+                aria-label={`Ver situación ${sit.title}`}
+              />
+            ))}
           </div>
         </div>
 
