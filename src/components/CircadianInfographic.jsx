@@ -577,11 +577,11 @@ export default function CircadianInfographic() {
               Los 8 Pilares Biológicos Afectados por la Luz
             </h3>
             <p className="text-xs text-white/60 font-light mt-1">
-              Hacé clic o posá el cursor sobre cada pilar para desplegar la evidencia científica.
+              Tocá o posá el cursor sobre cada pilar para desplegar su impacto biológico y evidencia científica.
             </p>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-6">
             {PILLARS.map((pillar) => {
               const IconComp = pillar.icon;
               const isSelected = selectedPillar?.id === pillar.id;
@@ -590,9 +590,10 @@ export default function CircadianInfographic() {
                 <motion.div
                   key={pillar.id}
                   whileHover={{ y: -6, scale: 1.01 }}
+                  whileTap={{ scale: 0.96 }}
                   transition={{ type: 'spring', stiffness: 300, damping: 20 }}
                   onClick={() => setSelectedPillar(isSelected ? null : pillar)}
-                  className={`p-6 sm:p-7 rounded-3xl border transition-all duration-300 flex flex-col justify-between text-center group cursor-pointer relative ${
+                  className={`p-4 sm:p-7 rounded-2xl sm:rounded-3xl border transition-all duration-300 flex flex-col justify-between text-center group cursor-pointer relative ${
                     isSelected
                       ? 'bg-white/15 border-cirqa-arena shadow-[0_15px_35px_rgba(228,176,112,0.15)] ring-2 ring-cirqa-arena/30'
                       : 'bg-white/5 border-white/10 hover:border-cirqa-arena/40 hover:bg-white/[0.08] shadow-lg'
@@ -600,39 +601,48 @@ export default function CircadianInfographic() {
                 >
                   <div>
                     {/* Icon Knob */}
-                    <div className="w-14 h-14 mx-auto rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-cirqa-arena mb-4 group-hover:scale-110 group-hover:bg-cirqa-arena group-hover:text-cirqa-negro transition-all duration-300 shadow-sm">
-                      <IconComp className="w-6 h-6" />
+                    <div className="w-12 h-12 sm:w-14 sm:h-14 mx-auto rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center text-cirqa-arena mb-2.5 sm:mb-4 group-hover:scale-110 group-hover:bg-cirqa-arena group-hover:text-cirqa-negro transition-all duration-300 shadow-sm">
+                      <IconComp className="w-5 h-5 sm:w-6 sm:h-6" />
                     </div>
 
-                    <h4 className="text-xs sm:text-sm font-semibold tracking-wider text-white mb-1.5 uppercase">
+                    <h4 className="text-[11px] sm:text-xs md:text-sm font-semibold tracking-wider text-white uppercase leading-tight line-clamp-2">
                       {pillar.name}
                     </h4>
 
-                    {pillar.highlight && (
-                      <span className="inline-block px-2.5 py-0.5 rounded-full bg-cirqa-arena/10 text-cirqa-arena text-[10px] font-mono font-medium mb-2.5">
-                        {pillar.highlight}
-                      </span>
-                    )}
+                    {/* Texto descriptivo: SOLO visible en Desktop. En celular permanece oculto hasta que lo tocan */}
+                    <div className="hidden sm:block mt-2">
+                      {pillar.highlight && (
+                        <span className="inline-block px-2.5 py-0.5 rounded-full bg-cirqa-arena/10 text-cirqa-arena text-[10px] font-mono font-medium mb-2.5">
+                          {pillar.highlight}
+                        </span>
+                      )}
 
-                    <p className="text-[11px] text-white/70 font-light leading-relaxed">
-                      {pillar.desc}
-                    </p>
+                      <p className="text-[11px] text-white/70 font-light leading-relaxed">
+                        {pillar.desc}
+                      </p>
+                    </div>
                   </div>
 
-                  {/* Micro Trigger Button */}
-                  <div className="mt-5 pt-3 border-t border-white/10 flex items-center justify-center gap-1 text-[11px] text-cirqa-arena font-medium group-hover:underline">
+                  {/* Micro Trigger Button (Solo Desktop) */}
+                  <div className="hidden sm:flex mt-5 pt-3 border-t border-white/10 items-center justify-center gap-1 text-[11px] text-cirqa-arena font-medium group-hover:underline">
                     <span>{isSelected ? 'Cerrar detalle' : 'Explorar ciencia'}</span>
                     <Plus className={`w-3.5 h-3.5 transition-transform duration-300 ${isSelected ? 'rotate-45' : ''}`} />
+                  </div>
+
+                  {/* Indicador táctil sutil en celular */}
+                  <div className="sm:hidden mt-2.5 flex items-center justify-center gap-1 text-[10px] text-cirqa-arena/75 font-mono">
+                    <Plus className="w-3 h-3 text-cirqa-arena" />
+                    <span>Ver texto</span>
                   </div>
                 </motion.div>
               );
             })}
           </div>
 
-          {/* Floating Glassmorphism Modal / Pop-up Card */}
+          {/* Floating Glassmorphism Modal / Pop-up Card / Bottom Sheet en Celular */}
           <AnimatePresence>
             {selectedPillar && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+              <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-6">
                 
                 {/* Backdrop */}
                 <motion.div
@@ -641,27 +651,30 @@ export default function CircadianInfographic() {
                   exit={{ opacity: 0 }}
                   transition={{ duration: 0.25 }}
                   onClick={() => setSelectedPillar(null)}
-                  className="fixed inset-0 bg-black/60 backdrop-blur-md"
+                  className="fixed inset-0 bg-black/75 backdrop-blur-md"
                 />
 
                 {/* Floating Glassmorphism Detail Card */}
                 <motion.div
-                  initial={{ opacity: 0, scale: 0.92, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.92, y: 20 }}
-                  transition={{ type: 'spring', damping: 25, stiffness: 280 }}
-                  className="relative w-full max-w-lg max-h-[88vh] overflow-y-auto bg-[#18110B]/95 backdrop-blur-2xl border border-cirqa-arena/30 rounded-3xl p-7 sm:p-9 shadow-2xl z-10 text-white"
+                  initial={{ opacity: 0, y: 50, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 50, scale: 0.95 }}
+                  transition={{ type: 'spring', damping: 26, stiffness: 280 }}
+                  className="relative w-full sm:max-w-lg max-h-[88vh] overflow-y-auto bg-[#18110B]/95 backdrop-blur-2xl border-t sm:border border-cirqa-arena/30 rounded-t-3xl sm:rounded-3xl p-6 sm:p-9 shadow-2xl z-10 text-white"
                 >
+                  {/* Handle bar decorativo en Celular */}
+                  <div className="w-12 h-1 bg-white/20 rounded-full mx-auto mb-4 sm:hidden" />
+
                   <div className="flex items-start justify-between pb-4 border-b border-white/10">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-2xl bg-cirqa-arena/10 border border-cirqa-arena/30 flex items-center justify-center text-cirqa-arena">
+                      <div className="w-11 h-11 rounded-2xl bg-cirqa-arena/10 border border-cirqa-arena/30 flex items-center justify-center text-cirqa-arena flex-shrink-0">
                         {React.createElement(selectedPillar.icon, { className: 'w-5 h-5' })}
                       </div>
                       <div>
                         <span className="text-[10px] uppercase tracking-widest text-cirqa-arena font-semibold block">
-                          Fundamento Científico
+                          Fundamento Biológico
                         </span>
-                        <h4 className="text-lg font-medium text-white tracking-tight">
+                        <h4 className="text-base sm:text-lg font-medium text-white tracking-tight">
                           {selectedPillar.name}
                         </h4>
                       </div>
@@ -676,21 +689,42 @@ export default function CircadianInfographic() {
                     </button>
                   </div>
 
-                  <div className="my-5 space-y-3">
-                    <div className="p-3 bg-white/5 rounded-2xl border border-white/10 text-xs text-cirqa-arena font-medium">
-                      Eje biológico: <span className="text-white font-normal">{selectedPillar.highlight}</span>
+                  <div className="my-5 space-y-3.5">
+                    {/* Eje biológico */}
+                    {selectedPillar.highlight && (
+                      <div className="p-3 bg-white/5 rounded-2xl border border-white/10 text-xs text-cirqa-arena font-medium">
+                        Eje biológico: <span className="text-white font-normal">{selectedPillar.highlight}</span>
+                      </div>
+                    )}
+
+                    {/* Descripción principal que se ocultaba en celular */}
+                    <div className="bg-cirqa-arena/10 border border-cirqa-arena/20 rounded-2xl p-4">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-cirqa-arena block mb-1">
+                        Resumen clínico
+                      </span>
+                      <p className="text-xs sm:text-sm text-white font-normal leading-relaxed">
+                        {selectedPillar.desc}
+                      </p>
                     </div>
 
-                    <p className="text-xs sm:text-sm text-white/80 font-light leading-relaxed whitespace-pre-line">
-                      {selectedPillar.scientificDetail}
-                    </p>
+                    {/* Detalle científico completo */}
+                    {selectedPillar.scientificDetail && (
+                      <div>
+                        <span className="text-[10px] uppercase font-bold tracking-wider text-white/50 block mb-1.5">
+                          Evidencia Científica & Regulación Óptica
+                        </span>
+                        <p className="text-xs sm:text-sm text-white/80 font-light leading-relaxed whitespace-pre-line bg-white/5 p-4 rounded-2xl border border-white/5">
+                          {selectedPillar.scientificDetail}
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="pt-4 border-t border-white/10 flex items-center justify-between text-[11px] text-white/50 font-light">
                     <span>Fotobiología Circadiana CIRQA</span>
                     <button
                       onClick={() => setSelectedPillar(null)}
-                      className="px-5 py-2 bg-cirqa-arena text-cirqa-negro font-semibold rounded-full hover:brightness-110 active:scale-95 transition-all text-xs"
+                      className="px-6 py-2.5 bg-cirqa-arena text-cirqa-negro font-semibold rounded-full hover:brightness-110 active:scale-95 transition-all text-xs shadow-md"
                     >
                       Entendido
                     </button>
