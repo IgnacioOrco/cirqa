@@ -10,6 +10,15 @@ export default defineConfig({
   build: {
     target: 'es2020',
     cssCodeSplit: true,
+    modulePreload: {
+      resolveDependencies: (filename, deps, { hostType }) => {
+        if (hostType === 'html') {
+          // No precargar vendor-framer en index.html para no bloquear la interactividad inicial
+          return deps.filter((dep) => !dep.includes('vendor-framer'));
+        }
+        return deps;
+      },
+    },
     rollupOptions: {
       output: {
         manualChunks: {

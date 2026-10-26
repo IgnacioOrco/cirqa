@@ -1,5 +1,4 @@
 import React, { useState } from 'react';
-import { motion } from 'framer-motion';
 import { Sparkles, SlidersHorizontal, ArrowRight } from 'lucide-react';
 import { formatMediaUrl } from '../services/api';
 import {
@@ -13,12 +12,15 @@ import {
 } from '../utils/productImages';
 import { FILTERS } from '../data/filters';
 
+import Image from './Image';
+
 /**
  * Tarjeta de Producto de CIRQA
  * - Integración visual limpia: sin cuadros blancos duros, bordes artificiales ni fondos desconectados.
  * - Fondo suave off-white unificado con mix-blend-multiply para fundido perfecto de las fotos de estudio.
  * - Reactividad completa a swatches de variantes: al hacer clic, cambia la imagen a la variante elegida.
  * - Al hacer hover, muestra la foto lateral/perfil DEL MISMO MODELO Y VARIANTE.
+ * - Optimizado para Core Web Vitals: sin layout shifts forzados (removido layout prop de Framer Motion) y con componente <Image /> nativo.
  */
 export default function ProductCard({
   product,
@@ -74,16 +76,11 @@ export default function ProductCard({
   const formattedPrice = `$ ${finalPrice.toLocaleString('es-AR')}`;
 
   return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.95 }}
-      transition={{ duration: 0.25 }}
+    <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       onClick={() => onOpenConfigurator && onOpenConfigurator(product, activeVariantKey)}
-      className="bg-white rounded-2xl border border-cirqa-negro/10 overflow-hidden shadow-sm hover:shadow-xl hover:border-cirqa-negro/20 transition-all flex flex-col group cursor-pointer relative"
+      className="bg-white rounded-2xl border border-cirqa-negro/10 overflow-hidden shadow-sm hover:shadow-xl hover:border-cirqa-negro/20 transition-all duration-300 flex flex-col group cursor-pointer relative"
     >
       {/* Contenedor Visual de la Foto - Integración Limpia con Fondo Blanco */}
       <div className="aspect-[4/3] bg-white relative flex items-center justify-center overflow-hidden">
@@ -97,28 +94,34 @@ export default function ProductCard({
         <div className="relative w-full h-full flex flex-col items-center justify-center bg-white z-10">
           {/* Foto de Portada (Base) */}
           <div className="relative w-full h-full flex items-center justify-center">
-            <img
-              src={formatMediaUrl(primaryImg)}
+            <Image
+              src={primaryImg}
               alt={`${product.name} - ${activeOptionObj?.name || 'CIRQA'}`}
+              width={380}
+              height={285}
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              loading="lazy"
+              decoding="async"
               className={`w-full h-full object-contain p-2 mix-blend-multiply transform transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-105 select-none ${
                 isHovered && hasDistinctHover ? 'opacity-0' : 'opacity-100'
               }`}
-              loading="lazy"
-              onError={(e) => {
-                e.target.onerror = null;
-                e.target.src = '/placeholder-glass.svg';
-              }}
+              style={{ mixBlendMode: 'multiply' }}
             />
 
             {/* Foto Lateral / Perfil al Hover (Mismo Modelo y Variante) */}
             {hasDistinctHover && (
-              <img
-                src={formatMediaUrl(hoverImg)}
+              <Image
+                src={hoverImg}
                 alt={`${product.name} - Vista lateral`}
+                width={380}
+                height={285}
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                loading="lazy"
+                decoding="async"
                 className={`w-full h-full object-contain p-2 mix-blend-multiply transform transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-105 select-none absolute inset-0 m-auto ${
                   isHovered ? 'opacity-100' : 'opacity-0'
                 }`}
-                loading="lazy"
+                style={{ mixBlendMode: 'multiply' }}
               />
             )}
           </div>
@@ -191,6 +194,6 @@ export default function ProductCard({
           </span>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

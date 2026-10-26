@@ -1,10 +1,10 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronLeft, ChevronRight, RefreshCw, AlertCircle, ArrowRight } from 'lucide-react';
 import { useProducts, ProductCardSkeleton } from '../hooks/useProducts';
 import { FILTERS } from '../data/filters';
 import { formatMediaUrl } from '../services/api';
+import Image from './Image';
 import {
   resolveProductCardImage,
   getPrimaryProductImage,
@@ -199,13 +199,11 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
               const hoverImg = getHoverProductImage(product, primaryImg, currentSelectedKey);
 
               return (
-                <motion.div
+                <div
                   key={product.id}
-                  whileHover={{ y: -8 }}
-                  transition={{ type: 'spring', stiffness: 350, damping: 25 }}
                   onMouseEnter={() => setHoveredCardId(product.id)}
                   onMouseLeave={() => setHoveredCardId(null)}
-                  className="w-[300px] sm:w-[360px] md:w-[380px] flex-shrink-0 snap-start bg-white rounded-2xl p-6 sm:p-7 border border-cirqa-negro/10 hover:border-cirqa-negro/30 flex flex-col justify-between transition-all duration-300 shadow-sm hover:shadow-2xl relative group z-10 hover:z-20 cursor-pointer"
+                  className="w-[300px] sm:w-[360px] md:w-[380px] flex-shrink-0 snap-start bg-white rounded-2xl p-6 sm:p-7 border border-cirqa-negro/10 hover:border-cirqa-negro/30 flex flex-col justify-between transition-all duration-300 hover:-translate-y-2 shadow-sm hover:shadow-2xl relative group z-10 hover:z-20 cursor-pointer"
                   onClick={() => onSelectModel && onSelectModel(product, currentSelectedKey)}
                 >
                   {/* Etiqueta Superior & Código de Modelo */}
@@ -237,34 +235,34 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                     <div className="relative w-full h-full flex flex-col items-center justify-center bg-transparent z-10">
                       {/* Imagen Base (Portada) */}
                       <div className="relative w-full h-full flex items-center justify-center">
-                        <img
-                          src={formatMediaUrl(primaryImg)}
+                        <Image
+                          src={primaryImg}
                           alt={`${product.name} - CIRQA`}
+                          width={380}
+                          height={285}
+                          sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                          loading="lazy"
+                          decoding="async"
                           className={`w-full h-full object-contain p-2 mix-blend-multiply select-none transform transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-105 ${
                             isHovered && hoverImg !== primaryImg ? 'opacity-0' : 'opacity-100'
                           }`}
                           style={{ mixBlendMode: 'multiply' }}
-                          loading="lazy"
-                          onError={(e) => {
-                            e.target.onerror = null;
-                            e.target.src = '/placeholder-glass.svg';
-                          }}
                         />
 
                         {/* Imagen Hover Alternativa (al pasar el cursor) */}
                         {hoverImg !== primaryImg && (
-                          <img
-                            src={formatMediaUrl(hoverImg)}
+                          <Image
+                            src={hoverImg}
                             alt={`${product.name} Hover - CIRQA`}
+                            width={380}
+                            height={285}
+                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                            loading="lazy"
+                            decoding="async"
                             className={`absolute inset-0 m-auto w-full h-full object-contain p-2 mix-blend-multiply select-none transform transition-all duration-500 ease-out group-hover:-translate-y-1.5 group-hover:scale-105 pointer-events-none ${
                               isHovered ? 'opacity-100' : 'opacity-0'
                             }`}
                             style={{ mixBlendMode: 'multiply' }}
-                            loading="lazy"
-                            onError={(e) => {
-                              e.target.onerror = null;
-                              e.target.src = '/placeholder-glass.svg';
-                            }}
                           />
                         )}
                       </div>
@@ -341,7 +339,7 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                       </button>
                     </div>
                   </div>
-                </motion.div>
+                </div>
               );
             })}
 

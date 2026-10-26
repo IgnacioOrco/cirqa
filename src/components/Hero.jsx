@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
@@ -73,13 +72,8 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz, onOpe
     <section className="relative min-h-[92vh] pt-32 sm:pt-36 pb-8 sm:pb-12 flex items-center justify-center bg-white overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 w-full grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch min-h-[calc(92vh-7rem)]">
         
-        {/* Left Column: Narrative Copy */}
-        <motion.div 
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 180, damping: 22 }}
-          className="lg:col-span-6 flex flex-col justify-center pb-8 lg:pb-12 pt-4 z-10"
-        >
+        {/* Left Column: Narrative Copy - Renderizado estático sin bloqueo JS (LCP instantáneo) */}
+        <div className="lg:col-span-6 flex flex-col justify-center pb-8 lg:pb-12 pt-4 z-10">
           {/* Volanta */}
           <span className="text-[10px] uppercase tracking-[0.2em] text-cirqa-negro/70 font-semibold mb-3 block">
             CLARIDAD EN UN MUNDO LLENO DE RUIDO
@@ -90,7 +84,7 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz, onOpe
             PROTEGE TU ENFOQUE
           </h1>
 
-          {/* Paragraph */}
+          {/* Paragraph (Elemento LCP Crítico - Sin retraso de renderizado) */}
           <p className="text-base sm:text-lg text-cirqa-negro/90 font-light leading-relaxed max-w-lg mb-8">
             El cuerpo entiende de señales, no de buenas intenciones. CIRQA filtra la luz que te desconcentra para que tu ritmo natural haga el resto.
           </p>
@@ -148,13 +142,10 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz, onOpe
               Norma 12312-1:2022
             </div>
           </div>
-        </motion.div>
+        </div>
 
         {/* Right Column: Carrusel Slider de Campaña */}
-        <motion.div 
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 140, damping: 20, delay: 0.15 }}
+        <div 
           className="lg:col-span-6 relative w-full h-full min-h-[520px] md:min-h-[620px] lg:min-h-[720px] flex items-stretch py-2"
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
@@ -164,36 +155,34 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz, onOpe
 
           {/* Slider Image Container con aprovechamiento vertical total y calidad editorial */}
           <div className="relative w-full h-full rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl bg-[#111111]">
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeSlide.id}
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
-                className="w-full h-full"
+            {HERO_SLIDES.map((slide, idx) => (
+              <div
+                key={slide.id}
+                className={`absolute inset-0 w-full h-full transition-opacity duration-700 ease-out ${
+                  currentSlide === idx ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'
+                }`}
               >
                 <picture className="w-full h-full block">
-                  <source media="(max-width: 768px)" srcSet={activeSlide.imageMobile} type="image/webp" />
-                  <source srcSet={activeSlide.image} type="image/webp" />
+                  <source media="(max-width: 768px)" srcSet={slide.imageMobile} type="image/webp" />
+                  <source srcSet={slide.image} type="image/webp" />
                   <img
-                    src={activeSlide.image}
-                    alt={activeSlide.alt}
-                    width="1400"
-                    height="2100"
-                    fetchPriority={currentSlide === 0 ? 'high' : 'auto'}
-                    loading={currentSlide === 0 ? 'eager' : 'lazy'}
-                    decoding={currentSlide === 0 ? 'sync' : 'async'}
-                    className="w-full h-full object-cover object-top md:object-center transition-all duration-700 select-none"
+                    src={slide.image}
+                    alt={slide.alt}
+                    width="750"
+                    height="1125"
+                    fetchPriority={idx === 0 ? 'high' : 'auto'}
+                    loading={idx === 0 ? 'eager' : 'lazy'}
+                    decoding={idx === 0 ? 'sync' : 'async'}
+                    className="w-full h-full object-cover object-top md:object-center select-none"
                     onError={(e) => {
-                      if (activeSlide.fallback) {
-                        e.currentTarget.src = activeSlide.fallback;
+                      if (slide.fallback) {
+                        e.currentTarget.src = slide.fallback;
                       }
                     }}
                   />
                 </picture>
-              </motion.div>
-            </AnimatePresence>
+              </div>
+            ))}
 
             {/* Botones de Navegación del Slider con área táctil accesible min 44x44px */}
             <div className="absolute top-4 right-4 z-20 flex items-center gap-2">
@@ -237,21 +226,14 @@ export default function Hero({ onExploreModels, onExploreTech, onOpenQuiz, onOpe
             </div>
 
             {/* Floating Glassmorphism Spec Badge */}
-            <AnimatePresence mode="wait">
-              <motion.div 
-                key={activeSlide.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.3 }}
-                className="absolute bottom-6 left-5 sm:left-6 right-5 sm:right-auto backdrop-blur-md bg-black/40 border border-white/20 px-4 py-2.5 rounded-2xl text-[11px] text-white font-normal tracking-wide shadow-xl z-20"
-              >
-                <span className="font-semibold text-white block">{activeSlide.badge}</span>
-                <span className="text-[10px] text-white/75">{activeSlide.subtitle}</span>
-              </motion.div>
-            </AnimatePresence>
+            <div 
+              className="absolute bottom-6 left-5 sm:left-6 right-5 sm:right-auto backdrop-blur-md bg-black/40 border border-white/20 px-4 py-2.5 rounded-2xl text-[11px] text-white font-normal tracking-wide shadow-xl z-20 transition-all duration-300"
+            >
+              <span className="font-semibold text-white block">{activeSlide.badge}</span>
+              <span className="text-[10px] text-white/75">{activeSlide.subtitle}</span>
+            </div>
           </div>
-        </motion.div>
+        </div>
 
       </div>
     </section>

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Sparkles, Menu, X, ArrowRight, Glasses } from 'lucide-react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
 import { useCart } from '../context/CartContext';
 import AnnouncementBar from './AnnouncementBar';
 

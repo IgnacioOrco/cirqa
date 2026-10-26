@@ -1,18 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import Navbar from '../components/Navbar';
 import Hero from '../components/Hero';
 import ProductShowcaseCarousel from '../components/ProductShowcaseCarousel';
-import CircadianInfographic from '../components/CircadianInfographic';
-import StillLifeCarousel from '../components/StillLifeCarousel';
-import ComparisonTable from '../components/ComparisonTable';
-import FilterDetailsCampaign from '../components/FilterDetailsCampaign';
-import AboutManifesto from '../components/AboutManifesto';
-import FAQAndContact from '../components/FAQAndContact';
-import PrescriptionDrawer from '../components/PrescriptionDrawer';
-import ClinicalTrialsModal from '../components/ClinicalTrialsModal';
-import ConfiguratorModal from '../components/ConfiguratorModal';
-import PhilosophyAndFooter from '../components/PhilosophyAndFooter';
-import CircadianQuizModal from '../components/CircadianQuizModal';
+
+// Carga diferida (Code Splitting / Dynamic Imports) de secciones bajo el pliegue
+const CircadianInfographic = lazy(() => import('../components/CircadianInfographic'));
+const StillLifeCarousel = lazy(() => import('../components/StillLifeCarousel'));
+const ComparisonTable = lazy(() => import('../components/ComparisonTable'));
+const FilterDetailsCampaign = lazy(() => import('../components/FilterDetailsCampaign'));
+const AboutManifesto = lazy(() => import('../components/AboutManifesto'));
+const FAQAndContact = lazy(() => import('../components/FAQAndContact'));
+const PhilosophyAndFooter = lazy(() => import('../components/PhilosophyAndFooter'));
+
+// Carga diferida de Modales y Drawers (se descargan bajo demanda al abrirse)
+const ConfiguratorModal = lazy(() => import('../components/ConfiguratorModal'));
+const CircadianQuizModal = lazy(() => import('../components/CircadianQuizModal'));
+const PrescriptionDrawer = lazy(() => import('../components/PrescriptionDrawer'));
+const ClinicalTrialsModal = lazy(() => import('../components/ClinicalTrialsModal'));
+
 import { FILTERS } from '../data/filters';
 import { Sparkles, ArrowRight, Sun, Moon } from 'lucide-react';
 
@@ -162,68 +167,81 @@ export default function Home() {
           onSelectModel={handleOpenConfiguratorWithModel}
         />
 
-        {/* BLOQUE 3: Infografía Ritmo Circadiano (24h & 8 Pilares) */}
-        <CircadianInfographic />
+        {/* Componentes bajo el pliegue cargados de manera diferida (Suspense) */}
+        <Suspense fallback={<div className="min-h-[200px] flex items-center justify-center text-xs text-cirqa-negro/40">Cargando secciones...</div>}>
+          {/* BLOQUE 3: Infografía Ritmo Circadiano (24h & 8 Pilares) */}
+          <CircadianInfographic />
 
-        {/* BLOQUE 4: Pasarela "Still Life" (Contextos Reales) */}
-        <StillLifeCarousel />
+          {/* BLOQUE 4: Pasarela "Still Life" (Contextos Reales) */}
+          <StillLifeCarousel />
 
-        {/* BLOQUE 5: Tabla Comparativa (4 Filtros & Compra Ahora) */}
-        <ComparisonTable
-          onSelectFilterForPurchase={handleOpenConfiguratorWithFilter}
-          onOpenTrials={handleOpenTrials}
-        />
+          {/* BLOQUE 5: Tabla Comparativa (4 Filtros & Compra Ahora) */}
+          <ComparisonTable
+            onSelectFilterForPurchase={handleOpenConfiguratorWithFilter}
+            onOpenTrials={handleOpenTrials}
+          />
 
-        {/* BLOQUE 6: Detalle de Filtros (Animación 3 Filtros & Estudio) */}
-        <FilterDetailsCampaign
-          onOpenTrials={handleOpenTrials}
-          onThemeChange={setIsNavbarDark}
-        />
+          {/* BLOQUE 6: Detalle de Filtros (Animación 3 Filtros & Estudio) */}
+          <FilterDetailsCampaign
+            onOpenTrials={handleOpenTrials}
+            onThemeChange={setIsNavbarDark}
+          />
 
-        {/* SECCIÓN NOSOTROS: Manifiesto CIRQA & Fotografía de Campaña */}
-        <AboutManifesto onExploreModels={handleScrollToModels} />
+          {/* SECCIÓN NOSOTROS: Manifiesto CIRQA & Fotografía de Campaña */}
+          <AboutManifesto onExploreModels={handleScrollToModels} />
 
-        {/* MÓDULO FAQ (Acordeón) & FORMULARIO DE CONTACTO DIRECTO */}
-        <FAQAndContact />
+          {/* MÓDULO FAQ (Acordeón) & FORMULARIO DE CONTACTO DIRECTO */}
+          <FAQAndContact />
+        </Suspense>
       </main>
 
       {/* BLOQUE 7: Footer Legal & Contacto */}
-      <PhilosophyAndFooter
-        onOpenTrials={handleOpenTrials}
-        onOpenPrescription={() => handleOpenPrescription(null, null)}
-      />
+      <Suspense fallback={null}>
+        <PhilosophyAndFooter
+          onOpenTrials={handleOpenTrials}
+          onOpenPrescription={() => handleOpenPrescription(null, null)}
+        />
+      </Suspense>
 
-      {/* Interactive Configurator Modal */}
-      <ConfiguratorModal
-        isOpen={configuratorOpen}
-        onClose={() => setConfiguratorOpen(false)}
-        initialModel={activeConfigModel}
-        initialFilter={activeConfigFilter}
-        initialVariantKey={activeConfigVariantKey}
-        onOpenPrescription={handleOpenPrescription}
-        onOpenTrials={handleOpenTrials}
-      />
+      {/* Modales Interactivos bajo demanda (Solo se montan al abrirse) */}
+      <Suspense fallback={null}>
+        {configuratorOpen && (
+          <ConfiguratorModal
+            isOpen={configuratorOpen}
+            onClose={() => setConfiguratorOpen(false)}
+            initialModel={activeConfigModel}
+            initialFilter={activeConfigFilter}
+            initialVariantKey={activeConfigVariantKey}
+            onOpenPrescription={handleOpenPrescription}
+            onOpenTrials={handleOpenTrials}
+          />
+        )}
 
-      {/* Circadian Quiz Modal */}
-      <CircadianQuizModal
-        isOpen={quizOpen}
-        onClose={() => setQuizOpen(false)}
-        onSelectRecommendation={handleQuizRecommendation}
-      />
+        {quizOpen && (
+          <CircadianQuizModal
+            isOpen={quizOpen}
+            onClose={() => setQuizOpen(false)}
+            onSelectRecommendation={handleQuizRecommendation}
+          />
+        )}
 
-      {/* Side Panels & Modals */}
-      <PrescriptionDrawer
-        isOpen={prescriptionOpen}
-        onClose={() => setPrescriptionOpen(false)}
-        selectedModel={activePrescriptionModel}
-        selectedFilter={activePrescriptionFilter}
-      />
+        {prescriptionOpen && (
+          <PrescriptionDrawer
+            isOpen={prescriptionOpen}
+            onClose={() => setPrescriptionOpen(false)}
+            selectedModel={activePrescriptionModel}
+            selectedFilter={activePrescriptionFilter}
+          />
+        )}
 
-      <ClinicalTrialsModal
-        isOpen={trialsOpen}
-        onClose={() => setTrialsOpen(false)}
-        initialFilterId={activeTrialFilterId}
-      />
+        {trialsOpen && (
+          <ClinicalTrialsModal
+            isOpen={trialsOpen}
+            onClose={() => setTrialsOpen(false)}
+            initialFilterId={activeTrialFilterId}
+          />
+        )}
+      </Suspense>
     </div>
   );
 }
