@@ -3,6 +3,7 @@ import { ShoppingBag, Sparkles, Menu, X, ArrowRight, Glasses } from 'lucide-reac
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useCart } from '../context/CartContext';
 import AnnouncementBar from './AnnouncementBar';
+import WhatsAppIcon from './WhatsAppIcon';
 
 export default function Navbar({ isDark = false, onOpenQuiz }) {
   const { cartCount, openCheckout } = useCart();
@@ -104,6 +105,22 @@ export default function Navbar({ isDark = false, onOpenQuiz }) {
               Catálogo
             </Link>
 
+            {/* Ícono de WhatsApp chico en versión desktop */}
+            <a
+              href="https://wa.me/5491125073598?text=Hola%20CIRQA!%20Quisiera%20hacerles%20una%20consulta."
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`hidden sm:flex p-2.5 rounded-full transition-all duration-300 items-center justify-center group ${
+                isDark
+                  ? 'hover:bg-white/10 text-white/80 hover:text-[#25D366]'
+                  : 'hover:bg-cirqa-negro/5 text-cirqa-negro/80 hover:text-[#25D366]'
+              }`}
+              aria-label="Atención por WhatsApp"
+              title="Atención por WhatsApp"
+            >
+              <WhatsAppIcon className="w-[18px] h-[18px] transition-transform duration-300 group-hover:scale-110" />
+            </a>
+
             {/* Botón Bolsa / Carrito */}
             <button
               onClick={() => openCheckout()}
@@ -194,9 +211,24 @@ export default function Navbar({ isDark = false, onOpenQuiz }) {
                   <a
                     href="/#nosotros"
                     onClick={() => setMobileMenuOpen(false)}
-                    className="flex items-center justify-between py-3 text-xs font-medium tracking-[0.16em] uppercase hover:text-cirqa-primario transition-colors"
+                    className="flex items-center justify-between py-3 text-xs font-medium tracking-[0.16em] uppercase border-b border-current/10 hover:text-cirqa-primario transition-colors"
                   >
                     <span>Nosotros</span>
+                    <ArrowRight className="w-3.5 h-3.5 opacity-40" />
+                  </a>
+
+                  {/* WhatsApp Directo */}
+                  <a
+                    href="https://wa.me/5491125073598?text=Hola%20CIRQA!%20Quisiera%20hacerles%20una%20consulta."
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="flex items-center justify-between py-3 text-xs font-medium tracking-[0.16em] uppercase hover:text-[#25D366] transition-colors"
+                  >
+                    <span className="flex items-center gap-2.5">
+                      <WhatsAppIcon className="w-4 h-4 text-[#25D366]" />
+                      Atención WhatsApp
+                    </span>
                     <ArrowRight className="w-3.5 h-3.5 opacity-40" />
                   </a>
                 </nav>

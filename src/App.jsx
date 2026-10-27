@@ -14,6 +14,7 @@ const CheckoutModal = lazy(() => import('./components/CheckoutModal'));
 
 import PrivateRoute from './components/PrivateRoute';
 import { CartProvider } from './context/CartContext';
+import WhatsAppFloatingButton from './components/WhatsAppFloatingButton';
 
 /**
  * MODO PRÓXIMAMENTE / MANTENIMIENTO
@@ -93,6 +94,9 @@ export default function App() {
 
           {/* Modal Global de Checkout */}
           <CheckoutModal />
+
+          {/* Botón flotante de WhatsApp en versión celular */}
+          <WhatsAppFloatingButton />
         </Suspense>
 
         {/* Indicador flotante cuando se navega en modo preview */}
