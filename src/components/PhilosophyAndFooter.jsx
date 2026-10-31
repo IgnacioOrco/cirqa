@@ -39,19 +39,11 @@ export default function PhilosophyAndFooter({ onOpenTrials, onOpenPrescription }
           <div><a href="#contacto" className="hover:text-cirqa-primario transition-colors">Contacto Directo</a></div>
         </div>
 
-        {/* Col 3: Support & Prescription Access */}
+        {/* Col 3: Support & Clinical Access */}
         <div className="md:col-span-2 space-y-2 text-xs font-light">
           <span className="text-[10px] uppercase tracking-widest text-cirqa-negro/75 font-semibold block mb-3">
-            Soporte & Graduación
+            Soporte & Certificación
           </span>
-          <div>
-            <button
-              onClick={() => onOpenPrescription && onOpenPrescription()}
-              className="text-xs text-cirqa-negro/75 hover:text-cirqa-primario transition-colors text-left font-light block cursor-pointer"
-            >
-              Tengo mi Receta
-            </button>
-          </div>
           <div>
             <button
               onClick={() => {

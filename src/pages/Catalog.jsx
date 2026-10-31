@@ -246,7 +246,6 @@ export default function Catalog() {
 
       <PhilosophyAndFooter
         onOpenTrials={handleOpenTrials}
-        onOpenPrescription={() => handleOpenPrescription(null)}
       />
 
       <ConfiguratorModal

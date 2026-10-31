@@ -199,7 +199,6 @@ export default function Home() {
       <Suspense fallback={null}>
         <PhilosophyAndFooter
           onOpenTrials={handleOpenTrials}
-          onOpenPrescription={() => handleOpenPrescription(null, null)}
         />
       </Suspense>
 

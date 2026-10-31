@@ -96,7 +96,7 @@ export default function FAQAndContact() {
             Preguntas Frecuentes.
           </h2>
           <p className="text-xs sm:text-sm text-cirqa-negro/60 font-light mt-2">
-            Todo lo que necesitás saber sobre la tecnología óptica, el uso circadiano y el calibrado de recetas.
+            Todo lo que necesitás saber sobre la tecnología óptica, el uso circadiano y la certificación de cristales.
           </p>
         </div>
 

@@ -9,7 +9,7 @@ import Image from './Image';
  * Vista de Detalle de Producto (ProductDetail) de CIRQA
  * Con validación temporal automática para Cyber Monday (20% OFF global).
  */
-export default function ProductDetail({ product = {}, onOpenPrescription }) {
+export default function ProductDetail({ product = {} }) {
   const { openCheckout } = useCart();
   const [selectedVariantKey, setSelectedVariantKey] = useState(null);
 
