@@ -1,14 +1,8 @@
 import React from 'react';
+import { isCyberMondayActive } from '../utils/cyberMonday';
 
 export default function AnnouncementBar() {
-  const announcements = [
-    '6 CUOTAS SIN INTERÉS',
-    '15% OFF CON TRANSFERENCIA',
-    'ENVÍO GRATIS A TODO EL PAÍS',
-    'ENTREGAS CERTIFICADAS CON SEGUIMIENTO',
-  ];
-
-  const marqueeText = announcements.join('   ·   ');
+  const isCyber = isCyberMondayActive();
 
   return (
     <div
@@ -21,6 +15,14 @@ export default function AnnouncementBar() {
           <div className="animate-marquee items-center gap-6 text-white/90 font-medium">
             {[...Array(4)].map((_, i) => (
               <span key={i} className="inline-flex items-center gap-6">
+                {isCyber && (
+                  <>
+                    <span className="text-amber-400 font-bold">
+                      🔥 CYBER MONDAY: <strong className="text-white font-extrabold underline decoration-cirqa-primario">20% OFF GLOBAL</strong> EN TODA LA TIENDA
+                    </span>
+                    <span className="text-white/40">·</span>
+                  </>
+                )}
                 <span>
                   <strong className="text-amber-400 font-semibold">6 CUOTAS SIN INTERÉS</strong>
                 </span>

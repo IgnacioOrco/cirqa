@@ -26,6 +26,7 @@ import {
 import { useCart } from '../context/CartContext';
 import { orderService, shippingService, couponService, formatMediaUrl } from '../services/api';
 import { BANK_DETAILS } from '../data/bankDetails';
+import { isCyberMondayActive } from '../utils/cyberMonday';
 
 const PROVINCIAS_ARG = [
   'Ciudad Autónoma de Buenos Aires',
@@ -198,19 +199,24 @@ export default function CheckoutDrawer() {
   const couponDiscount = appliedCoupon ? Math.min(subtotal, Number(appliedCoupon.discountAmount) || 0) : 0;
   const subtotalAfterCoupon = Math.max(0, subtotal - couponDiscount);
 
-  // 4. Descuento Transferencia Bancaria (15% OFF) y Acumulación
+  // 4. Descuento Cyber Monday (20% OFF global automático)
+  const isCyber = isCyberMondayActive();
+  const cyberDiscount = isCyber ? Math.round(subtotalAfterCoupon * 0.20) : 0;
+  const subtotalAfterCyber = Math.max(0, subtotalAfterCoupon - cyberDiscount);
+
+  // 5. Descuento Transferencia Bancaria (15% OFF) y Acumulación
   let transferDiscount = 0;
   if (paymentMethod === 'transfer') {
     if (!appliedCoupon || appliedCoupon.combinableWithTransfer !== false) {
-      transferDiscount = Math.round(subtotalAfterCoupon * 0.15);
+      transferDiscount = Math.round(subtotalAfterCyber * 0.15);
     }
   }
 
-  // 5. Descuento total combinado
-  const totalDiscount = Math.min(subtotal, couponDiscount + transferDiscount);
+  // 6. Descuento total combinado
+  const totalDiscount = Math.min(subtotal, couponDiscount + cyberDiscount + transferDiscount);
   const discountAmount = totalDiscount;
 
-  // 6. Total Final a pagar: (subtotal - totalDiscount) sin cargo de envío
+  // 7. Total Final a pagar: (subtotal - totalDiscount) sin cargo de envío
   const total = Math.max(0, subtotal - totalDiscount);
 
   // Función para validar y aplicar cupón
@@ -511,6 +517,7 @@ export default function CheckoutDrawer() {
       couponCode: appliedCoupon?.code || null,
       couponDiscount,
       transferDiscount,
+      cyberDiscount,
       subtotal: subtotalAmount,
       discountAmount: totalDiscount,
       shippingCost: shippingPrice,
@@ -1456,6 +1463,19 @@ export default function CheckoutDrawer() {
                 </span>
                 <span className="font-mono font-bold">
                   -$ {couponDiscount.toLocaleString('es-AR')}
+                </span>
+              </div>
+            )}
+
+            {/* Descuento 20% Cyber Monday */}
+            {isCyber && cyberDiscount > 0 && (
+              <div className="flex items-center justify-between text-xs text-cirqa-primario font-semibold">
+                <span className="flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-cirqa-primario" />
+                  <span>Descuento Cyber Monday (20% OFF)</span>
+                </span>
+                <span className="font-mono font-bold">
+                  -$ {cyberDiscount.toLocaleString('es-AR')}
                 </span>
               </div>
             )}

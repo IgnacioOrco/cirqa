@@ -13,8 +13,10 @@ import {
   getActiveProductVariants,
   getVariantColor,
 } from '../utils/productImages';
+import { isCyberMondayActive } from '../utils/cyberMonday';
 
 export default function ProductShowcaseCarousel({ onSelectModel }) {
+  const isCyber = isCyberMondayActive();
   const containerRef = useRef(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(true);
@@ -212,6 +214,11 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                       <span className="font-mono text-[11px] bg-white/95 px-2.5 py-1 rounded-full font-medium text-cirqa-negro/70 shadow-2xs border border-cirqa-negro/10">
                         {product.modelCode || product.code}
                       </span>
+                      {isCyber && (
+                        <span className="font-mono text-[10px] bg-cirqa-primario text-white px-2.5 py-0.5 rounded-full font-bold shadow-xs uppercase tracking-wider animate-pulse">
+                          20% OFF CYBER
+                        </span>
+                      )}
                     </div>
 
                     {/* Título & Descripción Dinámicos */}
@@ -322,9 +329,20 @@ export default function ProductShowcaseCarousel({ onSelectModel }) {
                     {/* Pie de Tarjeta: Precio y CTA de Personalización */}
                     <div className="flex items-center justify-between pt-2.5 border-t border-cirqa-negro/5">
                       <div>
-                        <span className="font-mono text-sm font-bold text-cirqa-negro block">
-                          ${Number(product.price || 0).toLocaleString('es-AR')}
-                        </span>
+                        {isCyber ? (
+                          <div className="flex items-baseline gap-1.5 font-mono">
+                            <span className="line-through text-gray-400 text-sm">
+                              ${Number(product.price || 0).toLocaleString('es-AR')}
+                            </span>
+                            <span className="text-cirqa-primario font-bold">
+                              ${Math.round(Number(product.price || 0) * 0.8).toLocaleString('es-AR')}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="font-mono text-sm font-bold text-cirqa-negro block">
+                            ${Number(product.price || 0).toLocaleString('es-AR')}
+                          </span>
+                        )}
                         <span className="text-[10px] text-emerald-700 font-medium block">
                           6 cuotas sin interés
                         </span>

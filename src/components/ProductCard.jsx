@@ -11,6 +11,7 @@ import {
   DEFAULT_CIRCADIAN_VARIANTS,
 } from '../utils/productImages';
 import { FILTERS } from '../data/filters';
+import { isCyberMondayActive } from '../utils/cyberMonday';
 
 import Image from './Image';
 
@@ -69,10 +70,13 @@ export default function ProductCard({
     }
   };
 
-  // Precio reactivo con modificador si aplica
+  // Precio reactivo con modificador si aplica y validación de Cyber Monday
+  const isCyber = isCyberMondayActive();
   const basePrice = Number(product.price) || 0;
   const modifier = activeOptionObj?.priceModifier || 0;
-  const finalPrice = basePrice + modifier;
+  const originalPrice = basePrice + modifier;
+  const discountedPrice = Math.round(originalPrice * 0.8);
+  const finalPrice = isCyber ? discountedPrice : originalPrice;
   const formattedPrice = `$ ${finalPrice.toLocaleString('es-AR')}`;
 
   return (
@@ -131,11 +135,16 @@ export default function ProductCard({
           <div className="absolute bottom-3.5 left-1/2 -translate-x-1/2 w-24 h-1 bg-black/18 rounded-[100%] blur-xs pointer-events-none transition-all duration-500 group-hover:w-20 group-hover:opacity-60" />
         </div>
 
-        {/* Badge Flotante Superior: Código de Modelo */}
-        <div className="absolute top-4 left-4 z-20 flex items-center gap-1.5">
+        {/* Badges Flotantes Superiores: Código de Modelo y Badge Cyber Monday */}
+        <div className="absolute top-4 left-4 right-4 z-20 flex items-center justify-between pointer-events-none">
           <span className="font-mono text-[10px] bg-white/95 backdrop-blur-xs px-2.5 py-0.5 rounded-full font-semibold text-cirqa-negro/80 shadow-2xs border border-cirqa-negro/10">
             {product.modelCode || product.code}
           </span>
+          {isCyber && (
+            <span className="font-mono text-[10px] bg-cirqa-primario text-white px-2.5 py-0.5 rounded-full font-bold shadow-xs uppercase tracking-wider animate-pulse">
+              20% OFF CYBER
+            </span>
+          )}
         </div>
       </div>
 
@@ -146,9 +155,20 @@ export default function ProductCard({
             <h3 className="text-base font-semibold text-cirqa-negro tracking-tight group-hover:text-cirqa-primario transition-colors">
               {product.name}
             </h3>
-            <span className="font-mono text-sm font-bold text-cirqa-negro flex-shrink-0">
-              {formattedPrice}
-            </span>
+            {isCyber ? (
+              <div className="flex items-baseline gap-1.5 flex-shrink-0 font-mono">
+                <span className="line-through text-gray-400 text-sm">
+                  ${originalPrice.toLocaleString('es-AR')}
+                </span>
+                <span className="text-cirqa-primario font-bold">
+                  ${discountedPrice.toLocaleString('es-AR')}
+                </span>
+              </div>
+            ) : (
+              <span className="font-mono text-sm font-bold text-cirqa-negro flex-shrink-0">
+                {formattedPrice}
+              </span>
+            )}
           </div>
           <p className="text-[11px] text-cirqa-negro/60 font-light line-clamp-1 mt-0.5">
             {product.description || 'Acetato de celulosa de alta densidad y protección 100% UV400.'}

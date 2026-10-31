@@ -15,6 +15,7 @@ import {
   inferImageTag,
   getVariantColor,
 } from '../utils/productImages';
+import { isCyberMondayActive } from '../utils/cyberMonday';
 import { useCart } from '../context/CartContext';
 
 export default function ConfiguratorModal({
@@ -138,11 +139,14 @@ export default function ConfiguratorModal({
     ? formatMediaUrl(activeImageObj.url)
     : getPrimaryProductImage(currentModel, selectedVariant?.key);
 
-  // Cálculo de precio reactivo
+  // Cálculo de precio reactivo con Cyber Monday
+  const isCyber = isCyberMondayActive();
   const basePrice = Number(currentModel.price) || 0;
   const variantPriceModifier = selectedVariant ? Number(selectedVariant.priceModifier) || 0 : 0;
   const calculatedPrice = basePrice + variantPriceModifier;
-  const formattedPrice = `$ ${calculatedPrice.toLocaleString('es-AR')}`;
+  const cyberPrice = Math.round(calculatedPrice * 0.8);
+  const finalPrice = isCyber ? cyberPrice : calculatedPrice;
+  const formattedPrice = `$ ${finalPrice.toLocaleString('es-AR')}`;
 
   const availableStock = selectedVariant?.stock !== undefined ? Number(selectedVariant.stock) : Number(currentModel.stock ?? 0);
   const isModelOutOfStock = availableStock <= 0;
@@ -512,21 +516,39 @@ export default function ConfiguratorModal({
 
                 {/* 4. Formas de Pago Visibles en el Configurador */}
                 <div className="p-3.5 sm:p-4 rounded-xl sm:rounded-2xl bg-[#FAF9F6] border border-cirqa-negro/10 space-y-1.5">
-                  <div className="flex items-baseline justify-between">
-                    <span className="text-2xl font-bold font-mono text-cirqa-negro">
-                      {formattedPrice}
-                    </span>
-                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                      15% OFF TRANSFERENCIA
-                    </span>
+                  <div className="flex items-baseline justify-between flex-wrap gap-2">
+                    {isCyber ? (
+                      <div className="flex items-baseline gap-2">
+                        <span className="line-through text-gray-400 text-sm font-mono">
+                          ${calculatedPrice.toLocaleString('es-AR')}
+                        </span>
+                        <span className="text-2xl font-bold font-mono text-cirqa-primario">
+                          ${cyberPrice.toLocaleString('es-AR')}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-2xl font-bold font-mono text-cirqa-negro">
+                        {formattedPrice}
+                      </span>
+                    )}
+                    <div className="flex items-center gap-1.5">
+                      {isCyber && (
+                        <span className="text-[10px] font-black uppercase tracking-wider text-white bg-cirqa-primario px-2.5 py-1 rounded-full shadow-xs animate-pulse">
+                          20% OFF CYBER
+                        </span>
+                      )}
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                        15% OFF TRANSFERENCIA
+                      </span>
+                    </div>
                   </div>
                   <div className="text-xs space-y-1 pt-1.5 border-t border-cirqa-negro/5">
                     <p className="text-cirqa-negro font-semibold flex items-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
-                      <span>6 cuotas sin interés de <strong>${Math.round(calculatedPrice / 6).toLocaleString('es-AR')}</strong></span>
+                      <span>6 cuotas sin interés de <strong>${Math.round(finalPrice / 6).toLocaleString('es-AR')}</strong></span>
                     </p>
                     <p className="text-emerald-700 font-medium">
-                      o <strong>${Math.round(calculatedPrice * 0.85).toLocaleString('es-AR')}</strong> (15% OFF) pagando con Transferencia
+                      o <strong>${Math.round(finalPrice * 0.85).toLocaleString('es-AR')}</strong> (15% OFF) pagando con Transferencia
                     </p>
                   </div>
                 </div>

@@ -6,6 +6,9 @@ import Coupon from '../models/Coupon.js';
 import { calculateCouponDiscount } from './couponController.js';
 import zipnovaService, { createShipment } from '../services/zipnovaService.js';
 import { sendOrderNotificationToAdmin } from '../services/emailService.js';
+import { isCyberMondayActive } from '../utils/cyberMonday.js';
+
+export { isCyberMondayActive };
 
 /**
  * Inicializar cliente de Mercado Pago con el Access Token
@@ -63,9 +66,11 @@ export const createOrderPreference = async (req, res, next) => {
     }
 
     const couponDiscount = Number(order.couponDiscount || 0);
-    const netProductsTotal = Math.max(0, Number(order.subtotal || 0) - couponDiscount);
+    const cyberDiscount = Number(order.cyberDiscount || 0);
+    const hasDiscount = couponDiscount > 0 || cyberDiscount > 0 || Number(order.discountAmount || 0) > 0;
+    const netProductsTotal = hasDiscount ? Number(order.totalAmount || 0) : Math.max(0, Number(order.subtotal || 0));
 
-    const mpItems = couponDiscount > 0
+    const mpItems = hasDiscount
       ? [
           {
             id: 'cirqa-order-net',
@@ -394,8 +399,22 @@ export const createPreference = async (req, res, next) => {
       }
     }
 
-    const discountAmount = Math.min(subtotal, couponDiscount + transferDiscount);
-    const totalAmount = Math.max(0, subtotal - discountAmount);
+    let discountAmount = Math.min(subtotal, couponDiscount + transferDiscount);
+    let totalAmount = Math.max(0, subtotal - discountAmount);
+
+    // Validación e Intercepción Cyber Monday (20% OFF global hardcodeado por fecha GMT-3)
+    const isCyber = isCyberMondayActive();
+    let cyberDiscount = 0;
+
+    if (isCyber) {
+      // Seguridad matemática:
+      // Calculamos el 20% de descuento sobre totalAmount redondeado al entero más cercano (pesos ARS).
+      // Garantizamos que totalAmount nunca sea negativo y que discountAmount mantenga consistencia con subtotal.
+      const previousTotal = totalAmount;
+      totalAmount = Math.max(0, Math.round(previousTotal * 0.8));
+      cyberDiscount = Math.max(0, previousTotal - totalAmount);
+      discountAmount = Math.min(subtotal, discountAmount + cyberDiscount);
+    }
 
     const year = new Date().getFullYear();
     const randomCode = Math.floor(100000 + Math.random() * 900000);
@@ -410,6 +429,7 @@ export const createPreference = async (req, res, next) => {
       couponCode: appliedCoupon ? appliedCoupon.code : null,
       couponDiscount,
       transferDiscount,
+      cyberDiscount,
       discountAmount,
       shippingCost: numericShippingCost,
       shippingMethod: shippingMethodTitle,
@@ -486,6 +506,7 @@ export const createPreference = async (req, res, next) => {
         couponCode: order.couponCode,
         couponDiscount,
         transferDiscount,
+        cyberDiscount,
         discountAmount,
         shippingCost: numericShippingCost,
         totalAmount,
@@ -498,6 +519,7 @@ export const createPreference = async (req, res, next) => {
           couponCode: order.couponCode,
           couponDiscount,
           transferDiscount,
+          cyberDiscount,
           discountAmount,
           shippingCost: numericShippingCost,
           totalAmount,
@@ -517,13 +539,14 @@ export const createPreference = async (req, res, next) => {
       const client = getMercadoPagoClient();
       const preference = new Preference(client);
 
-      const netProductsTotal = Math.max(0, subtotal - couponDiscount);
-      const preferenceItems = couponDiscount > 0
+      // Intercepción Mercado Pago: cobrar exactamente el totalAmount validado
+      const hasDiscount = discountAmount > 0 || couponDiscount > 0 || cyberDiscount > 0 || isCyber;
+      const preferenceItems = hasDiscount
         ? [
             {
               id: 'cirqa-cart-net',
-              title: `Pedido CIRQA (${validatedItems.length} producto${validatedItems.length > 1 ? 's' : ''})`,
-              unit_price: netProductsTotal,
+              title: `Pedido CIRQA (${validatedItems.length} producto${validatedItems.length > 1 ? 's' : ''})${isCyber ? ' · Cyber Monday 20% OFF' : ''}`,
+              unit_price: totalAmount,
               quantity: 1,
               currency_id: 'ARS',
               description: validatedItems.map((item) => `${item.quantity}x ${item.name}${item.filter ? ` (${item.filter})` : ''}`).join(', '),
@@ -606,6 +629,7 @@ export const createPreference = async (req, res, next) => {
       couponCode: order.couponCode,
       couponDiscount,
       transferDiscount,
+      cyberDiscount,
       discountAmount,
       shippingCost: numericShippingCost,
       totalAmount,
@@ -618,6 +642,7 @@ export const createPreference = async (req, res, next) => {
         couponCode: order.couponCode,
         couponDiscount,
         transferDiscount,
+        cyberDiscount,
         discountAmount,
         shippingCost: numericShippingCost,
         totalAmount,

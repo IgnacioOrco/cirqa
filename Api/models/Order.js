@@ -99,7 +99,12 @@ const orderSchema = new mongoose.Schema(
       default: 0,
       min: [0, 'El descuento por transferencia no puede ser negativo'],
     },
-    // Descuento total: Suma de couponDiscount + transferDiscount
+    cyberDiscount: {
+      type: Number,
+      default: 0,
+      min: [0, 'El descuento por Cyber Monday no puede ser negativo'],
+    },
+    // Descuento total: Suma de couponDiscount + transferDiscount + cyberDiscount
     discountAmount: {
       type: Number,
       default: 0,
