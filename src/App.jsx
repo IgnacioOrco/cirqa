@@ -1,6 +1,7 @@
-import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Home from './pages/Home';
+import { trackPageView } from './utils/metaPixel';
 
 // Lazy loading de rutas pesadas y secundarias
 const Catalog = lazy(() => import('./pages/Catalog'));
@@ -23,6 +24,22 @@ import WhatsAppFloatingButton from './components/WhatsAppFloatingButton';
  * - Para previsualizar la tienda completa sin desactivar este modo, visita cualquier URL con: `?preview=cirqa`
  */
 const COMING_SOON_MODE = import.meta.env.VITE_COMING_SOON === 'true';
+
+function MetaPixelPageTracker() {
+  const location = useLocation();
+  const isFirstRender = useRef(true);
+
+  useEffect(() => {
+    // Evita duplicar el PageView inicial ya disparado en index.html
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    trackPageView();
+  }, [location.pathname]);
+
+  return null;
+}
 
 export default function App() {
   const [isPreview, setIsPreview] = useState(() => {
@@ -60,6 +77,7 @@ export default function App() {
   return (
     <CartProvider>
       <BrowserRouter>
+        <MetaPixelPageTracker />
         <Suspense fallback={<div className="min-h-screen bg-white" />}>
           <Routes>
             {/* Rutas de Administración accesibles para administradores */}

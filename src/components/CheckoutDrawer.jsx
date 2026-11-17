@@ -27,6 +27,7 @@ import { useCart } from '../context/CartContext';
 import { orderService, shippingService, couponService, formatMediaUrl } from '../services/api';
 import { BANK_DETAILS } from '../data/bankDetails';
 import { isCyberMondayActive } from '../utils/cyberMonday';
+import { trackPurchase } from '../utils/metaPixel';
 
 const PROVINCIAS_ARG = [
   'Ciudad Autónoma de Buenos Aires',
@@ -600,6 +601,12 @@ export default function CheckoutDrawer() {
 
         const createdOrderId = response?.orderId || response?.data?.orderId;
         const finalCalculatedTotal = response?.totalAmount || response?.data?.totalAmount || total;
+
+        // Disparar evento Purchase en Meta Pixel para orden confirmada por transferencia
+        trackPurchase({
+          value: Number(finalCalculatedTotal || 0),
+          currency: 'ARS',
+        });
 
         // Construir mensaje preformateado para WhatsApp oficial de CIRQA
         const waMessage = `Hola CIRQA! Acabo de realizar el pedido *#${orderNum}* por un total de *$${finalCalculatedTotal.toLocaleString('es-AR')}*. Adjunto el comprobante de transferencia.`;

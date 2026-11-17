@@ -5,7 +5,7 @@ import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
 import { calculateCouponDiscount } from './couponController.js';
 import zipnovaService, { createShipment } from '../services/zipnovaService.js';
-import { sendOrderNotificationToAdmin } from '../services/emailService.js';
+import { sendOrderNotificationToAdmin, sendAdminNewOrderEmail } from '../services/emailService.js';
 import { isCyberMondayActive } from '../utils/cyberMonday.js';
 
 export { isCyberMondayActive };
@@ -497,6 +497,15 @@ export const createPreference = async (req, res, next) => {
         }
       }
 
+      // Aviso automático al administrador por nueva orden por transferencia (no bloqueante)
+      try {
+        sendAdminNewOrderEmail(order).catch((emailErr) => {
+          console.error('[createPreference Transfer Email Error]:', emailErr.message);
+        });
+      } catch (emailErr) {
+        console.error('[createPreference Transfer Email Error]:', emailErr.message);
+      }
+
       return res.status(201).json({
         success: true,
         orderId: order._id,
@@ -707,6 +716,9 @@ export const updateOrderStatus = async (req, res, next) => {
       try {
         sendOrderNotificationToAdmin({ order, eventType: 'paid' }).catch((err) => {
           console.error('[updateOrderStatus Email Error]:', err.message);
+        });
+        sendAdminNewOrderEmail(order).catch((err) => {
+          console.error('[updateOrderStatus Admin Email Error]:', err.message);
         });
       } catch (err) {
         console.error('[updateOrderStatus Email Error]:', err.message);

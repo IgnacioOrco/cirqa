@@ -2,7 +2,7 @@ import crypto from 'node:crypto';
 import mongoose from 'mongoose';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
-import { sendOrderNotificationToAdmin } from '../services/emailService.js';
+import { sendOrderNotificationToAdmin, sendAdminNewOrderEmail } from '../services/emailService.js';
 import { createShipment } from '../services/zipnovaService.js';
 
 /**
@@ -127,10 +127,13 @@ const processPaymentUpdate = async (paymentId) => {
         console.error('[Webhook MP Stock Error]:', stockErr.message);
       }
 
-      // 2. Notificación por email a info@cirqa.com.ar de orden aprobada
+      // 2. Notificación por email al administrador de orden aprobada (no bloqueante)
       try {
         sendOrderNotificationToAdmin({ order: updatedOrder, eventType: 'paid' }).catch((emailErr) => {
           console.error('[Webhook MP Email Error]:', emailErr.message);
+        });
+        sendAdminNewOrderEmail(updatedOrder).catch((emailErr) => {
+          console.error('[Webhook MP Admin Email Error]:', emailErr.message);
         });
       } catch (emailErr) {
         console.error('[Webhook MP Email Error]:', emailErr.message);

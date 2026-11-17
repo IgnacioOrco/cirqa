@@ -10,6 +10,22 @@
  * @returns {boolean}
  */
 export const isCyberMondayActive = (testDate = null) => {
+  // Soporte de previsualización rápida para pruebas (ej: ?cyber=preview o sessionStorage)
+  if (typeof window !== 'undefined') {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('cyber') === 'preview' || params.get('cyber') === 'true') {
+        sessionStorage.setItem('cirqa_cyber_preview', 'true');
+        return true;
+      }
+      if (params.get('cyber') === 'exit' || params.get('cyber') === 'false') {
+        sessionStorage.removeItem('cirqa_cyber_preview');
+      } else if (sessionStorage.getItem('cirqa_cyber_preview') === 'true') {
+        return true;
+      }
+    } catch {}
+  }
+
   const now = testDate instanceof Date ? testDate : new Date();
   const cyberStart = new Date('2026-11-02T00:00:00-03:00');
   const cyberEnd = new Date('2026-11-06T23:59:59-03:00');

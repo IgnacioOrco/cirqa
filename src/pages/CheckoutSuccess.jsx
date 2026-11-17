@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { orderService, formatMediaUrl } from '../services/api';
 import { useCart } from '../context/CartContext';
+import { trackPurchase } from '../utils/metaPixel';
 
 export default function CheckoutSuccess() {
   const [searchParams] = useSearchParams();
@@ -33,11 +34,23 @@ export default function CheckoutSuccess() {
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const hasTrackedPurchase = useRef(false);
 
   // Limpiar carrito de compras al confirmar éxito
   useEffect(() => {
     clearCart();
   }, [clearCart]);
+
+  // Disparar evento Purchase de Meta Pixel una sola vez al cargar la orden confirmada
+  useEffect(() => {
+    if (order && !hasTrackedPurchase.current) {
+      hasTrackedPurchase.current = true;
+      trackPurchase({
+        value: Number(order.totalAmount || 0),
+        currency: 'ARS',
+      });
+    }
+  }, [order]);
 
   // Cargar datos de la orden
   useEffect(() => {

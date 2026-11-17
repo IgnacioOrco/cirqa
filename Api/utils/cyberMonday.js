@@ -10,6 +10,9 @@
  * @returns {boolean}
  */
 export const isCyberMondayActive = (testDate = null) => {
+  if (process.env.CYBER_MONDAY_PREVIEW === 'true') {
+    return true;
+  }
   const now = testDate instanceof Date ? testDate : new Date();
   const cyberStart = new Date('2026-11-02T00:00:00-03:00');
   const cyberEnd = new Date('2026-11-06T23:59:59-03:00');

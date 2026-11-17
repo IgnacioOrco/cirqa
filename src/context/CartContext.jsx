@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { trackAddToCart, trackInitiateCheckout } from '../utils/metaPixel';
 
 const CartContext = createContext(null);
 
@@ -47,12 +48,19 @@ export function CartProvider({ children }) {
     const lineId = `${product._id || product.id || 'item'}_${resolvedVariantKey}_${prescription ? 'rx' : 'std'}`;
 
     const resolvedPrice = Number(price ?? product.price ?? 0);
+    const safeQty = Math.max(1, quantity);
+
+    trackAddToCart({
+      value: resolvedPrice * safeQty,
+      currency: 'ARS',
+      content_name: product.name || 'Armazón CIRQA',
+    });
 
     setItems((prevItems) => {
       const existingIndex = prevItems.findIndex((it) => it.id === lineId);
       if (existingIndex > -1) {
         const next = [...prevItems];
-        next[existingIndex].quantity += quantity;
+        next[existingIndex].quantity += safeQty;
         return next;
       }
 
@@ -71,7 +79,7 @@ export function CartProvider({ children }) {
         badgeColor: badgeColor || variant?.badgeColor || filter?.hexCode || '#FFFFFF',
         filter: filter || { id: 'dia', name: 'Día', tag: '84%', hexCode: '#F3B93A' },
         prescription: prescription || null,
-        quantity: Math.max(1, quantity),
+        quantity: safeQty,
       };
 
       return [...prevItems, newItem];
@@ -80,6 +88,10 @@ export function CartProvider({ children }) {
     if (options.openCheckout) {
       setCheckoutTargetItem(null);
       setIsCheckoutOpen(true);
+      trackInitiateCheckout({
+        value: cartTotal + resolvedPrice * safeQty,
+        currency: 'ARS',
+      });
     }
   };
 
@@ -109,6 +121,23 @@ export function CartProvider({ children }) {
 
   // Abrir checkout con el carrito completo o con un producto específico directamente
   const openCheckout = (directItem = null) => {
+    if (directItem) {
+      const directValue = Number(directItem.price || 0) * Math.max(1, directItem.quantity || 1);
+      trackAddToCart({
+        value: directValue,
+        currency: 'ARS',
+        content_name: directItem.name || 'Armazón CIRQA',
+      });
+      trackInitiateCheckout({
+        value: directValue,
+        currency: 'ARS',
+      });
+    } else {
+      trackInitiateCheckout({
+        value: cartTotal,
+        currency: 'ARS',
+      });
+    }
     setCheckoutTargetItem(directItem);
     setIsCheckoutOpen(true);
   };
