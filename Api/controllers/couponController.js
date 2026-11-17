@@ -1,5 +1,29 @@
 import mongoose from 'mongoose';
 import Coupon from '../models/Coupon.js';
+import Order from '../models/Order.js';
+
+/**
+ * Garantiza que el cupón de bienvenida BIENVENIDA5 (5% OFF) exista en la base de datos.
+ */
+export const ensureWelcomeCoupon = async () => {
+  try {
+    const existing = await Coupon.findOne({ code: 'BIENVENIDA5' });
+    if (existing) return existing;
+
+    return await Coupon.create({
+      code: 'BIENVENIDA5',
+      description: '5% OFF de Bienvenida (1 uso por email)',
+      discountType: 'percentage',
+      discountValue: 5,
+      isActive: true,
+      combinableWithTransfer: true,
+      maxUsesPerCustomer: 1,
+    });
+  } catch (err) {
+    // En caso de condición de carrera por índice único, retornar el existente
+    return await Coupon.findOne({ code: 'BIENVENIDA5' });
+  }
+};
 
 /**
  * Función centralizada para calcular el descuento de un cupón sobre un carrito
@@ -189,7 +213,11 @@ export const validateCoupon = async (req, res, next) => {
     }
 
     const cleanCode = code.trim().toUpperCase();
-    const coupon = await Coupon.findOne({ code: cleanCode });
+    let coupon = await Coupon.findOne({ code: cleanCode });
+
+    if (!coupon && cleanCode === 'BIENVENIDA5') {
+      coupon = await ensureWelcomeCoupon();
+    }
 
     if (!coupon) {
       return res.status(404).json({
@@ -197,6 +225,25 @@ export const validateCoupon = async (req, res, next) => {
         valid: false,
         message: 'El código de cupón ingresado no existe.',
       });
+    }
+
+    // Regla anti-abuso: BIENVENIDA5 solo puede usarse 1 vez por email en órdenes activas/completadas
+    if (cleanCode === 'BIENVENIDA5' && customerEmail && typeof customerEmail === 'string') {
+      const cleanEmail = customerEmail.trim().toLowerCase();
+      if (cleanEmail) {
+        const existingWelcomeOrder = await Order.findOne({
+          'customer.email': cleanEmail,
+          couponCode: 'BIENVENIDA5',
+          status: { $nin: ['cancelled', 'rejected', 'CANCELLED', 'REJECTED'] },
+        });
+        if (existingWelcomeOrder) {
+          return res.status(400).json({
+            success: false,
+            valid: false,
+            message: 'Este cupón de bienvenida ya fue utilizado con este correo electrónico',
+          });
+        }
+      }
     }
 
     const calculatedSubtotal = subtotal !== undefined ? Number(subtotal) : (

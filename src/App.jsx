@@ -12,6 +12,7 @@ const CheckoutSuccess = lazy(() => import('./pages/CheckoutSuccess'));
 const CheckoutFailure = lazy(() => import('./pages/CheckoutFailure'));
 const CheckoutPending = lazy(() => import('./pages/CheckoutPending'));
 const CheckoutModal = lazy(() => import('./components/CheckoutModal'));
+const LeadPopup = lazy(() => import('./components/LeadPopup'));
 
 import PrivateRoute from './components/PrivateRoute';
 import { CartProvider } from './context/CartContext';
@@ -112,6 +113,9 @@ export default function App() {
 
           {/* Modal Global de Checkout */}
           <CheckoutModal />
+
+          {/* Popup de Captura de Leads (5% OFF Bienvenida) */}
+          {!showComingSoon && <LeadPopup />}
 
           {/* Botón flotante de WhatsApp en versión celular */}
           <WhatsAppFloatingButton />

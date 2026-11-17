@@ -24,7 +24,7 @@ import {
   Percent,
 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { orderService, shippingService, couponService, formatMediaUrl } from '../services/api';
+import { orderService, shippingService, couponService, abandonedCartService, formatMediaUrl } from '../services/api';
 import { BANK_DETAILS } from '../data/bankDetails';
 import { isCyberMondayActive } from '../utils/cyberMonday';
 import { trackPurchase } from '../utils/metaPixel';
@@ -883,6 +883,24 @@ export default function CheckoutDrawer() {
                     name="email"
                     value={formData.email}
                     onChange={handleChange}
+                    onBlur={() => {
+                      const cleanEmail = formData.email.trim().toLowerCase();
+                      if (
+                        cleanEmail &&
+                        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) &&
+                        activeItems.length > 0
+                      ) {
+                        abandonedCartService
+                          .save({
+                            name: formData.name.trim(),
+                            email: cleanEmail,
+                            phone: formData.phone.trim(),
+                            items: activeItems,
+                            subtotal,
+                          })
+                          .catch(() => {});
+                      }
+                    }}
                     placeholder="tu@email.com"
                     className={`w-full px-3 py-2 rounded-xl border text-xs text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${
                       errors.email ? 'border-cirqa-carmin' : 'border-cirqa-negro/15 focus:border-cirqa-primario'

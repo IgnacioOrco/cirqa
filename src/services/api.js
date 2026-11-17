@@ -627,9 +627,26 @@ export const couponService = {
   delete: (id) => api.delete(`/api/coupons/${id}`),
 };
 
+/**
+ * Servicio de Leads (Popup 5% OFF Bienvenida)
+ */
+export const leadService = {
+  create: (payload) => api.post('/api/leads', payload),
+  getAll: () => api.get('/api/leads'),
+};
+
+/**
+ * Servicio de Carritos Abandonados
+ */
+export const abandonedCartService = {
+  save: (payload) => api.post('/api/abandoned-carts', payload),
+};
+
 // Adjuntar orderService y couponService al objeto api default para flexibilidad de importación
 api.orderService = orderService;
 api.couponService = couponService;
+api.leadService = leadService;
+api.abandonedCartService = abandonedCartService;
 
 export default api;
 

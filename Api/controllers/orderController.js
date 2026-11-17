@@ -3,7 +3,8 @@ import { MercadoPagoConfig, Preference } from 'mercadopago';
 import Order from '../models/Order.js';
 import Product from '../models/Product.js';
 import Coupon from '../models/Coupon.js';
-import { calculateCouponDiscount } from './couponController.js';
+import AbandonedCart from '../models/AbandonedCart.js';
+import { calculateCouponDiscount, ensureWelcomeCoupon } from './couponController.js';
 import zipnovaService, { createShipment } from '../services/zipnovaService.js';
 import { sendOrderNotificationToAdmin, sendAdminNewOrderEmail } from '../services/emailService.js';
 import { isCyberMondayActive } from '../utils/cyberMonday.js';
@@ -379,7 +380,26 @@ export const createPreference = async (req, res, next) => {
 
     if (rawCouponCode && typeof rawCouponCode === 'string') {
       const cleanCode = rawCouponCode.trim().toUpperCase();
-      const foundCoupon = await Coupon.findOne({ code: cleanCode });
+
+      // Regla anti-abuso: 1 uso por email para BIENVENIDA5 en órdenes no canceladas/rechazadas
+      if (cleanCode === 'BIENVENIDA5' && normalizedCustomer.email) {
+        const existingWelcomeOrder = await Order.findOne({
+          'customer.email': normalizedCustomer.email,
+          couponCode: 'BIENVENIDA5',
+          status: { $nin: ['cancelled', 'rejected', 'CANCELLED', 'REJECTED'] },
+        });
+        if (existingWelcomeOrder) {
+          return res.status(400).json({
+            success: false,
+            message: 'Este cupón de bienvenida ya fue utilizado con este correo electrónico',
+          });
+        }
+      }
+
+      let foundCoupon = await Coupon.findOne({ code: cleanCode });
+      if (!foundCoupon && cleanCode === 'BIENVENIDA5') {
+        foundCoupon = await ensureWelcomeCoupon();
+      }
       if (foundCoupon) {
         const calcResult = calculateCouponDiscount(foundCoupon, validatedItems, subtotal, normalizedCustomer.email);
         if (calcResult.valid && calcResult.discountAmount > 0) {
@@ -458,6 +478,21 @@ export const createPreference = async (req, res, next) => {
     });
 
     await order.save();
+
+    // Marcar carritos abandonados del comprador como recuperados (no bloqueante)
+    if (normalizedCustomer.email) {
+      try {
+        await AbandonedCart.updateMany(
+          {
+            email: normalizedCustomer.email,
+            status: { $in: ['pending', 'notified'] },
+          },
+          { $set: { status: 'recovered' } }
+        );
+      } catch (abandonedErr) {
+        console.error('[createPreference AbandonedCart Recovery Error]:', abandonedErr.message);
+      }
+    }
 
     // Notificación por email a info@cirqa.com.ar de nuevo pedido creado (no bloqueante)
     try {

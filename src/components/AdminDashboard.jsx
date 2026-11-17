@@ -38,6 +38,7 @@ import {
   ArrowLeft,
   ArrowUp,
   ArrowDown,
+  Users,
 } from 'lucide-react';
 import {
   productService,
@@ -48,6 +49,7 @@ import {
 import { autoAssignMissingVariantKeys, normalizeVariantKey } from '../utils/productImages';
 import OrdersTab from './admin/OrdersTab';
 import CouponsTab from './admin/CouponsTab';
+import LeadsTab from './admin/LeadsTab';
 
 export const CANONICAL_VARIANTS = [
   { key: 'clear', name: 'Clear', subtitle: 'USO DIARIO', colorHex: '#CBD5E1', badgeColor: '#CBD5E1' },
@@ -1774,6 +1776,23 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 {ordersCount}
               </span>
             </button>
+
+            <button
+              onClick={() => {
+                setActiveTab('leads');
+                setSidebarOpen(false);
+              }}
+              className={`w-full flex items-center justify-between px-4 py-3.5 rounded-2xl text-xs font-medium tracking-wide transition-all ${
+                activeTab === 'leads'
+                  ? 'bg-white text-cirqa-negro shadow-md font-semibold'
+                  : 'text-white/70 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <Users className={`w-4 h-4 ${activeTab === 'leads' ? 'text-cirqa-primario' : 'text-cirqa-arena'}`} />
+                <span>Leads (5% OFF)</span>
+              </div>
+            </button>
           </nav>
         </div>
 
@@ -1850,7 +1869,13 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
                 </span>
               </div>
               <h1 className="text-2xl sm:text-3xl font-light tracking-tight text-cirqa-negro">
-                {activeTab === 'inventory' ? 'Gestión de Inventario' : activeTab === 'orders' ? 'Gestión de Pedidos' : 'Gestión de Cupones y Descuentos'}
+                {activeTab === 'inventory'
+                  ? 'Gestión de Inventario'
+                  : activeTab === 'orders'
+                  ? 'Gestión de Pedidos'
+                  : activeTab === 'leads'
+                  ? 'Leads Capturados (5% OFF)'
+                  : 'Gestión de Cupones y Descuentos'}
               </h1>
             </div>
 
@@ -2234,6 +2259,12 @@ export default function AdminDashboard({ authToken: propToken, onLogout: propOnL
 
           {activeTab === 'coupons' && (
             <CouponsTab
+              showToast={showToast}
+            />
+          )}
+
+          {activeTab === 'leads' && (
+            <LeadsTab
               showToast={showToast}
             />
           )}

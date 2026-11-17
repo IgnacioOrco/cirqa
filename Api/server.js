@@ -13,9 +13,13 @@ import webhookRoutes from './routes/webhookRoutes.js';
 import orderRoutes from './routes/orderRoutes.js';
 import shippingRoutes from './routes/shippingRoutes.js';
 import couponRoutes from './routes/couponRoutes.js';
+import leadRoutes from './routes/leadRoutes.js';
+import abandonedCartRoutes from './routes/abandonedCartRoutes.js';
 
 // Cron Jobs
 import { initCancelExpiredOrdersCron } from './jobs/cancelExpiredOrders.js';
+import { initAbandonedCartJob } from './jobs/abandonedCartJob.js';
+import { ensureWelcomeCoupon } from './controllers/couponController.js';
 
 
 // Importar Middlewares de Error
@@ -107,6 +111,8 @@ app.use('/api/products', productRoutes);
 app.use('/api/filters', filterRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/coupons', couponRoutes);
+app.use('/api/leads', leadRoutes);
+app.use('/api/abandoned-carts', abandonedCartRoutes);
 app.use('/api/shipping', shippingRoutes);
 app.use('/shipping', shippingRoutes);
 app.use('/api/webhooks', webhookRoutes);
@@ -124,6 +130,14 @@ app.listen(PORT, () => {
   
   // Inicializar cron de cancelación de órdenes vencidas
   initCancelExpiredOrdersCron();
+
+  // Inicializar worker de recuperación de carritos abandonados (cada 15 min)
+  initAbandonedCartJob();
+
+  // Sembrar cupón BIENVENIDA5 (5% OFF) si no existe
+  ensureWelcomeCoupon().catch((err) => {
+    console.error('[CIRQA API] Error sembrando cupón BIENVENIDA5:', err.message);
+  });
 });
 
 export default app;
