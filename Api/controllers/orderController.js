@@ -33,6 +33,32 @@ const getMercadoPagoClient = () => {
   return new MercadoPagoConfig({ accessToken });
 };
 
+const getCleanClientUrl = () =>
+  (process.env.CLIENT_URL || 'http://localhost:5173').split(',')[0].trim().replace(/\/+$/, '');
+
+const getCleanApiUrl = () =>
+  (process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`).split(',')[0].trim().replace(/\/+$/, '');
+
+const buildMpIdentification = (rawDni) => {
+  const cleanDoc = String(rawDni || '').replace(/\D/g, '');
+  if (cleanDoc.length === 11) {
+    return { type: 'CUIL', number: cleanDoc };
+  }
+  if (cleanDoc.length >= 7 && cleanDoc.length <= 8) {
+    return { type: 'DNI', number: cleanDoc };
+  }
+  return undefined;
+};
+
+const normalizeMpPictureUrl = (url, clientUrl, apiUrl) => {
+  if (!url || typeof url !== 'string') return undefined;
+  const trimmed = url.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  if (trimmed.startsWith('/uploads')) return `${apiUrl}${trimmed}`;
+  if (trimmed.startsWith('/')) return `${clientUrl}${trimmed}`;
+  return undefined;
+};
+
 /**
  * @desc    Crear una preferencia de pago en Mercado Pago para una orden existente
  * @route   POST /api/orders/:orderId/preference
@@ -71,33 +97,34 @@ export const createOrderPreference = async (req, res, next) => {
     const hasDiscount = couponDiscount > 0 || cyberDiscount > 0 || Number(order.discountAmount || 0) > 0;
     const netProductsTotal = hasDiscount ? Number(order.totalAmount || 0) : Math.max(0, Number(order.subtotal || 0));
 
+    const clientUrl = getCleanClientUrl();
+    const apiUrl = getCleanApiUrl();
+
     const mpItems = hasDiscount
       ? [
-          {
-            id: 'cirqa-order-net',
-            title: `Pedido CIRQA (${order.items.length} producto${order.items.length > 1 ? 's' : ''})`,
-            description: order.items.map((i) => `${i.quantity}x ${i.name}`).join(', '),
-            quantity: 1,
-            unit_price: netProductsTotal,
-            currency_id: order.currency || 'ARS',
-          },
-        ]
+        {
+          id: 'cirqa-order-net',
+          title: `Pedido CIRQA (${order.items.length} producto${order.items.length > 1 ? 's' : ''})`,
+          description: order.items.map((i) => `${i.quantity}x ${i.name}`).join(', '),
+          quantity: 1,
+          unit_price: netProductsTotal,
+          currency_id: order.currency || 'ARS',
+        },
+      ]
       : order.items.map((item) => {
-          const pictureUrl = item.product?.images?.[0]?.url || item.image || undefined;
+        const rawPictureUrl = item.product?.images?.[0]?.url || item.image || undefined;
+        const pictureUrl = normalizeMpPictureUrl(rawPictureUrl, clientUrl, apiUrl);
 
-          return {
-            id: item.product?._id ? item.product._id.toString() : String(item.modelCode || 'cirqa-item'),
-            title: item.name,
-            description: `Armazón CIRQA: ${item.name}`,
-            picture_url: pictureUrl,
-            quantity: Number(item.quantity) || 1,
-            unit_price: Number(item.price),
-            currency_id: order.currency || 'ARS',
-          };
-        });
-
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-    const apiUrl = process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`;
+        return {
+          id: item.product?._id ? item.product._id.toString() : String(item.modelCode || 'cirqa-item'),
+          title: item.name,
+          description: `Armazón CIRQA: ${item.name}`,
+          picture_url: pictureUrl,
+          quantity: Number(item.quantity) || 1,
+          unit_price: Number(item.price),
+          currency_id: order.currency || 'ARS',
+        };
+      });
 
     const client = getMercadoPagoClient();
     const preference = new Preference(client);
@@ -108,18 +135,13 @@ export const createOrderPreference = async (req, res, next) => {
         payer: {
           name: order.customer?.name || 'Cliente CIRQA',
           email: order.customer?.email,
-          phone: order.customer?.phone ? { number: order.customer.phone } : undefined,
-          identification: (order.customer?.dni && String(order.customer.dni).replace(/\D/g, '').length >= 6)
-            ? {
-                type: 'DNI',
-                number: String(order.customer.dni).replace(/\D/g, ''),
-              }
-            : undefined,
+          phone: order.customer?.phone ? { number: String(order.customer.phone).trim() } : undefined,
+          identification: buildMpIdentification(order.customer?.dni),
           address: order.customer?.shippingAddress
             ? {
-                street_name: order.customer.shippingAddress.street || '',
-                zip_code: order.customer.shippingAddress.zipCode || '',
-              }
+              street_name: order.customer.shippingAddress.street || '',
+              zip_code: order.customer.shippingAddress.zipCode || '',
+            }
             : undefined,
         },
         payment_methods: {
@@ -301,264 +323,271 @@ export const createPreference = async (req, res, next) => {
       }
 
       const reqQty = Number(item.quantity) || 1;
-      if (product.stock < reqQty) {
-        return res.status(400).json({
-          success: false,
-          message: `Stock insuficiente para ${product.name}. Disponibles: ${product.stock}`,
-        });
-      }
+        const reqVariantKey = item.variantKey ? String(item.variantKey).trim().toLowerCase() : null;
+        const matchedVariant =
+          reqVariantKey && Array.isArray(product.variants)
+            ? product.variants.find((v) => String(v.key || '').trim().toLowerCase() === reqVariantKey)
+            : null;
 
-      const unitPrice = Number(product.price ?? product.basePrice ?? item.price ?? 0);
-      calculatedSubtotal += unitPrice * reqQty;
+        const availableStock =
+          matchedVariant && matchedVariant.stock !== undefined && Number(matchedVariant.stock) > 0
+            ? Number(matchedVariant.stock)
+            : Math.max(
+              Number(product.stock || 0),
+              matchedVariant && matchedVariant.stock !== undefined ? Number(matchedVariant.stock) : 0
+            );
 
-      validatedItems.push({
-        product: product._id,
-        name: product.name,
-        modelCode: product.modelCode,
-        price: unitPrice,
-        quantity: reqQty,
-        filter: item.filter || 'Día (84%)',
-        variantKey: item.variantKey || undefined,
-        variantName: item.variantName || undefined,
-        variantSubtitle: item.variantSubtitle || undefined,
-        prescription: item.prescription || undefined,
-        image: item.image || product.images?.[0]?.url || undefined,
-      });
-    }
-
-    // 3. Subtotal estricto calculado desde los precios oficiales de la base de datos
-    const subtotal = calculatedSubtotal;
-    // Normalizar datos del comprador y dirección de envío para garantizar compatibilidad total con Mongoose
-    const rawAddr = customer.shippingAddress || {};
-    const streetRaw = String(rawAddr.street || '').trim();
-    const streetNumber = String(rawAddr.number || '').trim() || (streetRaw.match(/\d+/) ? streetRaw.match(/\d+/)[0] : 'S/N');
-    const zip = String(rawAddr.postalCode || rawAddr.zipCode || '').trim() || 'C1000';
-    const prov = String(rawAddr.province || rawAddr.state || 'Ciudad Autónoma de Buenos Aires').trim();
-    const city = String(rawAddr.city || '').trim() || prov;
-
-    // Helper de detección estricta de CABA (CABA siempre tiene costo $0 y carrier Motomensajería)
-    const checkIsCABA = (cp, province) => {
-      const postal = parseInt(cp, 10);
-      const isPostalCABA = !isNaN(postal) && postal >= 1000 && postal <= 1499;
-      const isProvCABA = (province || '').toLowerCase().includes('caba') || 
-                         (province || '').toLowerCase().includes('autónoma') || 
-                         (province || '').toLowerCase().includes('capital');
-      return isPostalCABA || isProvCABA;
-    };
-
-    const isDestCABA = checkIsCABA(zip, prov);
-    // Envío 100% bonificado para clientes a todo el país ($0 costo final al comprador)
-    const numericShippingCost = 0;
-    let shippingCarrier = isDestCABA ? 'Motomensajería' : (req.body.shipping?.carrier || 'Correo Certificado');
-    let shippingServiceType = isDestCABA ? 'express_caba_24h' : (req.body.shipping?.service || req.body.shipping?.serviceType || 'standard');
-    let shippingMethodTitle = isDestCABA
-      ? 'Envío Gratis CABA · Motomensajería Express'
-      : (String(req.body.shippingMethod || req.body.shipping?.name || 'Envío Bonificado a todo el país · Correo Certificado').trim());
-
-    const normalizedCustomer = {
-      name: String(customer.name || '').trim(),
-      email: String(customer.email || '').trim().toLowerCase(),
-      phone: String(customer.phone || '').trim(),
-      dni: String(customer.dni || '').trim(),
-      shippingAddress: {
-        street: streetRaw,
-        number: streetNumber,
-        floor: rawAddr.floor || undefined,
-        apartment: rawAddr.apartment || undefined,
-        city: city,
-        province: prov,
-        state: prov,
-        postalCode: zip,
-        zipCode: zip,
-      },
-    };
-
-    // 4. Validación y cálculo de Cupón de Descuento
-    const rawCouponCode = req.body.couponCode || req.body.coupon;
-    let appliedCoupon = null;
-    let couponDiscount = 0;
-
-    if (rawCouponCode && typeof rawCouponCode === 'string') {
-      const cleanCode = rawCouponCode.trim().toUpperCase();
-
-      // Regla anti-abuso: 1 uso por email para BIENVENIDA5 en órdenes no canceladas/rechazadas
-      if (cleanCode === 'BIENVENIDA5' && normalizedCustomer.email) {
-        const existingWelcomeOrder = await Order.findOne({
-          'customer.email': normalizedCustomer.email,
-          couponCode: 'BIENVENIDA5',
-          status: { $nin: ['cancelled', 'rejected', 'CANCELLED', 'REJECTED'] },
-        });
-        if (existingWelcomeOrder) {
+        if (availableStock < reqQty) {
           return res.status(400).json({
             success: false,
-            message: 'Este cupón de bienvenida ya fue utilizado con este correo electrónico',
+            message: `Stock insuficiente para ${product.name}. Disponibles: ${availableStock}`,
           });
         }
-      }
 
-      let foundCoupon = await Coupon.findOne({ code: cleanCode });
-      if (!foundCoupon && cleanCode === 'BIENVENIDA5') {
-        foundCoupon = await ensureWelcomeCoupon();
-      }
-      if (foundCoupon) {
-        const calcResult = calculateCouponDiscount(foundCoupon, validatedItems, subtotal, normalizedCustomer.email);
-        if (calcResult.valid && calcResult.discountAmount > 0) {
-          appliedCoupon = foundCoupon;
-          couponDiscount = calcResult.discountAmount;
-        }
-      }
-    }
+        const baseUnitPrice = Number(product.price ?? product.basePrice ?? item.price ?? 0);
+        const variantModifier = matchedVariant ? Number(matchedVariant.priceModifier || 0) : 0;
+        const unitPrice = Math.max(0, baseUnitPrice + variantModifier);
+        calculatedSubtotal += unitPrice * reqQty;
 
-    // 5. Lógica de Descuento: Transferencia Bancaria (15% OFF) y Acumulación
-    const subtotalAfterCoupon = Math.max(0, subtotal - couponDiscount);
-    let transferDiscount = 0;
-
-    if (isTransfer) {
-      if (!appliedCoupon || appliedCoupon.combinableWithTransfer !== false) {
-        transferDiscount = Math.round(subtotalAfterCoupon * 0.15);
-      }
-    }
-
-    let discountAmount = Math.min(subtotal, couponDiscount + transferDiscount);
-    let totalAmount = Math.max(0, subtotal - discountAmount);
-
-    // Validación e Intercepción Cyber Monday (20% OFF global hardcodeado por fecha GMT-3)
-    const isCyber = isCyberMondayActive();
-    let cyberDiscount = 0;
-
-    if (isCyber) {
-      // Seguridad matemática:
-      // Calculamos el 20% de descuento sobre totalAmount redondeado al entero más cercano (pesos ARS).
-      // Garantizamos que totalAmount nunca sea negativo y que discountAmount mantenga consistencia con subtotal.
-      const previousTotal = totalAmount;
-      totalAmount = Math.max(0, Math.round(previousTotal * 0.8));
-      cyberDiscount = Math.max(0, previousTotal - totalAmount);
-      discountAmount = Math.min(subtotal, discountAmount + cyberDiscount);
-    }
-
-    const year = new Date().getFullYear();
-    const randomCode = Math.floor(100000 + Math.random() * 900000);
-    const orderNumber = `CQ-${year}-${randomCode}`;
-
-    // 6. Crear el documento de la Orden en MongoDB con los ítems validados
-    const order = new Order({
-      orderNumber,
-      customer: normalizedCustomer,
-      items: validatedItems,
-      subtotal,
-      couponCode: appliedCoupon ? appliedCoupon.code : null,
-      couponDiscount,
-      transferDiscount,
-      cyberDiscount,
-      discountAmount,
-      shippingCost: numericShippingCost,
-      shippingMethod: shippingMethodTitle,
-      totalAmount,
-      shipping: {
-        carrier: shippingCarrier,
-        service: shippingServiceType,
-        trackingNumber: '',
-        zipnovaShipmentId: '',
-        labelUrl: '',
-        shippedAt: null,
-        deliveryStatus: 'pending',
-        cost: numericShippingCost,
-        status: 'PENDIENTE',
-      },
-      payment: {
-        method: paymentMethod,
-        provider: isTransfer ? 'transfer' : 'mercadopago',
-        status: 'pending',
-        preferenceId: '',
-        paymentId: '',
-        dateApproved: null,
-      },
-      paymentMethod: isTransfer ? 'TRANSFERENCIA' : 'MERCADO_PAGO',
-      status: 'pending',
-    });
-
-    await order.save();
-
-    // Marcar carritos abandonados del comprador como recuperados (no bloqueante)
-    if (normalizedCustomer.email) {
-      try {
-        await AbandonedCart.updateMany(
-          {
-            email: normalizedCustomer.email,
-            status: { $in: ['pending', 'notified'] },
-          },
-          { $set: { status: 'recovered' } }
-        );
-      } catch (abandonedErr) {
-        console.error('[createPreference AbandonedCart Recovery Error]:', abandonedErr.message);
-      }
-    }
-
-    // Notificación por email a info@cirqa.com.ar de nuevo pedido creado (no bloqueante)
-    try {
-      sendOrderNotificationToAdmin({ order, eventType: 'created' }).catch((emailErr) => {
-        console.error('[createPreference Email Notice]:', emailErr.message);
-      });
-    } catch (emailErr) {
-      console.error('[createPreference Email Notice]:', emailErr.message);
-    }
-
-    // 7. Incrementar uso del cupón y registrar historial
-    if (appliedCoupon) {
-      appliedCoupon.usedCount = (appliedCoupon.usedCount || 0) + 1;
-      if (!Array.isArray(appliedCoupon.usageHistory)) {
-        appliedCoupon.usageHistory = [];
-      }
-      appliedCoupon.usageHistory.push({
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-        customerEmail: normalizedCustomer.email,
-        discountApplied: couponDiscount,
-        usedAt: new Date(),
-      });
-      await appliedCoupon.save();
-    }
-
-    // =========================================================================
-    // FLUJO A: TRANSFERENCIA BANCARIA (Con 15% OFF, reserva de stock y retorno)
-    // =========================================================================
-    if (isTransfer) {
-      // Descontar o reservar stock en MongoDB para evitar sobreventa usando ObjectId garantizado
-      for (const vItem of validatedItems) {
-        if (vItem.product && mongoose.Types.ObjectId.isValid(vItem.product)) {
-          await Product.findByIdAndUpdate(vItem.product, {
-            $inc: { stock: -vItem.quantity },
-          });
-        }
-      }
-
-      // Aviso automático al administrador por nueva orden por transferencia (no bloqueante)
-      try {
-        sendAdminNewOrderEmail(order).catch((emailErr) => {
-          console.error('[createPreference Transfer Email Error]:', emailErr.message);
+        validatedItems.push({
+          product: product._id,
+          name: product.name,
+          modelCode: product.modelCode,
+          price: unitPrice,
+          quantity: reqQty,
+          filter: item.filter || 'Día (84%)',
+          variantKey: item.variantKey || undefined,
+          variantName: item.variantName || undefined,
+          variantSubtitle: item.variantSubtitle || undefined,
+          prescription: item.prescription || undefined,
+          image: item.image || product.images?.[0]?.url || undefined,
         });
-      } catch (emailErr) {
-        console.error('[createPreference Transfer Email Error]:', emailErr.message);
       }
 
-      return res.status(201).json({
-        success: true,
-        orderId: order._id,
-        orderNumber: order.orderNumber,
-        isTransfer: true,
+      // 3. Subtotal estricto calculado desde los precios oficiales de la base de datos
+      const subtotal = calculatedSubtotal;
+      // Normalizar datos del comprador y dirección de envío para garantizar compatibilidad total con Mongoose
+      const rawAddr = customer.shippingAddress || {};
+      const streetRaw = String(rawAddr.street || '').trim();
+      const streetNumber = String(rawAddr.number || '').trim() || (streetRaw.match(/\d+/) ? streetRaw.match(/\d+/)[0] : 'S/N');
+      const zip = String(rawAddr.postalCode || rawAddr.zipCode || '').trim() || 'C1000';
+      const prov = String(rawAddr.province || rawAddr.state || 'Ciudad Autónoma de Buenos Aires').trim();
+      const city = String(rawAddr.city || '').trim() || prov;
+
+      // Helper de detección estricta de CABA (prioriza los 4 dígitos del CP sobre province)
+      const checkIsCABA = (cp, province) => {
+        const cleanZip = String(cp || '').trim().replace(/\D/g, '');
+        if (cleanZip.length >= 4) {
+          const postal = parseInt(cleanZip.slice(0, 4), 10);
+          return !isNaN(postal) && postal >= 1000 && postal <= 1499;
+        }
+        const isProvCABA =
+          (province || '').toLowerCase().includes('caba') ||
+          (province || '').toLowerCase().includes('autónoma') ||
+          (province || '').toLowerCase().includes('capital');
+        return isProvCABA;
+      };
+
+      const isDestCABA = checkIsCABA(zip, prov);
+      // Envío 100% bonificado para clientes a todo el país ($0 costo final al comprador)
+      const numericShippingCost = 0;
+      let shippingCarrier = isDestCABA ? 'Motomensajería' : (req.body.shipping?.carrier || 'Correo Certificado');
+      let shippingServiceType = isDestCABA ? 'express_caba_24h' : (req.body.shipping?.service || req.body.shipping?.serviceType || 'standard');
+      let shippingMethodTitle = isDestCABA
+        ? 'Envío Gratis CABA · Motomensajería Express'
+        : (String(req.body.shippingMethod || req.body.shipping?.name || 'Envío Bonificado a todo el país · Correo Certificado').trim());
+
+      const normalizedCustomer = {
+        name: String(customer.name || '').trim(),
+        email: String(customer.email || '').trim().toLowerCase(),
+        phone: String(customer.phone || '').trim(),
+        dni: String(customer.dni || '').trim(),
+        shippingAddress: {
+          street: streetRaw,
+          number: streetNumber,
+          floor: rawAddr.floor || undefined,
+          apartment: rawAddr.apartment || undefined,
+          city: city,
+          province: prov,
+          state: prov,
+          postalCode: zip,
+          zipCode: zip,
+        },
+      };
+
+      // 4. Validación y cálculo de Cupón de Descuento
+      const rawCouponCode = req.body.couponCode || req.body.coupon;
+      let appliedCoupon = null;
+      let couponDiscount = 0;
+
+      if (rawCouponCode && typeof rawCouponCode === 'string') {
+        const cleanCode = rawCouponCode.trim().toUpperCase();
+
+        // Regla anti-abuso: 1 uso por email para BIENVENIDA5 en órdenes no canceladas/rechazadas
+        if (cleanCode === 'BIENVENIDA5' && normalizedCustomer.email) {
+          const existingWelcomeOrder = await Order.findOne({
+            'customer.email': normalizedCustomer.email,
+            couponCode: 'BIENVENIDA5',
+            status: { $nin: ['cancelled', 'rejected', 'CANCELLED', 'REJECTED'] },
+          });
+          if (existingWelcomeOrder) {
+            return res.status(400).json({
+              success: false,
+              message: 'Este cupón de bienvenida ya fue utilizado con este correo electrónico',
+            });
+          }
+        }
+
+        let foundCoupon = await Coupon.findOne({ code: cleanCode });
+        if (!foundCoupon && cleanCode === 'BIENVENIDA5') {
+          foundCoupon = await ensureWelcomeCoupon();
+        }
+        if (foundCoupon) {
+          const calcResult = calculateCouponDiscount(foundCoupon, validatedItems, subtotal, normalizedCustomer.email);
+          if (calcResult.valid && calcResult.discountAmount > 0) {
+            appliedCoupon = foundCoupon;
+            couponDiscount = calcResult.discountAmount;
+          }
+        }
+      }
+
+      // 5. Lógica de Descuento unificada con el Frontend: Cupón -> Cyber Monday (20% OFF) -> Transferencia (15% OFF)
+      const subtotalAfterCoupon = Math.max(0, subtotal - couponDiscount);
+      const isCyber = isCyberMondayActive();
+      const cyberDiscount = isCyber ? Math.round(subtotalAfterCoupon * 0.2) : 0;
+      const subtotalAfterCyber = Math.max(0, subtotalAfterCoupon - cyberDiscount);
+
+      let transferDiscount = 0;
+      if (isTransfer) {
+        if (!appliedCoupon || appliedCoupon.combinableWithTransfer !== false) {
+          transferDiscount = Math.round(subtotalAfterCyber * 0.15);
+        }
+      }
+
+      const discountAmount = Math.min(subtotal, couponDiscount + cyberDiscount + transferDiscount);
+      const totalAmount = Math.max(0, subtotal - discountAmount);
+
+      const year = new Date().getFullYear();
+      const randomCode = Math.floor(100000 + Math.random() * 900000);
+      const orderNumber = `CQ-${year}-${randomCode}`;
+
+      // 6. Crear el documento de la Orden en MongoDB con los ítems validados
+      const order = new Order({
+        orderNumber,
+        customer: normalizedCustomer,
+        items: validatedItems,
         subtotal,
-        couponCode: order.couponCode,
+        couponCode: appliedCoupon ? appliedCoupon.code : null,
         couponDiscount,
         transferDiscount,
         cyberDiscount,
         discountAmount,
         shippingCost: numericShippingCost,
+        shippingMethod: shippingMethodTitle,
         totalAmount,
-        data: {
+        shipping: {
+          carrier: shippingCarrier,
+          service: shippingServiceType,
+          trackingNumber: '',
+          zipnovaShipmentId: '',
+          labelUrl: '',
+          shippedAt: null,
+          deliveryStatus: 'pending',
+          cost: numericShippingCost,
+          status: 'PENDIENTE',
+        },
+        payment: {
+          method: paymentMethod,
+          provider: isTransfer ? 'transfer' : 'mercadopago',
+          status: 'pending',
+          preferenceId: '',
+          paymentId: '',
+          dateApproved: null,
+        },
+        paymentMethod: isTransfer ? 'TRANSFERENCIA' : 'MERCADO_PAGO',
+        status: 'pending',
+      });
+
+      await order.save();
+
+      // Marcar carritos abandonados del comprador como recuperados (no bloqueante)
+      if (normalizedCustomer.email) {
+        try {
+          await AbandonedCart.updateMany(
+            {
+              email: normalizedCustomer.email,
+              status: { $in: ['pending', 'notified'] },
+            },
+            { $set: { status: 'recovered' } }
+          );
+        } catch (abandonedErr) {
+          console.error('[createPreference AbandonedCart Recovery Error]:', abandonedErr.message);
+        }
+      }
+
+      // Notificación por email a info@cirqa.com.ar de nuevo pedido creado (no bloqueante)
+      try {
+        sendOrderNotificationToAdmin({ order, eventType: 'created' }).catch((emailErr) => {
+          console.error('[createPreference Email Notice]:', emailErr.message);
+        });
+      } catch (emailErr) {
+        console.error('[createPreference Email Notice]:', emailErr.message);
+      }
+
+      // 7. Incrementar uso del cupón y registrar historial
+      if (appliedCoupon) {
+        appliedCoupon.usedCount = (appliedCoupon.usedCount || 0) + 1;
+        if (!Array.isArray(appliedCoupon.usageHistory)) {
+          appliedCoupon.usageHistory = [];
+        }
+        appliedCoupon.usageHistory.push({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          customerEmail: normalizedCustomer.email,
+          discountApplied: couponDiscount,
+          usedAt: new Date(),
+        });
+        await appliedCoupon.save();
+      }
+
+      // =========================================================================
+      // FLUJO A: TRANSFERENCIA BANCARIA (Con 15% OFF, reserva de stock y retorno)
+      // =========================================================================
+      if (isTransfer) {
+        // Descontar o reservar stock en MongoDB (tanto global como de variante si aplica) sin dejar stock negativo
+        for (const vItem of validatedItems) {
+          if (vItem.product && mongoose.Types.ObjectId.isValid(vItem.product)) {
+            const prodDoc = await Product.findById(vItem.product);
+            if (prodDoc) {
+              prodDoc.stock = Math.max(0, Number(prodDoc.stock || 0) - vItem.quantity);
+              if (vItem.variantKey && Array.isArray(prodDoc.variants)) {
+                const vKey = String(vItem.variantKey).trim().toLowerCase();
+                const targetVar = prodDoc.variants.find(
+                  (v) => String(v.key || '').trim().toLowerCase() === vKey
+                );
+                if (targetVar && targetVar.stock !== undefined) {
+                  targetVar.stock = Math.max(0, Number(targetVar.stock || 0) - vItem.quantity);
+                }
+              }
+              await prodDoc.save();
+            }
+          }
+        }
+
+        // Aviso automático al administrador por nueva orden por transferencia (no bloqueante)
+        try {
+          sendAdminNewOrderEmail(order).catch((emailErr) => {
+            console.error('[createPreference Transfer Email Error]:', emailErr.message);
+          });
+        } catch (emailErr) {
+          console.error('[createPreference Transfer Email Error]:', emailErr.message);
+        }
+
+        return res.status(201).json({
+          success: true,
           orderId: order._id,
           orderNumber: order.orderNumber,
           isTransfer: true,
-          status: order.status,
           subtotal,
           couponCode: order.couponCode,
           couponDiscount,
@@ -567,26 +596,39 @@ export const createPreference = async (req, res, next) => {
           discountAmount,
           shippingCost: numericShippingCost,
           totalAmount,
-        },
-      });
-    }
+          data: {
+            orderId: order._id,
+            orderNumber: order.orderNumber,
+            isTransfer: true,
+            status: order.status,
+            subtotal,
+            couponCode: order.couponCode,
+            couponDiscount,
+            transferDiscount,
+            cyberDiscount,
+            discountAmount,
+            shippingCost: numericShippingCost,
+            totalAmount,
+          },
+        });
+      }
 
-    // =========================================================================
-    // FLUJO B: MERCADO PAGO CHECKOUT PRO (Hasta 6 Cuotas Sin Interés)
-    // =========================================================================
-    let initPoint = '';
-    let sandboxInitPoint = '';
-    const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
-    const apiUrl = process.env.API_URL || `http://localhost:${process.env.PORT || 5000}`;
+      // =========================================================================
+      // FLUJO B: MERCADO PAGO CHECKOUT PRO (Hasta 6 Cuotas Sin Interés)
+      // =========================================================================
+      let initPoint = '';
+      let sandboxInitPoint = '';
+      const clientUrl = getCleanClientUrl();
+      const apiUrl = getCleanApiUrl();
 
-    try {
-      const client = getMercadoPagoClient();
-      const preference = new Preference(client);
+      try {
+        const client = getMercadoPagoClient();
+        const preference = new Preference(client);
 
-      // Intercepción Mercado Pago: cobrar exactamente el totalAmount validado
-      const hasDiscount = discountAmount > 0 || couponDiscount > 0 || cyberDiscount > 0 || isCyber;
-      const preferenceItems = hasDiscount
-        ? [
+        // Intercepción Mercado Pago: cobrar exactamente el totalAmount validado
+        const hasDiscount = discountAmount > 0 || couponDiscount > 0 || cyberDiscount > 0 || isCyber;
+        const preferenceItems = hasDiscount
+          ? [
             {
               id: 'cirqa-cart-net',
               title: `Pedido CIRQA (${validatedItems.length} producto${validatedItems.length > 1 ? 's' : ''})${isCyber ? ' · Cyber Monday 20% OFF' : ''}`,
@@ -596,88 +638,81 @@ export const createPreference = async (req, res, next) => {
               description: validatedItems.map((item) => `${item.quantity}x ${item.name}${item.filter ? ` (${item.filter})` : ''}`).join(', '),
             },
           ]
-        : validatedItems.map((item) => ({
+          : validatedItems.map((item) => ({
             id: item.product.toString(),
             title: item.name,
             unit_price: Number(item.price),
             quantity: Number(item.quantity),
             currency_id: 'ARS',
-            picture_url: item.image || undefined,
+            picture_url: normalizeMpPictureUrl(item.image, clientUrl, apiUrl),
             description: `Armazón CIRQA: ${item.name}${item.filter ? ` · Cristal ${item.filter}` : ''}`,
           }));
 
-      const preferencePayload = {
-        items: preferenceItems,
-        shipments: {
-          cost: 0,
-          mode: 'not_specified',
-        },
-        payment_methods: {
-          installments: 6,
-          default_installments: 6,
-        },
-        back_urls: {
-          success: `${clientUrl}/checkout/success?orderId=${order._id}`,
-          failure: `${clientUrl}/checkout/failure?orderId=${order._id}`,
-          pending: `${clientUrl}/checkout/pending?orderId=${order._id}`,
-        },
-        auto_return: 'approved',
-        external_reference: order._id.toString(),
-        payer: {
-          name: normalizedCustomer.name,
-          email: normalizedCustomer.email,
-          phone: normalizedCustomer.phone ? { number: normalizedCustomer.phone } : undefined,
-          identification: (normalizedCustomer.dni && String(normalizedCustomer.dni).replace(/\D/g, '').length >= 6)
-            ? { type: 'DNI', number: String(normalizedCustomer.dni).replace(/\D/g, '') }
-            : undefined,
-          address: normalizedCustomer.shippingAddress
-            ? {
+        const preferencePayload = {
+          items: preferenceItems,
+          shipments: {
+            cost: 0,
+            mode: 'not_specified',
+          },
+          payment_methods: {
+            installments: 6,
+            default_installments: 6,
+          },
+          back_urls: {
+            success: `${clientUrl}/checkout/success?orderId=${order._id}`,
+            failure: `${clientUrl}/checkout/failure?orderId=${order._id}`,
+            pending: `${clientUrl}/checkout/pending?orderId=${order._id}`,
+          },
+          auto_return: 'approved',
+          external_reference: order._id.toString(),
+          payer: {
+            name: normalizedCustomer.name,
+            email: normalizedCustomer.email,
+            phone: normalizedCustomer.phone ? { number: String(normalizedCustomer.phone).trim() } : undefined,
+            identification: buildMpIdentification(normalizedCustomer.dni),
+            address: normalizedCustomer.shippingAddress
+              ? {
                 street_name: normalizedCustomer.shippingAddress.street || '',
                 zip_code: normalizedCustomer.shippingAddress.postalCode || normalizedCustomer.shippingAddress.zipCode || '',
               }
-            : undefined,
-        },
-        notification_url: `${apiUrl}/api/webhooks/mercadopago`,
-        statement_descriptor: 'CIRQA',
-        metadata: {
-          order_id: order._id.toString(),
-          order_number: order.orderNumber,
-          customer_email: normalizedCustomer.email,
-        },
-      };
+              : undefined,
+          },
+          notification_url: `${apiUrl}/api/webhooks/mercadopago`,
+          statement_descriptor: 'CIRQA',
+          metadata: {
+            order_id: order._id.toString(),
+            order_number: order.orderNumber,
+            customer_email: normalizedCustomer.email,
+          },
+        };
 
-      const response = await preference.create({ body: preferencePayload });
-      order.gateway_id = response.id;
-      if (!order.payment) order.payment = {};
-      order.payment.preferenceId = response.id;
-      await order.save();
+        const response = await preference.create({ body: preferencePayload });
+        order.gateway_id = response.id;
+        if (!order.payment) order.payment = {};
+        order.payment.preferenceId = response.id;
+        await order.save();
 
-      initPoint = response.init_point;
-      sandboxInitPoint = response.sandbox_init_point;
-    } catch (mpError) {
-      console.warn(
-        '[MercadoPago Warning] Creación con simulación de entorno local:',
-        mpError.message
-      );
-      initPoint = `${clientUrl}/checkout/success?orderId=${order._id}&simulated=true`;
-      sandboxInitPoint = `${clientUrl}/checkout/success?orderId=${order._id}&simulated=true`;
-    }
+        initPoint = response.init_point;
+        sandboxInitPoint = response.sandbox_init_point;
+      } catch (mpError) {
+        console.error('[MercadoPago Error creando preferencia]:', mpError.message);
+        const allowLocalSim =
+          !process.env.MERCADOPAGO_ACCESS_TOKEN || process.env.ALLOW_MP_SIMULATION === 'true';
 
-    return res.status(201).json({
-      success: true,
-      orderId: order._id,
-      orderNumber: order.orderNumber,
-      initPoint,
-      sandboxInitPoint,
-      subtotal,
-      couponCode: order.couponCode,
-      couponDiscount,
-      transferDiscount,
-      cyberDiscount,
-      discountAmount,
-      shippingCost: numericShippingCost,
-      totalAmount,
-      data: {
+        if (allowLocalSim && process.env.NODE_ENV !== 'production') {
+          initPoint = `${clientUrl}/checkout/success?orderId=${order._id}&simulated=true`;
+          sandboxInitPoint = `${clientUrl}/checkout/success?orderId=${order._id}&simulated=true`;
+        } else {
+          return res.status(502).json({
+            success: false,
+            message:
+              'No pudimos iniciar la pasarela de Mercado Pago con los datos ingresados. Verificá tu email y DNI/CUIL o seleccioná Transferencia Bancaria (15% OFF).',
+          });
+        }
+      }
+
+      return res.status(201).json({
+        success: true,
         orderId: order._id,
         orderNumber: order.orderNumber,
         initPoint,
@@ -690,470 +725,483 @@ export const createPreference = async (req, res, next) => {
         discountAmount,
         shippingCost: numericShippingCost,
         totalAmount,
-      },
-    });
-  } catch (error) {
-    console.error('[createPreference Error]:', error);
-    next(error);
-  }
-};
-
-/**
- * @desc    Actualizar estado de una orden (Admin) - Confirmar Pago de Transferencia
- * @route   PATCH /api/orders/:orderId/status
- * @access  Privado (Admin)
- */
-export const updateOrderStatus = async (req, res, next) => {
-  try {
-    const { orderId } = req.params;
-    const { status, note } = req.body;
-
-    if (!status) {
-      return res.status(400).json({
-        success: false,
-        message: 'El nuevo estado (status) es requerido.',
+        data: {
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          initPoint,
+          sandboxInitPoint,
+          subtotal,
+          couponCode: order.couponCode,
+          couponDiscount,
+          transferDiscount,
+          cyberDiscount,
+          discountAmount,
+          shippingCost: numericShippingCost,
+          totalAmount,
+        },
       });
+    } catch (error) {
+      console.error('[createPreference Error]:', error);
+      next(error);
     }
+  };
 
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: `No se encontró la orden con ID: ${orderId}`,
-      });
-    }
+  /**
+   * @desc    Actualizar estado de una orden (Admin) - Confirmar Pago de Transferencia
+   * @route   PATCH /api/orders/:orderId/status
+   * @access  Privado (Admin)
+   */
+  export const updateOrderStatus = async (req, res, next) => {
+    try {
+      const { orderId } = req.params;
+      const { status, note } = req.body;
 
-    const previousStatus = (order.status || '').toLowerCase();
-    const newStatusNormalized = String(status).toLowerCase();
+      if (!status) {
+        return res.status(400).json({
+          success: false,
+          message: 'El nuevo estado (status) es requerido.',
+        });
+      }
 
-    // Si pasa a 'paid' y antes no estaba paga, asegurar que el stock esté debidamente descontado
-    if (newStatusNormalized === 'paid' && previousStatus !== 'paid') {
-      const isTransfer =
-        order.payment?.method === 'transfer' ||
-        order.paymentMethod === 'TRANSFERENCIA';
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: `No se encontró la orden con ID: ${orderId}`,
+        });
+      }
 
-      // Si no fue descontado previamente (por ejemplo si la orden era mercadopago pendiente que se cobró manual)
-      if (!isTransfer) {
-        for (const item of order.items) {
-          if (item.product && mongoose.Types.ObjectId.isValid(item.product)) {
-            await Product.findByIdAndUpdate(item.product, {
-              $inc: { stock: -(Number(item.quantity) || 1) },
-            });
+      const previousStatus = (order.status || '').toLowerCase();
+      const newStatusNormalized = String(status).toLowerCase();
+
+      // Si pasa a 'paid' y antes no estaba paga, asegurar que el stock esté debidamente descontado
+      if (newStatusNormalized === 'paid' && previousStatus !== 'paid') {
+        const isTransfer =
+          order.payment?.method === 'transfer' ||
+          order.paymentMethod === 'TRANSFERENCIA';
+
+        // Si no fue descontado previamente (por ejemplo si la orden era mercadopago pendiente que se cobró manual)
+        if (!isTransfer) {
+          for (const item of order.items) {
+            if (item.product && mongoose.Types.ObjectId.isValid(item.product)) {
+              await Product.findByIdAndUpdate(item.product, {
+                $inc: { stock: -(Number(item.quantity) || 1) },
+              });
+            }
           }
         }
-      }
 
-      if (!order.payment) order.payment = {};
-      order.payment.status = 'paid';
-      if (!order.payment.dateApproved) order.payment.dateApproved = new Date();
+        if (!order.payment) order.payment = {};
+        order.payment.status = 'paid';
+        if (!order.payment.dateApproved) order.payment.dateApproved = new Date();
 
-      // Notificación por email a info@cirqa.com.ar de orden pagada
-      try {
-        sendOrderNotificationToAdmin({ order, eventType: 'paid' }).catch((err) => {
-          console.error('[updateOrderStatus Email Error]:', err.message);
-        });
-        sendAdminNewOrderEmail(order).catch((err) => {
-          console.error('[updateOrderStatus Admin Email Error]:', err.message);
-        });
-      } catch (err) {
-        console.error('[updateOrderStatus Email Error]:', err.message);
-      }
-
-      // Disparo automático a Zipnova si aún no posee shipmentId
-      if (!order.zipnovaShipmentId && !order.shipping?.zipnovaShipmentId) {
+        // Notificación por email a info@cirqa.com.ar de orden pagada
         try {
-          const isMoto =
-            order.shipping?.carrier === 'Motomensajería' ||
-            (order.shipping?.service || '').includes('express_caba') ||
-            (order.shippingMethod || '').toLowerCase().includes('motomensajería');
-
-          if (!isMoto) {
-            console.log(`[Auto-Zipnova in updateOrderStatus] Disparando creación automática de envío para orden ${order.orderNumber}...`);
-            const shipRes = await createShipment(order);
-            if (shipRes.success) {
-              order.zipnovaShipmentId = shipRes.zipnovaShipmentId;
-              order.trackingNumber = shipRes.trackingNumber;
-              order.zipnovaStatus = 'created';
-              order.zipnovaError = '';
-              if (!order.shipping) order.shipping = {};
-              order.shipping.zipnovaShipmentId = shipRes.zipnovaShipmentId;
-              order.shipping.trackingNumber = shipRes.trackingNumber;
-              order.shipping.labelUrl = shipRes.labelUrl;
-              order.shipping.carrier = shipRes.carrier || 'Zipnova';
-              order.shipping.status = 'PREPARACION';
-            } else {
-              order.zipnovaStatus = 'failed';
-              order.zipnovaError = shipRes.error;
-              if (!order.shipping) order.shipping = {};
-              order.shipping.zipnovaStatus = 'failed';
-              order.shipping.zipnovaError = shipRes.error;
-            }
-          }
-        } catch (shipErr) {
-          console.error('[Auto-Shipment in updateOrderStatus Error]:', shipErr.message);
+          sendOrderNotificationToAdmin({ order, eventType: 'paid' }).catch((err) => {
+            console.error('[updateOrderStatus Email Error]:', err.message);
+          });
+          sendAdminNewOrderEmail(order).catch((err) => {
+            console.error('[updateOrderStatus Admin Email Error]:', err.message);
+          });
+        } catch (err) {
+          console.error('[updateOrderStatus Email Error]:', err.message);
         }
-      }
-    }
 
-    // Si pasa a preparación, gestionar despacho (Motomensajería local vs Zipnova nacional)
-    if (
-      (newStatusNormalized === 'preparacion' || newStatusNormalized === 'preparación') &&
-      (!order.shipping?.trackingNumber || !order.shipping?.labelUrl)
-    ) {
-      try {
-        if (!order.shipping) order.shipping = {};
-
-        const isMoto =
-          order.shipping.carrier === 'Motomensajería' ||
-          (order.shipping.service || '').includes('express_caba') ||
-          (order.shippingMethod || '').toLowerCase().includes('motomensajería');
-
-        if (isMoto) {
-          const orderNumClean = order.orderNumber
-            ? order.orderNumber.replace(/^CQ-/, '')
-            : (order._id?.toString().slice(-6).toUpperCase() || 'EXPRESS');
-          order.shipping.carrier = 'Motomensajería';
-          order.shipping.service = 'express_caba_24h';
-          order.shipping.trackingNumber = `MOTO-CQ-${orderNumClean}`;
-          order.shipping.status = 'PREPARACION';
-        } else {
-          // Destino nacional: llamar a Zipnova
-          const shipmentData = await createShipment(order);
-          if (shipmentData.success) {
-            if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
-            if (shipmentData.service) order.shipping.service = shipmentData.service;
-            if (shipmentData.trackingNumber) {
-              order.trackingNumber = shipmentData.trackingNumber;
-              order.shipping.trackingNumber = shipmentData.trackingNumber;
-            }
-            if (shipmentData.zipnovaShipmentId) {
-              order.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
-              order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
-            }
-            if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
-            order.zipnovaStatus = 'created';
-            order.zipnovaError = '';
-            order.shipping.zipnovaStatus = 'created';
-            order.shipping.zipnovaError = '';
-            order.shipping.status = 'PREPARACION';
-          } else {
-            order.zipnovaStatus = 'failed';
-            order.zipnovaError = shipmentData.error;
-            order.shipping.zipnovaStatus = 'failed';
-            order.shipping.zipnovaError = shipmentData.error;
-          }
-        }
-      } catch (shipErr) {
-        console.warn('[Auto-Shipment Notice in updateOrderStatus]:', shipErr.message);
-      }
-    }
-
-    order.status = newStatusNormalized;
-    if (note) {
-      order.notes = order.notes ? `${order.notes}\n${note}` : note;
-    }
-
-    await order.save();
-
-    return res.status(200).json({
-      success: true,
-      message: `Estado de la orden ${order.orderNumber} actualizado a "${newStatusNormalized}".`,
-      data: order,
-      order,
-    });
-  } catch (error) {
-    console.error('[updateOrderStatus Error]:', error);
-    next(error);
-  }
-};
-
-/**
- * @desc    Obtener todas las órdenes (Admin)
- * @route   GET /api/orders
- * @access  Privado (Admin)
- */
-export const getOrders = async (req, res, next) => {
-  try {
-    const { status, paymentMethod } = req.query;
-    const filter = {};
-
-    if (status && status !== 'ALL') {
-      filter.status = status.toLowerCase();
-    }
-
-    if (paymentMethod && paymentMethod !== 'ALL') {
-      const isTransfer = paymentMethod.toLowerCase().includes('transfer');
-      if (isTransfer) {
-        filter.$or = [
-          { 'payment.method': 'transfer' },
-          { paymentMethod: 'TRANSFERENCIA' },
-        ];
-      } else {
-        filter.$or = [
-          { 'payment.method': 'mercadopago' },
-          { paymentMethod: 'MERCADO_PAGO' },
-        ];
-      }
-    }
-
-    const orders = await Order.find(filter).sort({ createdAt: -1 });
-
-    return res.status(200).json({
-      success: true,
-      count: orders.length,
-      data: orders,
-      orders,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * @desc    Obtener una orden por ID o orderNumber
- * @route   GET /api/orders/:orderId
- * @access  Público / Admin
- */
-export const getOrderById = async (req, res, next) => {
-  try {
-    const { orderId } = req.params;
-    let order;
-
-    if (mongoose.Types.ObjectId.isValid(orderId)) {
-      order = await Order.findById(orderId);
-    } else {
-      order = await Order.findOne({ orderNumber: orderId });
-    }
-
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: `No se encontró la orden con ID o código: ${orderId}`,
-      });
-    }
-
-    return res.status(200).json({
-      success: true,
-      data: order,
-      ...order.toObject(),
-    });
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * @desc    Actualizar logística y estado de envío de una orden
- * @route   PATCH /api/orders/:orderId/shipping
- * @access  Privado (Admin)
- */
-export const updateOrderShipping = async (req, res, next) => {
-  try {
-    const { orderId } = req.params;
-    const { carrier, trackingNumber, status, shippingStatus } = req.body;
-
-    const order = await Order.findById(orderId);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: `No se encontró la orden con ID: ${orderId}`,
-      });
-    }
-
-    if (!order.shipping) {
-      order.shipping = {};
-    }
-
-    const effectiveShippingStatus = shippingStatus || status;
-
-    if (carrier !== undefined) order.shipping.carrier = carrier;
-    if (trackingNumber !== undefined) order.shipping.trackingNumber = trackingNumber;
-    if (effectiveShippingStatus !== undefined) order.shipping.status = effectiveShippingStatus;
-
-    if (effectiveShippingStatus) {
-      const norm = String(effectiveShippingStatus).toUpperCase();
-      if (norm === 'ENVIADO' || norm === 'SHIPPED') {
-        order.status = 'shipped';
-        order.shipping.shippedAt = new Date();
-      } else if (norm === 'ENTREGADO' || norm === 'DELIVERED') {
-        order.status = 'delivered';
-      } else if (norm === 'PREPARACION' || norm === 'PROCESSING') {
-        // Si no tiene guía ni etiqueta emitida, gestionar despacho
-        if (!order.shipping.trackingNumber || !order.shipping.labelUrl) {
+        // Disparo automático a Zipnova si aún no posee shipmentId
+        if (!order.zipnovaShipmentId && !order.shipping?.zipnovaShipmentId) {
           try {
             const isMoto =
               order.shipping?.carrier === 'Motomensajería' ||
               (order.shipping?.service || '').includes('express_caba') ||
               (order.shippingMethod || '').toLowerCase().includes('motomensajería');
 
-            if (isMoto) {
-              const orderNumClean = order.orderNumber
-                ? order.orderNumber.replace(/^CQ-/, '')
-                : (order._id?.toString().slice(-6).toUpperCase() || 'EXPRESS');
-              order.shipping.carrier = 'Motomensajería';
-              order.shipping.service = 'express_caba_24h';
-              order.shipping.trackingNumber = `MOTO-CQ-${orderNumClean}`;
-            } else {
-              const shipmentData = await createShipment(order);
-              if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
-              if (shipmentData.service) order.shipping.service = shipmentData.service;
-              if (shipmentData.trackingNumber) order.shipping.trackingNumber = shipmentData.trackingNumber;
-              if (shipmentData.zipnovaShipmentId) order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
-              if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
+            if (!isMoto) {
+              console.log(`[Auto-Zipnova in updateOrderStatus] Disparando creación automática de envío para orden ${order.orderNumber}...`);
+              const shipRes = await createShipment(order);
+              if (shipRes.success) {
+                order.zipnovaShipmentId = shipRes.zipnovaShipmentId;
+                order.trackingNumber = shipRes.trackingNumber;
+                order.zipnovaStatus = 'created';
+                order.zipnovaError = '';
+                if (!order.shipping) order.shipping = {};
+                order.shipping.zipnovaShipmentId = shipRes.zipnovaShipmentId;
+                order.shipping.trackingNumber = shipRes.trackingNumber;
+                order.shipping.labelUrl = shipRes.labelUrl;
+                order.shipping.carrier = shipRes.carrier || 'Zipnova';
+                order.shipping.status = 'PREPARACION';
+              } else {
+                order.zipnovaStatus = 'failed';
+                order.zipnovaError = shipRes.error;
+                if (!order.shipping) order.shipping = {};
+                order.shipping.zipnovaStatus = 'failed';
+                order.shipping.zipnovaError = shipRes.error;
+              }
             }
           } catch (shipErr) {
-            console.warn('[Auto-Shipment Notice in updateOrderShipping]:', shipErr.message);
+            console.error('[Auto-Shipment in updateOrderStatus Error]:', shipErr.message);
           }
         }
       }
-    } else if (status) {
-      const norm = String(status).toLowerCase();
-      if (norm === 'shipped' || norm === 'delivered' || norm === 'pending') {
-        order.status = norm;
+
+      // Si pasa a preparación, gestionar despacho (Motomensajería local vs Zipnova nacional)
+      if (
+        (newStatusNormalized === 'preparacion' || newStatusNormalized === 'preparación') &&
+        (!order.shipping?.trackingNumber || !order.shipping?.labelUrl)
+      ) {
+        try {
+          if (!order.shipping) order.shipping = {};
+
+          const isMoto =
+            order.shipping.carrier === 'Motomensajería' ||
+            (order.shipping.service || '').includes('express_caba') ||
+            (order.shippingMethod || '').toLowerCase().includes('motomensajería');
+
+          if (isMoto) {
+            const orderNumClean = order.orderNumber
+              ? order.orderNumber.replace(/^CQ-/, '')
+              : (order._id?.toString().slice(-6).toUpperCase() || 'EXPRESS');
+            order.shipping.carrier = 'Motomensajería';
+            order.shipping.service = 'express_caba_24h';
+            order.shipping.trackingNumber = `MOTO-CQ-${orderNumClean}`;
+            order.shipping.status = 'PREPARACION';
+          } else {
+            // Destino nacional: llamar a Zipnova
+            const shipmentData = await createShipment(order);
+            if (shipmentData.success) {
+              if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
+              if (shipmentData.service) order.shipping.service = shipmentData.service;
+              if (shipmentData.trackingNumber) {
+                order.trackingNumber = shipmentData.trackingNumber;
+                order.shipping.trackingNumber = shipmentData.trackingNumber;
+              }
+              if (shipmentData.zipnovaShipmentId) {
+                order.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+                order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+              }
+              if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
+              order.zipnovaStatus = 'created';
+              order.zipnovaError = '';
+              order.shipping.zipnovaStatus = 'created';
+              order.shipping.zipnovaError = '';
+              order.shipping.status = 'PREPARACION';
+            } else {
+              order.zipnovaStatus = 'failed';
+              order.zipnovaError = shipmentData.error;
+              order.shipping.zipnovaStatus = 'failed';
+              order.shipping.zipnovaError = shipmentData.error;
+            }
+          }
+        } catch (shipErr) {
+          console.warn('[Auto-Shipment Notice in updateOrderStatus]:', shipErr.message);
+        }
       }
-    }
 
-    await order.save();
+      order.status = newStatusNormalized;
+      if (note) {
+        order.notes = order.notes ? `${order.notes}\n${note}` : note;
+      }
 
-    return res.status(200).json({
-      success: true,
-      message: 'Logística de envío actualizada correctamente.',
-      data: order,
-    });
-  } catch (error) {
-    next(error);
-  }
-};
+      await order.save();
 
-/**
- * @desc    Emitir despacho logístico mediante Shipnova/Zipnova y generar guía y etiqueta
- * @route   POST /api/orders/:id/generate-shipment
- * @access  Privado (Admin) / Público
- */
-export const generateShipment = async (req, res, next) => {
-  try {
-    const targetId = req.params.id || req.params.orderId;
-
-    const order = await Order.findById(targetId);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: `No se encontró la orden con ID: ${targetId}`,
+      return res.status(200).json({
+        success: true,
+        message: `Estado de la orden ${order.orderNumber} actualizado a "${newStatusNormalized}".`,
+        data: order,
+        order,
       });
+    } catch (error) {
+      console.error('[updateOrderStatus Error]:', error);
+      next(error);
     }
+  };
 
-    if (!order.shipping) {
-      order.shipping = {};
+  /**
+   * @desc    Obtener todas las órdenes (Admin)
+   * @route   GET /api/orders
+   * @access  Privado (Admin)
+   */
+  export const getOrders = async (req, res, next) => {
+    try {
+      const { status, paymentMethod } = req.query;
+      const filter = {};
+
+      if (status && status !== 'ALL') {
+        filter.status = status.toLowerCase();
+      }
+
+      if (paymentMethod && paymentMethod !== 'ALL') {
+        const isTransfer = paymentMethod.toLowerCase().includes('transfer');
+        if (isTransfer) {
+          filter.$or = [
+            { 'payment.method': 'transfer' },
+            { paymentMethod: 'TRANSFERENCIA' },
+          ];
+        } else {
+          filter.$or = [
+            { 'payment.method': 'mercadopago' },
+            { paymentMethod: 'MERCADO_PAGO' },
+          ];
+        }
+      }
+
+      const orders = await Order.find(filter).sort({ createdAt: -1 });
+
+      return res.status(200).json({
+        success: true,
+        count: orders.length,
+        data: orders,
+        orders,
+      });
+    } catch (error) {
+      next(error);
     }
+  };
 
-    // 1. Envío local por motomensajería (CABA)
-    if (order.shipping.carrier === 'Motomensajería') {
-      const motoSuffix = order.orderNumber || order._id.toString().slice(-4);
-      order.shipping.trackingNumber = `MOTO-CQ-${motoSuffix}`;
+  /**
+   * @desc    Obtener una orden por ID o orderNumber
+   * @route   GET /api/orders/:orderId
+   * @access  Público / Admin
+   */
+  export const getOrderById = async (req, res, next) => {
+    try {
+      const { orderId } = req.params;
+      let order;
+
+      if (mongoose.Types.ObjectId.isValid(orderId)) {
+        order = await Order.findById(orderId);
+      } else {
+        order = await Order.findOne({ orderNumber: orderId });
+      }
+
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: `No se encontró la orden con ID o código: ${orderId}`,
+        });
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: order,
+        ...order.toObject(),
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * @desc    Actualizar logística y estado de envío de una orden
+   * @route   PATCH /api/orders/:orderId/shipping
+   * @access  Privado (Admin)
+   */
+  export const updateOrderShipping = async (req, res, next) => {
+    try {
+      const { orderId } = req.params;
+      const { carrier, trackingNumber, status, shippingStatus } = req.body;
+
+      const order = await Order.findById(orderId);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: `No se encontró la orden con ID: ${orderId}`,
+        });
+      }
+
+      if (!order.shipping) {
+        order.shipping = {};
+      }
+
+      const effectiveShippingStatus = shippingStatus || status;
+
+      if (carrier !== undefined) order.shipping.carrier = carrier;
+      if (trackingNumber !== undefined) order.shipping.trackingNumber = trackingNumber;
+      if (effectiveShippingStatus !== undefined) order.shipping.status = effectiveShippingStatus;
+
+      if (effectiveShippingStatus) {
+        const norm = String(effectiveShippingStatus).toUpperCase();
+        if (norm === 'ENVIADO' || norm === 'SHIPPED') {
+          order.status = 'shipped';
+          order.shipping.shippedAt = new Date();
+        } else if (norm === 'ENTREGADO' || norm === 'DELIVERED') {
+          order.status = 'delivered';
+        } else if (norm === 'PREPARACION' || norm === 'PROCESSING') {
+          // Si no tiene guía ni etiqueta emitida, gestionar despacho
+          if (!order.shipping.trackingNumber || !order.shipping.labelUrl) {
+            try {
+              const isMoto =
+                order.shipping?.carrier === 'Motomensajería' ||
+                (order.shipping?.service || '').includes('express_caba') ||
+                (order.shippingMethod || '').toLowerCase().includes('motomensajería');
+
+              if (isMoto) {
+                const orderNumClean = order.orderNumber
+                  ? order.orderNumber.replace(/^CQ-/, '')
+                  : (order._id?.toString().slice(-6).toUpperCase() || 'EXPRESS');
+                order.shipping.carrier = 'Motomensajería';
+                order.shipping.service = 'express_caba_24h';
+                order.shipping.trackingNumber = `MOTO-CQ-${orderNumClean}`;
+              } else {
+                const shipmentData = await createShipment(order);
+                if (shipmentData.carrier) order.shipping.carrier = shipmentData.carrier;
+                if (shipmentData.service) order.shipping.service = shipmentData.service;
+                if (shipmentData.trackingNumber) order.shipping.trackingNumber = shipmentData.trackingNumber;
+                if (shipmentData.zipnovaShipmentId) order.shipping.zipnovaShipmentId = shipmentData.zipnovaShipmentId;
+                if (shipmentData.labelUrl) order.shipping.labelUrl = shipmentData.labelUrl;
+              }
+            } catch (shipErr) {
+              console.warn('[Auto-Shipment Notice in updateOrderShipping]:', shipErr.message);
+            }
+          }
+        }
+      } else if (status) {
+        const norm = String(status).toLowerCase();
+        if (norm === 'shipped' || norm === 'delivered' || norm === 'pending') {
+          order.status = norm;
+        }
+      }
+
+      await order.save();
+
+      return res.status(200).json({
+        success: true,
+        message: 'Logística de envío actualizada correctamente.',
+        data: order,
+      });
+    } catch (error) {
+      next(error);
+    }
+  };
+
+  /**
+   * @desc    Emitir despacho logístico mediante Shipnova/Zipnova y generar guía y etiqueta
+   * @route   POST /api/orders/:id/generate-shipment
+   * @access  Privado (Admin) / Público
+   */
+  export const generateShipment = async (req, res, next) => {
+    try {
+      const targetId = req.params.id || req.params.orderId;
+
+      const order = await Order.findById(targetId);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: `No se encontró la orden con ID: ${targetId}`,
+        });
+      }
+
+      if (!order.shipping) {
+        order.shipping = {};
+      }
+
+      // 1. Envío local por motomensajería (CABA)
+      if (order.shipping.carrier === 'Motomensajería') {
+        const motoSuffix = order.orderNumber || order._id.toString().slice(-4);
+        order.shipping.trackingNumber = `MOTO-CQ-${motoSuffix}`;
+        order.shipping.status = 'PREPARACION';
+        order.status = 'preparacion';
+        await order.save();
+
+        return res.status(200).json({
+          success: true,
+          message: 'Envío local por motomensajería generado',
+          order,
+        });
+      }
+
+      // 2. Correo nacional (carrier !== 'Motomensajería')
+      const result = await zipnovaService.createShipment(order);
+      order.shipping.trackingNumber = result.trackingNumber;
+      order.shipping.zipnovaShipmentId = result.shipmentId || result.zipnovaShipmentId;
+      order.shipping.labelUrl = result.labelUrl;
       order.shipping.status = 'PREPARACION';
       order.status = 'preparacion';
       await order.save();
 
       return res.status(200).json({
         success: true,
-        message: 'Envío local por motomensajería generado',
+        message: 'Guía de Shipnova emitida con éxito',
         order,
       });
+    } catch (error) {
+      console.error('[generateShipment Error]:', error);
+      next(error);
     }
+  };
 
-    // 2. Correo nacional (carrier !== 'Motomensajería')
-    const result = await zipnovaService.createShipment(order);
-    order.shipping.trackingNumber = result.trackingNumber;
-    order.shipping.zipnovaShipmentId = result.shipmentId || result.zipnovaShipmentId;
-    order.shipping.labelUrl = result.labelUrl;
-    order.shipping.status = 'PREPARACION';
-    order.status = 'preparacion';
-    await order.save();
+  export const generateOrderShipping = generateShipment;
 
-    return res.status(200).json({
-      success: true,
-      message: 'Guía de Shipnova emitida con éxito',
-      order,
-    });
-  } catch (error) {
-    console.error('[generateShipment Error]:', error);
-    next(error);
-  }
-};
+  /**
+   * @desc    Sincronización / Reintento manual de envío con Zipnova (Admin)
+   * @route   POST /api/orders/:id/sync-zipnova
+   * @access  Privado (Admin)
+   */
+  export const syncOrderZipnova = async (req, res, next) => {
+    try {
+      const targetId = req.params.id || req.params.orderId;
 
-export const generateOrderShipping = generateShipment;
-
-/**
- * @desc    Sincronización / Reintento manual de envío con Zipnova (Admin)
- * @route   POST /api/orders/:id/sync-zipnova
- * @access  Privado (Admin)
- */
-export const syncOrderZipnova = async (req, res, next) => {
-  try {
-    const targetId = req.params.id || req.params.orderId;
-
-    const order = await Order.findById(targetId);
-    if (!order) {
-      return res.status(404).json({
-        success: false,
-        message: `No se encontró la orden con ID: ${targetId}`,
-      });
-    }
-
-    if (!order.shipping) {
-      order.shipping = {};
-    }
-
-    console.log(`[syncOrderZipnova] Ejecutando sincronización manual con Zipnova para orden ${order.orderNumber || order._id}...`);
-    const result = await createShipment(order);
-
-    if (result.success) {
-      order.zipnovaShipmentId = result.zipnovaShipmentId;
-      order.trackingNumber = result.trackingNumber;
-      order.zipnovaStatus = 'created';
-      order.zipnovaError = '';
-
-      order.shipping.zipnovaShipmentId = result.zipnovaShipmentId;
-      order.shipping.trackingNumber = result.trackingNumber;
-      order.shipping.labelUrl = result.labelUrl;
-      order.shipping.carrier = result.carrier || 'Zipnova';
-      order.shipping.service = result.service || 'standard';
-      order.shipping.status = 'PREPARACION';
-      if ((order.status || '').toLowerCase() !== 'paid') {
-        order.status = 'preparacion';
+      const order = await Order.findById(targetId);
+      if (!order) {
+        return res.status(404).json({
+          success: false,
+          message: `No se encontró la orden con ID: ${targetId}`,
+        });
       }
 
-      await order.save();
+      if (!order.shipping) {
+        order.shipping = {};
+      }
 
-      return res.status(200).json({
-        success: true,
-        message: `Envío creado con éxito en Zipnova. Guía: ${result.trackingNumber}`,
-        trackingNumber: result.trackingNumber,
-        zipnovaShipmentId: result.zipnovaShipmentId,
-        labelUrl: result.labelUrl,
-        data: order,
-        order,
-      });
-    } else {
-      order.zipnovaStatus = 'failed';
-      const zipnovaErrorMessage = normalizeZipnovaError(result.error);
-      order.zipnovaError = zipnovaErrorMessage;
-      order.shipping.zipnovaStatus = 'failed';
-      order.shipping.zipnovaError = zipnovaErrorMessage;
-      await order.save();
+      console.log(`[syncOrderZipnova] Ejecutando sincronización manual con Zipnova para orden ${order.orderNumber || order._id}...`);
+      const result = await createShipment(order);
 
-      return res.status(400).json({
-        success: false,
-        message: zipnovaErrorMessage || 'La API de Zipnova rechazó la creación del envío.',
-        error: zipnovaErrorMessage,
-        data: order,
-        order,
-      });
+      if (result.success) {
+        order.zipnovaShipmentId = result.zipnovaShipmentId;
+        order.trackingNumber = result.trackingNumber;
+        order.zipnovaStatus = 'created';
+        order.zipnovaError = '';
+
+        order.shipping.zipnovaShipmentId = result.zipnovaShipmentId;
+        order.shipping.trackingNumber = result.trackingNumber;
+        order.shipping.labelUrl = result.labelUrl;
+        order.shipping.carrier = result.carrier || 'Zipnova';
+        order.shipping.service = result.service || 'standard';
+        order.shipping.status = 'PREPARACION';
+        if ((order.status || '').toLowerCase() !== 'paid') {
+          order.status = 'preparacion';
+        }
+
+        await order.save();
+
+        return res.status(200).json({
+          success: true,
+          message: `Envío creado con éxito en Zipnova. Guía: ${result.trackingNumber}`,
+          trackingNumber: result.trackingNumber,
+          zipnovaShipmentId: result.zipnovaShipmentId,
+          labelUrl: result.labelUrl,
+          data: order,
+          order,
+        });
+      } else {
+        order.zipnovaStatus = 'failed';
+        const zipnovaErrorMessage = normalizeZipnovaError(result.error);
+        order.zipnovaError = zipnovaErrorMessage;
+        order.shipping.zipnovaStatus = 'failed';
+        order.shipping.zipnovaError = zipnovaErrorMessage;
+        await order.save();
+
+        return res.status(400).json({
+          success: false,
+          message: zipnovaErrorMessage || 'La API de Zipnova rechazó la creación del envío.',
+          error: zipnovaErrorMessage,
+          data: order,
+          order,
+        });
+      }
+    } catch (error) {
+      console.error('[syncOrderZipnova Error]:', error);
+      next(error);
     }
-  } catch (error) {
-    console.error('[syncOrderZipnova Error]:', error);
-    next(error);
-  }
-};
+  };
 
 
