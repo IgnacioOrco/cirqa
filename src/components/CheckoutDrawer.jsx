@@ -180,10 +180,9 @@ function detectProvinceFromZip(zipCode) {
 }
 
 const getInputClasses = (hasError) =>
-  `w-full min-h-[46px] py-3 px-3.5 md:py-2.5 rounded-xl border text-base md:text-sm text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${
-    hasError
-      ? 'border-cirqa-carmin ring-1 ring-cirqa-carmin/30'
-      : 'border-cirqa-negro/15 focus:border-cirqa-primario'
+  `w-full min-h-[46px] py-3 px-3.5 md:py-2.5 rounded-xl border text-base md:text-sm text-cirqa-negro bg-[#FBFBFA] focus:bg-white focus:outline-none transition-all ${hasError
+    ? 'border-cirqa-carmin ring-1 ring-cirqa-carmin/30'
+    : 'border-cirqa-negro/15 focus:border-cirqa-primario'
   }`;
 
 export default function CheckoutDrawer() {
@@ -351,7 +350,7 @@ export default function CheckoutDrawer() {
             setAppliedCoupon(null);
           }
         })
-        .catch(() => {});
+        .catch(() => { });
     }
   }, [subtotal, activeItems.length]);
 
@@ -407,19 +406,19 @@ export default function CheckoutDrawer() {
             rawOptions.length > 0
               ? rawOptions
               : [
-                  {
-                    id: 'free_home_standard',
-                    name: 'Envío Gratis a Domicilio (Todo el País)',
-                    description: 'Entrega puerta a puerta certificada en tu domicilio · Sin cargo',
-                    carrier: 'Correo Certificado',
-                    cost: 0,
-                    price: 0,
-                    isFree: true,
-                    freeShipping: true,
-                    estimatedDays: '3 a 5 días hábiles',
-                    type: 'home',
-                  },
-                ]
+                {
+                  id: 'free_home_standard',
+                  name: 'Envío Gratis a Domicilio (Todo el País)',
+                  description: 'Entrega puerta a puerta certificada en tu domicilio · Sin cargo',
+                  carrier: 'Correo Certificado',
+                  cost: 0,
+                  price: 0,
+                  isFree: true,
+                  freeShipping: true,
+                  estimatedDays: '3 a 5 días hábiles',
+                  type: 'home',
+                },
+              ]
           ).map((opt) => {
             const isPickup =
               opt.type === 'pickup' ||
@@ -438,8 +437,8 @@ export default function CheckoutDrawer() {
               description: opt.description
                 ? opt.description
                 : isPickup
-                ? `Sucursal cercana a CP ${cleanZip} · Sin cargo`
-                : 'Entrega puerta a puerta certificada bonificada',
+                  ? `Sucursal cercana a CP ${cleanZip} · Sin cargo`
+                  : 'Entrega puerta a puerta certificada bonificada',
             };
           });
 
@@ -551,7 +550,7 @@ export default function CheckoutDrawer() {
         tempInput.select();
         document.execCommand('copy');
         document.body.removeChild(tempInput);
-      } catch {}
+      } catch { }
     }
     setCopiedField(fieldName);
     setTimeout(() => {
@@ -568,7 +567,7 @@ export default function CheckoutDrawer() {
       targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       try {
         targetEl.focus({ preventScroll: true });
-      } catch {}
+      } catch { }
     }
   };
 
@@ -754,7 +753,7 @@ export default function CheckoutDrawer() {
         // Abrir WhatsApp en nueva pestaña de forma segura (sin romper si el navegador móvil bloquea popups async)
         try {
           window.open(waUrl, '_blank', 'noopener,noreferrer');
-        } catch {}
+        } catch { }
 
         // Desacople completo: cerrar Drawer y abrir OrderReceiptModal independiente
         openReceipt({
@@ -798,7 +797,7 @@ export default function CheckoutDrawer() {
       if (!initPoint) {
         throw new Error(
           response?.message ||
-            'No se recibió el enlace de pago de Mercado Pago. Reintenta en instantes.'
+          'No se recibió el enlace de pago de Mercado Pago. Reintenta en instantes.'
         );
       }
 
@@ -808,7 +807,7 @@ export default function CheckoutDrawer() {
       console.error('[Checkout Error]:', err);
       setSubmissionError(
         err.message ||
-          'Ocurrió un error al procesar tu pedido. Verificá tu conexión e intentá de nuevo.'
+        'Ocurrió un error al procesar tu pedido. Verificá tu conexión e intentá de nuevo.'
       );
       setIsSubmitting(false);
     }
@@ -1046,15 +1045,44 @@ export default function CheckoutDrawer() {
                           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) &&
                           activeItems.length > 0
                         ) {
+                          const serializableItems = activeItems.map((item, idx) => {
+                            const rawProductId =
+                              item.productId || item._id || item.product || item.id || `item-${idx}`;
+                            const productId = String(rawProductId).includes('_')
+                              ? String(rawProductId).split('_')[0]
+                              : String(rawProductId);
+                            const variantKey =
+                              item.variantKey ||
+                              (typeof item.filter === 'object' ? item.filter?.id : '') ||
+                              'standard';
+                            const modelCode = item.modelCode || item.code || 'Q-001';
+
+                            return {
+                              id: item.id || `${productId}_${variantKey}_std`,
+                              productId,
+                              modelCode,
+                              slug: item.slug || String(modelCode).toLowerCase(),
+                              name: item.name || 'Armazón CIRQA',
+                              price: Math.max(0, Number(item.price) || 0),
+                              quantity: Math.max(1, Number(item.quantity) || 1),
+                              variantKey,
+                              variantName: item.variantName || '',
+                              variantSubtitle: item.variantSubtitle || '',
+                              badgeColor: item.badgeColor || '#FFFFFF',
+                              filter: item.filter ?? item.variantName ?? '',
+                              image: item.image || '/products/_DSC8649.webp',
+                            };
+                          });
+
                           abandonedCartService
                             .save({
                               name: formData.name.trim(),
                               email: cleanEmail,
                               phone: formData.phone.trim(),
-                              items: activeItems,
+                              items: serializableItems,
                               subtotal,
                             })
-                            .catch(() => {});
+                            .catch(() => { });
 
                           if (appliedCoupon) {
                             couponService
@@ -1314,19 +1342,17 @@ export default function CheckoutDrawer() {
                             key={opt.id}
                             type="button"
                             onClick={() => setSelectedShippingOption(opt)}
-                            className={`w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${
-                              isSelected
+                            className={`w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${isSelected
                                 ? 'border-cirqa-primario bg-cirqa-primario/5 ring-1 ring-cirqa-primario shadow-2xs'
                                 : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
-                            }`}
+                              }`}
                           >
                             <div className="flex items-start gap-3 min-w-0">
                               <div
-                                className={`w-4 h-4 mt-0.5 rounded-full border flex items-center justify-center flex-shrink-0 ${
-                                  isSelected
+                                className={`w-4 h-4 mt-0.5 rounded-full border flex items-center justify-center flex-shrink-0 ${isSelected
                                     ? 'border-cirqa-primario bg-cirqa-primario'
                                     : 'border-cirqa-negro/30'
-                                }`}
+                                  }`}
                               >
                                 {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
                               </div>
@@ -1402,11 +1428,10 @@ export default function CheckoutDrawer() {
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('mercadopago')}
-                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2.5 ${
-                      paymentMethod === 'mercadopago'
+                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2.5 ${paymentMethod === 'mercadopago'
                         ? 'border-[#009EE3] bg-[#009EE3]/5 ring-1 ring-[#009EE3]'
                         : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
@@ -1416,11 +1441,10 @@ export default function CheckoutDrawer() {
                         <span className="text-xs font-bold text-cirqa-negro">Mercado Pago</span>
                       </div>
                       <div
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                          paymentMethod === 'mercadopago'
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${paymentMethod === 'mercadopago'
                             ? 'border-[#009EE3] bg-[#009EE3]'
                             : 'border-cirqa-negro/30'
-                        }`}
+                          }`}
                       >
                         {paymentMethod === 'mercadopago' && (
                           <Check className="w-2.5 h-2.5 text-white" />
@@ -1447,11 +1471,10 @@ export default function CheckoutDrawer() {
                   <button
                     type="button"
                     onClick={() => setPaymentMethod('transfer')}
-                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2.5 ${
-                      paymentMethod === 'transfer'
+                    className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2.5 ${paymentMethod === 'transfer'
                         ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-600'
                         : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center justify-between w-full">
                       <div className="flex items-center gap-2">
@@ -1461,11 +1484,10 @@ export default function CheckoutDrawer() {
                         <span className="text-xs font-bold text-cirqa-negro">Transferencia</span>
                       </div>
                       <div
-                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${
-                          paymentMethod === 'transfer'
+                        className={`w-4 h-4 rounded-full border flex items-center justify-center ${paymentMethod === 'transfer'
                             ? 'border-emerald-600 bg-emerald-600'
                             : 'border-cirqa-negro/30'
-                        }`}
+                          }`}
                       >
                         {paymentMethod === 'transfer' && (
                           <Check className="w-2.5 h-2.5 text-white" />

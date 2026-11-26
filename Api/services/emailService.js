@@ -477,16 +477,25 @@ export const sendAbandonedCartEmail = async (cart) => {
     const subject = '¿Te quedaste con ganas de tus CIRQA? Tus armazones siguen esperando en tu carrito';
     const items = Array.isArray(cart.items) ? cart.items : [];
     const formatARS = (val) => `$${Number(val || 0).toLocaleString('es-AR')}`;
+    const baseUrl = (process.env.CLIENT_URL || 'https://www.cirqa.com.ar').split(',')[0].trim().replace(/\/$/, '');
+    const recoverUrl = cart.recoveryToken
+      ? `${baseUrl}/?recoverCart=${encodeURIComponent(cart.recoveryToken)}`
+      : baseUrl;
 
     const itemsHtml = items
       .map((item) => {
         const qty = Number(item.quantity || 1);
         const price = Number(item.price || 0);
+        const filterLabel =
+          item.variantName ||
+          (typeof item.filter === 'object' ? item.filter?.name : item.filter) ||
+          item.variantSubtitle ||
+          '';
         return `
           <tr style="border-bottom: 1px solid #f0ede8;">
             <td style="padding: 12px 8px; font-size: 13px; color: #111111;">
               <strong>${item.name || 'Armazón CIRQA'}</strong>
-              ${item.filter ? `<div style="font-size: 12px; color: #666666; margin-top: 2px;">Cristal / Filtro: ${item.filter}</div>` : ''}
+              ${filterLabel ? `<div style="font-size: 12px; color: #666666; margin-top: 2px;">Cristal / Filtro: ${filterLabel}</div>` : ''}
             </td>
             <td style="padding: 12px 8px; font-size: 13px; color: #111111; text-align: center;">${qty}</td>
             <td style="padding: 12px 8px; font-size: 13px; color: #111111; text-align: right; font-family: monospace;">
@@ -534,8 +543,8 @@ export const sendAbandonedCartEmail = async (cart) => {
               </div>
             ` : ''}
             <div style="text-align: center;">
-              <a href="https://www.cirqa.com.ar" target="_blank" style="display: inline-block; background-color: #B73302; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; padding: 14px 32px; border-radius: 999px; text-decoration: none;">
-                Retomar mi compra en CIRQA
+              <a href="${recoverUrl}" target="_blank" style="display: inline-block; background-color: #B73302; color: #ffffff; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.12em; padding: 14px 32px; border-radius: 999px; text-decoration: none;">
+                Recuperar mi carrito en CIRQA
               </a>
             </div>
           </div>

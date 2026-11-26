@@ -15,8 +15,9 @@ const CheckoutModal = lazy(() => import('./components/CheckoutModal'));
 const LeadPopup = lazy(() => import('./components/LeadPopup'));
 
 import PrivateRoute from './components/PrivateRoute';
-import { CartProvider } from './context/CartContext';
+import { CartProvider, useCart } from './context/CartContext';
 import WhatsAppFloatingButton from './components/WhatsAppFloatingButton';
+import { abandonedCartService } from './services/api';
 
 /**
  * MODO PRÓXIMAMENTE / MANTENIMIENTO
@@ -42,6 +43,40 @@ function MetaPixelPageTracker() {
   return null;
 }
 
+function AbandonedCartRecoverer() {
+  const { restoreCart } = useCart();
+  const hasAttemptedRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || hasAttemptedRef.current) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const token = params.get('recoverCart');
+    if (!token) return;
+
+    hasAttemptedRef.current = true;
+
+    abandonedCartService
+      .recover(token)
+      .then((res) => {
+        const recoveredItems = res?.items || res?.data?.items || [];
+        if (Array.isArray(recoveredItems) && recoveredItems.length > 0) {
+          restoreCart(recoveredItems);
+        }
+      })
+      .catch((err) => {
+        console.warn('[AbandonedCartRecoverer] No se pudo recuperar el carrito:', err?.message);
+      })
+      .finally(() => {
+        try {
+          window.history.replaceState({}, '', window.location.pathname);
+        } catch { }
+      });
+  }, [restoreCart]);
+
+  return null;
+}
+
 export default function App() {
   const [isPreview, setIsPreview] = useState(() => {
     if (typeof window === 'undefined') return false;
@@ -49,13 +84,13 @@ export default function App() {
     if (params.get('preview') === 'cirqa') {
       try {
         sessionStorage.setItem('cirqa_preview_mode', 'true');
-      } catch {}
+      } catch { }
       return true;
     }
     if (params.get('preview') === 'exit' || params.get('preview') === 'false') {
       try {
         sessionStorage.removeItem('cirqa_preview_mode');
-      } catch {}
+      } catch { }
       return false;
     }
     try {
@@ -70,7 +105,7 @@ export default function App() {
   const handleExitPreview = () => {
     try {
       sessionStorage.removeItem('cirqa_preview_mode');
-    } catch {}
+    } catch { }
     setIsPreview(false);
     window.location.href = window.location.pathname;
   };
@@ -79,6 +114,7 @@ export default function App() {
     <CartProvider>
       <BrowserRouter>
         <MetaPixelPageTracker />
+        <AbandonedCartRecoverer />
         <Suspense fallback={<div className="min-h-screen bg-white" />}>
           <Routes>
             {/* Rutas de Administración accesibles para administradores */}

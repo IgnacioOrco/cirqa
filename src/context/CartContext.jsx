@@ -119,6 +119,75 @@ export function CartProvider({ children }) {
     } catch {}
   };
 
+  // Restaurar carrito desde un token de recuperación en MongoDB y abrir checkout
+  const restoreCart = (recoveredItems = []) => {
+    if (!Array.isArray(recoveredItems) || recoveredItems.length === 0) return;
+
+    const normalized = recoveredItems.map((item, idx) => {
+      const rawProductId = item.productId || item._id || item.product || item.id || `recovered-${idx}`;
+      const productId = String(rawProductId).includes('_')
+        ? String(rawProductId).split('_')[0]
+        : String(rawProductId);
+      const variantKey =
+        item.variantKey ||
+        (typeof item.filter === 'object' ? item.filter?.id : '') ||
+        'standard';
+      const lineId = item.id || `${productId}_${variantKey}_std`;
+      const resolvedPrice = Math.max(0, Number(item.price) || 0);
+      const safeQty = Math.max(1, Number(item.quantity) || 1);
+      const modelCode = item.modelCode || item.code || 'Q-001';
+
+      return {
+        id: lineId,
+        productId,
+        modelCode,
+        slug: item.slug || String(modelCode).toLowerCase(),
+        name: item.name || 'Armazón CIRQA',
+        price: resolvedPrice,
+        formattedPrice: `$ ${resolvedPrice.toLocaleString('es-AR')}`,
+        quantity: safeQty,
+        variantKey,
+        variantName:
+          item.variantName ||
+          (typeof item.filter === 'object' ? item.filter?.name : item.filter) ||
+          null,
+        variantSubtitle:
+          item.variantSubtitle ||
+          (typeof item.filter === 'object' ? item.filter?.tag : '') ||
+          '',
+        badgeColor:
+          item.badgeColor ||
+          (typeof item.filter === 'object' ? item.filter?.hexCode : '') ||
+          '#FFFFFF',
+        filter:
+          item.filter && typeof item.filter === 'object'
+            ? item.filter
+            : {
+                id: variantKey,
+                name: item.variantName || (typeof item.filter === 'string' && item.filter) || 'Día',
+                tag: item.variantSubtitle || '',
+                hexCode: item.badgeColor || '#F3B93A',
+              },
+        image: item.image || '/products/_DSC8649.webp',
+      };
+    });
+
+    setItems(normalized);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    } catch (e) {
+      console.error('[Cart] Error guardando carrito recuperado:', e);
+    }
+
+    const restoredTotal = normalized.reduce((acc, it) => acc + it.price * it.quantity, 0);
+    setCheckoutTargetItem(null);
+    setIsCheckoutOpen(true);
+    trackInitiateCheckout({
+      value: restoredTotal,
+      currency: 'ARS',
+    });
+  };
+
   // Abrir checkout con el carrito completo o con un producto específico directamente
   const openCheckout = (directItem = null) => {
     if (directItem) {
@@ -171,6 +240,7 @@ export function CartProvider({ children }) {
         removeFromCart,
         updateQuantity,
         clearCart,
+        restoreCart,
         isCheckoutOpen,
         checkoutTargetItem,
         openCheckout,

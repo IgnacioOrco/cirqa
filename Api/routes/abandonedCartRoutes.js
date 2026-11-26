@@ -1,8 +1,12 @@
 import { Router } from 'express';
-import { saveAbandonedCart } from '../controllers/abandonedCartController.js';
+import {
+  saveAbandonedCart,
+  recoverAbandonedCart,
+} from '../controllers/abandonedCartController.js';
 
 const router = Router();
 
 router.post('/', saveAbandonedCart);
+router.get('/recover/:token', recoverAbandonedCart);
 
 export default router;

@@ -641,6 +641,7 @@ export const api = {
    */
   export const abandonedCartService = {
     save: (payload) => api.post('/api/abandoned-carts', payload),
+    recover: (token) => api.get(`/abandoned-carts/recover/${encodeURIComponent(token)}`),
   };
 
   // Adjuntar orderService y couponService al objeto api default para flexibilidad de importación
