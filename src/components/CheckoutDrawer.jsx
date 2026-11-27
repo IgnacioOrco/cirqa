@@ -229,6 +229,7 @@ export default function CheckoutDrawer() {
   const [submissionError, setSubmissionError] = useState(null);
   const scrollContainerRef = useRef(null);
   const formRef = useRef(null);
+  const lastSavedCartSignatureRef = useRef('');
 
   // Bloquear scroll del body cuando el Drawer está abierto en mobile/desktop
   useEffect(() => {
@@ -284,6 +285,76 @@ export default function CheckoutDrawer() {
 
   // 7. Total Final a pagar: (subtotal - totalDiscount) sin cargo de envío
   const total = Math.max(0, subtotal - totalDiscount);
+
+  // Helper centralizado para guardar carrito abandonado con metadatos completos y sin duplicados
+  const persistAbandonedCartIfChanged = (rawEmail) => {
+    const cleanEmail = String(rawEmail || '').trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || activeItems.length === 0) {
+      return;
+    }
+
+    const serializableItems = activeItems.map((item, idx) => {
+      const rawProductId =
+        item.productId || item._id || item.product || item.id || `item-${idx}`;
+      const productId = String(rawProductId).includes('_')
+        ? String(rawProductId).split('_')[0]
+        : String(rawProductId);
+      const variantKey =
+        item.variantKey ||
+        (typeof item.filter === 'object' ? item.filter?.id : '') ||
+        'standard';
+      const modelCode = item.modelCode || item.code || 'Q-001';
+
+      return {
+        id: item.id || `${productId}_${variantKey}_std`,
+        productId,
+        modelCode,
+        slug: item.slug || String(modelCode).toLowerCase(),
+        name: item.name || 'Armazón CIRQA',
+        price: Math.max(0, Number(item.price) || 0),
+        quantity: Math.max(1, Number(item.quantity) || 1),
+        variantKey,
+        variantName: item.variantName || '',
+        variantSubtitle: item.variantSubtitle || '',
+        badgeColor: item.badgeColor || '#FFFFFF',
+        filter: item.filter ?? item.variantName ?? '',
+        image: item.image || '/products/_DSC8649.webp',
+      };
+    });
+
+    const payload = {
+      name: formData.name.trim(),
+      email: cleanEmail,
+      phone: formData.phone.trim(),
+      items: serializableItems,
+      subtotal,
+    };
+
+    const signature = JSON.stringify(payload);
+    if (signature === lastSavedCartSignatureRef.current) {
+      return;
+    }
+
+    lastSavedCartSignatureRef.current = signature;
+    abandonedCartService.save(payload).catch(() => {
+      lastSavedCartSignatureRef.current = '';
+    });
+  };
+
+  // Guardado automático con debounce de 1500ms al ingresar email válido con productos en el carrito
+  useEffect(() => {
+    if (!isCheckoutOpen) return;
+    const cleanEmail = formData.email.trim().toLowerCase();
+    if (!cleanEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || activeItems.length === 0) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      persistAbandonedCartIfChanged(cleanEmail);
+    }, 1500);
+
+    return () => clearTimeout(timer);
+  }, [isCheckoutOpen, formData.email, formData.name, formData.phone, activeItems, subtotal]);
 
   // Función para validar y aplicar cupón
   const handleApplyCoupon = async (e) => {
@@ -1045,44 +1116,7 @@ export default function CheckoutDrawer() {
                           /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) &&
                           activeItems.length > 0
                         ) {
-                          const serializableItems = activeItems.map((item, idx) => {
-                            const rawProductId =
-                              item.productId || item._id || item.product || item.id || `item-${idx}`;
-                            const productId = String(rawProductId).includes('_')
-                              ? String(rawProductId).split('_')[0]
-                              : String(rawProductId);
-                            const variantKey =
-                              item.variantKey ||
-                              (typeof item.filter === 'object' ? item.filter?.id : '') ||
-                              'standard';
-                            const modelCode = item.modelCode || item.code || 'Q-001';
-
-                            return {
-                              id: item.id || `${productId}_${variantKey}_std`,
-                              productId,
-                              modelCode,
-                              slug: item.slug || String(modelCode).toLowerCase(),
-                              name: item.name || 'Armazón CIRQA',
-                              price: Math.max(0, Number(item.price) || 0),
-                              quantity: Math.max(1, Number(item.quantity) || 1),
-                              variantKey,
-                              variantName: item.variantName || '',
-                              variantSubtitle: item.variantSubtitle || '',
-                              badgeColor: item.badgeColor || '#FFFFFF',
-                              filter: item.filter ?? item.variantName ?? '',
-                              image: item.image || '/products/_DSC8649.webp',
-                            };
-                          });
-
-                          abandonedCartService
-                            .save({
-                              name: formData.name.trim(),
-                              email: cleanEmail,
-                              phone: formData.phone.trim(),
-                              items: serializableItems,
-                              subtotal,
-                            })
-                            .catch(() => { });
+                            persistAbandonedCartIfChanged(cleanEmail);
 
                           if (appliedCoupon) {
                             couponService
@@ -1343,15 +1377,15 @@ export default function CheckoutDrawer() {
                             type="button"
                             onClick={() => setSelectedShippingOption(opt)}
                             className={`w-full p-3.5 rounded-2xl border text-left transition-all cursor-pointer flex items-center justify-between gap-3 ${isSelected
-                                ? 'border-cirqa-primario bg-cirqa-primario/5 ring-1 ring-cirqa-primario shadow-2xs'
-                                : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
+                              ? 'border-cirqa-primario bg-cirqa-primario/5 ring-1 ring-cirqa-primario shadow-2xs'
+                              : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
                               }`}
                           >
                             <div className="flex items-start gap-3 min-w-0">
                               <div
                                 className={`w-4 h-4 mt-0.5 rounded-full border flex items-center justify-center flex-shrink-0 ${isSelected
-                                    ? 'border-cirqa-primario bg-cirqa-primario'
-                                    : 'border-cirqa-negro/30'
+                                  ? 'border-cirqa-primario bg-cirqa-primario'
+                                  : 'border-cirqa-negro/30'
                                   }`}
                               >
                                 {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
@@ -1429,8 +1463,8 @@ export default function CheckoutDrawer() {
                     type="button"
                     onClick={() => setPaymentMethod('mercadopago')}
                     className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2.5 ${paymentMethod === 'mercadopago'
-                        ? 'border-[#009EE3] bg-[#009EE3]/5 ring-1 ring-[#009EE3]'
-                        : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
+                      ? 'border-[#009EE3] bg-[#009EE3]/5 ring-1 ring-[#009EE3]'
+                      : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
                       }`}
                   >
                     <div className="flex items-center justify-between w-full">
@@ -1442,8 +1476,8 @@ export default function CheckoutDrawer() {
                       </div>
                       <div
                         className={`w-4 h-4 rounded-full border flex items-center justify-center ${paymentMethod === 'mercadopago'
-                            ? 'border-[#009EE3] bg-[#009EE3]'
-                            : 'border-cirqa-negro/30'
+                          ? 'border-[#009EE3] bg-[#009EE3]'
+                          : 'border-cirqa-negro/30'
                           }`}
                       >
                         {paymentMethod === 'mercadopago' && (
@@ -1472,8 +1506,8 @@ export default function CheckoutDrawer() {
                     type="button"
                     onClick={() => setPaymentMethod('transfer')}
                     className={`p-3.5 rounded-2xl border text-left transition-all cursor-pointer relative flex flex-col justify-between gap-2.5 ${paymentMethod === 'transfer'
-                        ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-600'
-                        : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
+                      ? 'border-emerald-600 bg-emerald-50/60 ring-1 ring-emerald-600'
+                      : 'border-cirqa-negro/15 hover:border-cirqa-negro/30 bg-[#FBFBFA]'
                       }`}
                   >
                     <div className="flex items-center justify-between w-full">
@@ -1485,8 +1519,8 @@ export default function CheckoutDrawer() {
                       </div>
                       <div
                         className={`w-4 h-4 rounded-full border flex items-center justify-center ${paymentMethod === 'transfer'
-                            ? 'border-emerald-600 bg-emerald-600'
-                            : 'border-cirqa-negro/30'
+                          ? 'border-emerald-600 bg-emerald-600'
+                          : 'border-cirqa-negro/30'
                           }`}
                       >
                         {paymentMethod === 'transfer' && (
